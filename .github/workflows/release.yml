@@ -1,0 +1,82 @@
+name: Prepare signed release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (for example 0.5.0)'
+        required: true
+      build:
+        description: 'Build number, greater than every previously published build'
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: new-quill-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-15
+    environment: release
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_BUILD: ${{ inputs.build }}
+      SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+      UPDATE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml
+      SIGNING_IDENTITY: ${{ vars.SIGNING_IDENTITY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release configuration
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: python3 scripts/check-release-config.py
+      - name: Import distribution certificate into temporary keychain
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64, os, pathlib, secrets, subprocess
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          certificate = root / 'new-quill.p12'
+          certificate.write_bytes(base64.b64decode(os.environ['CERTIFICATE'], validate=True))
+          keychain = str(root / 'new-quill.keychain-db')
+          password = secrets.token_urlsafe(32)
+          def run(*args): subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+          run('security', 'create-keychain', '-p', password, keychain)
+          run('security', 'set-keychain-settings', '-lut', '21600', keychain)
+          run('security', 'unlock-keychain', '-p', password, keychain)
+          run('security', 'import', str(certificate), '-P', os.environ['CERTIFICATE_PASSWORD'], '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychain)
+          run('security', 'set-key-partition-list', '-S', 'apple-tool:,apple:', '-k', password, keychain)
+          run('security', 'list-keychains', '-d', 'user', '-s', keychain)
+          run('xcrun', 'notarytool', 'store-credentials', 'new-quill-notary', '--keychain', keychain, '--apple-id', os.environ['APPLE_ID'], '--team-id', os.environ['APPLE_TEAM_ID'], '--password', os.environ['APPLE_APP_PASSWORD'])
+          certificate.unlink()
+          PY
+      - name: Build universal app and test
+        env:
+          UNIVERSAL_BUILD: '1'
+        run: |
+          sh scripts/build-app.sh
+          swift test --disable-sandbox
+      - name: Notarize and sign update archive
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: sh scripts/prepare-release.sh
+      - name: Create draft release for review
+        run: |
+          gh release create "v$RELEASE_VERSION" dist/New-Quill.zip dist/appcast.xml dist/New-Quill.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "New Quill $RELEASE_VERSION" --notes-file docs/release-notes.md
+      - name: Remove temporary signing materials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/new-quill.keychain-db" || true
+          rm -f "$RUNNER_TEMP/new-quill.p12"

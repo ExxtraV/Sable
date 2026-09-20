@@ -1,0 +1,14 @@
+.build/
+.build-preview/
+build/
+.DS_Store
+.build*/
+dist/
+.secrets/
+*.p12
+*.p8
+*.pem
+*.key
+.env
+.env.*
+__pycache__/

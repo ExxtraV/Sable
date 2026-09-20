@@ -1,0 +1,18 @@
+name: Build and check
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app and verify embedded signatures
+        run: sh scripts/build-app.sh
+      - name: Core tests
+        run: swift test --disable-sandbox
+      - name: Verify update signature rejection
+        run: python3 scripts/check-update-signatures.py
