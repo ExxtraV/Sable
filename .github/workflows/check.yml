@@ -16,3 +16,5 @@ jobs:
         run: swift test --disable-sandbox
       - name: Verify update signature rejection
         run: python3 scripts/check-update-signatures.py
+      - name: Check community and notarized release requirements
+        run: python3 scripts/check-release-modes.py

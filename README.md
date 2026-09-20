@@ -42,7 +42,7 @@ macOS checks spelling and basic grammar. Right-click flagged text for available 
 
 ## Build
 
-Requires Apple Swift 6 tools (Xcode or Command Line Tools) and a macOS SDK. Sparkle is the only third-party dependency; SwiftPM downloads its pinned binary framework. Local editing needs no service keys. Public updates require signing and release configuration.
+Requires Apple Swift 6 tools (Xcode or Command Line Tools) and a macOS SDK. Sparkle is the only third-party dependency; SwiftPM downloads its pinned binary framework. Local editing needs no service keys. Community updates require a Sparkle signing key and public release feed; Apple signing is optional.
 
 ```sh
 sh scripts/build-app.sh
@@ -56,7 +56,7 @@ swiftc Sources/QuillCore/Prose.swift scripts/check-prose.swift -o /tmp/quill-pro
 /tmp/quill-prose-checks
 ```
 
-The build script creates a locally ad-hoc-signed app in `build/`. It is for personal use; distribution would require appropriate signing and notarization.
+The build script creates a locally ad-hoc-signed app in `build/`. Community builds can be shared without Apple notarization, with a first-launch approval step on macOS. Optional Developer ID signing and notarization are supported.
 
 ## Scope and next steps
 
@@ -120,4 +120,8 @@ Live 0.4 preview verification: expanded World → Places → Harbor.md without l
 
 ## In-app updates (0.5)
 
-The app now includes Sparkle, a Check for Updates menu item, and automatic-check settings. Updates stay inactive until the HTTPS feed and public signing key are configured. Installation is manual. The GitHub workflow prepares signed, notarized draft releases; pushing code does not release an update. See [the setup and release guide](docs/UPDATES.md). Repository creation, production credentials, and an end-to-end signed update remain required before publishing.
+The app now includes Sparkle, a Check for Updates menu item, and automatic-check settings. The public feed and signing key are configured in UpdateConfig.json; checks require a published release to succeed. Installation is manual. The GitHub workflow prepares Sparkle-signed community draft releases by default, with an optional Apple-notarized mode; pushing code does not release an update. See [the setup and release guide](docs/UPDATES.md). The GitHub signing secret and an end-to-end install/relaunch test are still required before relying on updates.
+
+## License
+
+[MIT](LICENSE). Bundled Sparkle retains its own license notice.

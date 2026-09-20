@@ -1,49 +1,41 @@
 # Publishing New Quill updates
 
-New Quill includes Sparkle 2.10.0. The app menu has **Check for Updates…**; Settings controls automatic checks. Installation is always chosen by the writer. Sparkle uses the normal macOS application termination flow; do not add a force-quit handler that bypasses document saving. Preview builds never start the updater.
+New Quill is MIT licensed at https://github.com/ExxtraV/new-quill. The default **community** release works without paid Apple membership. It is ad-hoc signed, not notarized by Apple. Sparkle separately verifies update downloads with New Quill's Ed25519 signing key.
 
-## One-time setup
+## One-time setup for free-account releases
 
-1. Create a GitHub repository, preferably `ExxtraV/new-quill`, and upload this project directory as the repository root. Include source, scripts, workflows, assets, Info.plist, Package.swift and Package.resolved. Exclude build folders, personal manuscripts and secrets (see `.gitignore`). A public repository is the simplest distribution channel. A private source repository needs a separately accessible release feed; this workflow intentionally refuses private release hosting.
-2. Build once with `sh scripts/build-app.sh` to download the pinned Sparkle tools.
-3. Generate a signing key using `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account new-quill`. The private key stays in your Mac's Keychain. Back it up securely; never commit it. Copy `UpdateConfig.example.json` to `UpdateConfig.json`, replacing OWNER and the public key. Only the public key and feed URL belong in this committed file. Without both, local builds show that updates aren't configured and make no update requests.
-4. Get an Apple Developer ID Application certificate and notarization credentials. These are required by the production release workflow. The current local app is ad-hoc signed and is not a notarized public release.
-5. Create a GitHub Actions environment named `release`. Set its variables and secrets below. For review before publishing, optionally restrict this environment to your main branch and add required reviewers.
+The public feed URL and public signing key are committed in `UpdateConfig.json`. The private key is stored in the Mac Keychain under the Sparkle account `new-quill`; never put it in source control.
 
-Variables:
+In GitHub, open Settings → Secrets and variables → Actions → New repository secret. Name it `SPARKLE_PRIVATE_KEY` and enter the contents of the protected local key export directly into GitHub. Do not paste it into chat or a commit. Keep a secure backup in your password manager or encrypted storage. The `.secrets/` directory is ignored by Git.
 
-| Name | Value |
-| --- | --- |
-| `SPARKLE_PUBLIC_KEY` | Public key printed by generate_keys; must match UpdateConfig.json |
-| `SIGNING_IDENTITY` | Full Developer ID Application certificate name |
-
-Secrets:
-
-| Name | Value |
-| --- | --- |
-| `APPLE_CERTIFICATE_P12_BASE64` | Base64-encoded export of the Developer ID certificate and private key |
-| `APPLE_CERTIFICATE_PASSWORD` | Password protecting that export |
-| `APPLE_ID` | Apple account used for notarization |
-| `APPLE_TEAM_ID` | Developer team ID |
-| `APPLE_APP_PASSWORD` | App-specific password for notarization |
-| `SPARKLE_PRIVATE_KEY` | Contents exported by generate_keys, kept secret |
-
-To transfer the Sparkle key to the GitHub secret, export it to a protected temporary file using `generate_keys --account new-quill -x <private-file>`. Paste its contents directly into GitHub's secret field and delete the temporary export afterward. Do not paste private keys into chat, a workflow file, or a commit.
+No Apple certificate, Apple account password, notarization credentials, or paid membership is needed for community releases. The workflow reads the public key from UpdateConfig.json automatically.
 
 ## Each release
 
-Update `docs/release-notes.md`. Run **Prepare signed release** from GitHub Actions with a version such as `0.5.0` and a positive build number higher than all published versions. Builds determine update ordering; never reuse them.
+Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community**, and supply a version such as `0.5.0` and a positive build number greater than all previously published builds (the current local build is 5).
 
-The workflow builds both Apple Silicon and Intel, signs nested Sparkle helpers and the app, runs tests, submits to Apple notarization, staples the result, and creates a signed update archive and appcast. Missing signing settings stop the workflow before publishing anything. A release with that version must not already exist.
+The workflow builds both Apple Silicon and Intel, runs tests, packages the app, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums. Ordinary code pushes do not publish updates.
 
-It creates a **draft** release with the app archive, update feed, and checksums. Download and inspect the app, then publish the draft and mark it as the latest stable release. The stable appcast URL is `https://github.com/OWNER/new-quill/releases/latest/download/appcast.xml`; each archive URL points to its specific version. Normal code pushes only build and test; they never publish an update.
+Review and test the draft before publishing it. Mark the published release as the latest stable release so the app can reach its feed at:
 
-Do not mark a release without an appcast as latest. Do not move or delete the repository, change the feed address, or rotate signing keys without a migration plan for already-installed copies.
+https://github.com/ExxtraV/new-quill/releases/latest/download/appcast.xml
 
-## Before the first public launch
+Every app download in the feed points to a specific version, not a moving latest-download URL. Never reuse a version or build number or overwrite a published archive.
 
-Install the updater-enabled version manually into Applications. In a separate test environment, publish a newer signed version and verify: manual update detection, download, signature verification, save/cancel with an unsaved manuscript and edited reference, installation, relaunch, and retained document contents. Test canceled and offline checks as well. A full signed installation/relaunch test cannot be completed until the feed and Apple signing credentials are configured.
+## Installing a community build
 
-The app itself is replaced during an update. Markdown files and preferences live outside the bundle and should remain intact. Do not store real writing inside the app bundle.
+Download New-Quill.zip, unzip it, and move Quill.app into Applications. Its displayed app name is New Quill. The app is not notarized, so macOS may block its first launch. If you trust this download, use System Settings → Privacy & Security → Open Anyway. Managed Macs may prohibit this exception. Do not disable Gatekeeper globally.
 
-References: [Sparkle setup](https://sparkle-project.org/documentation/), [publishing updates](https://sparkle-project.org/documentation/publishing/), [Apple distribution](https://developer.apple.com/macos/distribution/).
+A first updater-enabled installation must be installed manually. Later versions can be offered in-app. The repository has to contain a published release with an appcast before Check for Updates can succeed; until then it may report a feed/download error.
+
+## Before relying on updates
+
+Test an older and newer community build: detection, download, signature verification, save/cancel with an unsaved manuscript and an edited reference, installation, relaunch, and unchanged document contents. Test an offline check too. Signature tests and successful packaging do not establish that installation and relaunch work end to end. Keep real writing outside the app bundle.
+
+## Optional paid signing later
+
+Select **notarized** only after configuring the following GitHub environment/repository secrets: APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Add SIGNING_IDENTITY as a variable with the full Developer ID Application certificate name. The existing SPARKLE_PRIVATE_KEY remains required. This mode signs with Developer ID, submits to Apple, staples the ticket, and checks Gatekeeper before packaging.
+
+Keep the same bundle identifier, feed and update-signing key when moving to notarized releases. Do not rotate keys or relocate the feed without a migration plan.
+
+References: [Sparkle setup](https://sparkle-project.org/documentation/), [Apple's first-launch instructions](https://support.apple.com/en-gb/102445).

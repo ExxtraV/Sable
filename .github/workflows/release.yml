@@ -1,7 +1,13 @@
-name: Prepare signed release
+name: Prepare release
 on:
   workflow_dispatch:
     inputs:
+      distribution:
+        description: Apple signing mode (free account needs no Apple credentials)
+        type: choice
+        options: [community, notarized]
+        default: community
+        required: true
       version:
         description: 'Release version (for example 0.5.0)'
         required: true
@@ -20,14 +26,23 @@ jobs:
     permissions:
       contents: write
     env:
+      DISTRIBUTION_MODE: ${{ inputs.distribution }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_BUILD: ${{ inputs.build }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
       UPDATE_FEED_URL: https://github.com/${{ github.repository }}/releases/latest/download/appcast.xml
-      SIGNING_IDENTITY: ${{ vars.SIGNING_IDENTITY }}
+      SIGNING_IDENTITY: ${{ inputs.distribution == 'notarized' && vars.SIGNING_IDENTITY || '-' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+      - name: Read public update configuration
+        run: |
+          python3 - <<'PY'
+          import json, os
+          config = json.load(open("UpdateConfig.json"))
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              output.write("SPARKLE_PUBLIC_KEY=" + config["publicKey"] + "\n")
+          PY
       - name: Validate release configuration
         env:
           CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
@@ -38,6 +53,7 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: python3 scripts/check-release-config.py
       - name: Import distribution certificate into temporary keychain
+        if: inputs.distribution == 'notarized'
         env:
           CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -68,7 +84,7 @@ jobs:
         run: |
           sh scripts/build-app.sh
           swift test --disable-sandbox
-      - name: Notarize and sign update archive
+      - name: Package and sign update archive
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: sh scripts/prepare-release.sh
@@ -76,7 +92,7 @@ jobs:
         run: |
           gh release create "v$RELEASE_VERSION" dist/New-Quill.zip dist/appcast.xml dist/New-Quill.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "New Quill $RELEASE_VERSION" --notes-file docs/release-notes.md
       - name: Remove temporary signing materials
-        if: always()
+        if: always() && inputs.distribution == 'notarized'
         run: |
           security delete-keychain "$RUNNER_TEMP/new-quill.keychain-db" || true
           rm -f "$RUNNER_TEMP/new-quill.p12"

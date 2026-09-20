@@ -10,6 +10,7 @@ for name in ['MacOS', 'Resources', 'Frameworks']:
     (contents / name).mkdir(parents=True, exist_ok=True)
 binary_dir = pathlib.Path(os.environ.get('QUILL_BINARY_DIR', str(scratch / 'release')))
 shutil.copy2(binary_dir / 'Quill', contents / 'MacOS/Quill')
+shutil.copy2(root / 'LICENSE', contents / 'Resources/LICENSE.txt')
 shutil.copy2(root / 'Assets/NewQuill.icns', contents / 'Resources/NewQuill.icns')
 shutil.copy2(scratch / 'artifacts/sparkle/Sparkle/LICENSE', contents / 'Resources/Sparkle-LICENSE.txt')
 frameworks = list((scratch / 'artifacts').glob('**/macos-arm64_x86_64/Sparkle.framework'))

@@ -7,13 +7,21 @@ if [ -e dist/New-Quill.zip ] || [ -e dist/appcast.xml ]; then
     echo 'Use a fresh dist directory for each release.' >&2; exit 1
 fi
 APP="$PWD/build/Quill.app"
-KEYCHAIN="$RUNNER_TEMP/new-quill.keychain-db"
-ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/New-Quill-notary.zip"
-xcrun notarytool submit "$RUNNER_TEMP/New-Quill-notary.zip" --keychain-profile new-quill-notary --keychain "$KEYCHAIN" --wait
-xcrun stapler staple "$APP"
-xcrun stapler validate "$APP"
+case "${DISTRIBUTION_MODE:-community}" in
+    notarized)
+        KEYCHAIN="$RUNNER_TEMP/new-quill.keychain-db"
+        ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/New-Quill-notary.zip"
+        xcrun notarytool submit "$RUNNER_TEMP/New-Quill-notary.zip" --keychain-profile new-quill-notary --keychain "$KEYCHAIN" --wait
+        xcrun stapler staple "$APP"
+        xcrun stapler validate "$APP"
+        spctl --assess --type execute "$APP"
+        ;;
+    community)
+        printf '\nCommunity build: not notarized by Apple. On first launch, macOS may require approval in System Settings → Privacy & Security → Open Anyway. Update downloads are verified with New Quill’s Sparkle signing key.\n' >> docs/release-notes.md
+        ;;
+    *) echo 'Unknown distribution mode.' >&2; exit 1 ;;
+esac
 codesign --verify --deep --strict "$APP"
-spctl --assess --type execute "$APP"
 ditto -c -k --keepParent "$APP" dist/New-Quill.zip
 python3 - <<'PYNOTES'
 import html, pathlib
