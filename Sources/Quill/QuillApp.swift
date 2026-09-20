@@ -92,6 +92,8 @@ struct WritingView: View {
     @State private var reading = false
     @State private var sentenceOptions = false
     @AppStorage("syntaxClasses") private var syntaxClasses = 0
+    @AppStorage("wordColorVersion") private var colorVersion = 0
+    @AppStorage("spellCheckEnabled") private var spellCheckEnabled = true
     @State private var focus = false
     @State private var showStyle = false
     @State private var showHelp = false
@@ -162,6 +164,8 @@ struct WritingView: View {
                     .popover(isPresented: $sentenceOptions) { SentenceOptions() }
                 Toggle(isOn: $review) { Label("Prose suggestions", systemImage: "text.badge.checkmark") }
                     .help("Show possible cuts without changing your manuscript")
+                Toggle(isOn: $spellCheckEnabled) { Label("Spelling & grammar", systemImage: "textformat.abc") }
+                    .help("Turn off spelling and grammar checking — handy for distraction-free first drafts").disabled(reading)
             }
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: choosingFolder ? [.folder] : [.markdownDocument, .plainText], allowsMultipleSelection: !choosingFolder) { result in
@@ -181,7 +185,8 @@ struct WritingView: View {
             ZStack {
                 NativeEditor(text: $document.text, review: review, words: words, fontSize: fontSize,
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
-                             lineSpacing: lineSpacing, focusParagraph: focus, readOnly: reading, syntaxClasses: syntaxClasses)
+                             lineSpacing: lineSpacing, focusParagraph: focus, readOnly: reading, syntaxClasses: syntaxClasses,
+                             colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled)
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
                 if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth) }
             }

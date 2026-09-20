@@ -48,7 +48,8 @@ enum MarkdownReading {
             if let match = trimmed.range(of: "^#{1,6}\\s+", options: .regularExpression) {
                 flush()
                 let level = trimmed[match].filter { $0 == "#" }.count
-                let font = NSFont.systemFont(ofSize: size + Double(max(1, 5 - level)) * 3, weight: .semibold)
+                let headingSize = size + Double(max(1, 5 - level)) * 3
+                let font = NSFontManager.shared.font(withFamily: family, traits: .boldFontMask, weight: 9, size: headingSize) ?? .systemFont(ofSize: headingSize, weight: .semibold)
                 let title = String(trimmed[match.upperBound...]).replacingOccurrences(of: "\\s+#+\\s*$", with: "", options: .regularExpression)
                 append(title, font: font)
             } else if trimmed.hasPrefix(">") {
@@ -74,6 +75,7 @@ struct ReadingView: NSViewRepresentable {
     let spacing: Double
     var width: Double = 680
     var darker = false
+    func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
@@ -82,8 +84,17 @@ struct ReadingView: NSViewRepresentable {
         view.isVerticallyResizable = true; view.autoresizingMask = [.width]
         view.textContainer?.widthTracksTextView = true
         view.textContainer?.containerSize.height = CGFloat.greatestFiniteMagnitude
+        view.delegate = context.coordinator
         scroll.documentView = view
         return scroll
+    }
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            let url = (link as? URL) ?? (link as? String).flatMap(URL.init(string:))
+            guard let url else { return false }
+            NSWorkspace.shared.open(url)
+            return true
+        }
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? ReadingTextView else { return }

@@ -15,6 +15,8 @@ struct NativeEditor: NSViewRepresentable {
     var readOnly: Bool = false
     var darker: Bool = false
     var syntaxClasses: Int = 0
+    var colorVersion: Int = 0
+    var spellCheckEnabled: Bool = true
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
 
@@ -61,8 +63,11 @@ struct NativeEditor: NSViewRepresentable {
         }
         commands.editor = editor
         editor.isEditable = !readOnly
+        editor.isContinuousSpellCheckingEnabled = spellCheckEnabled
+        editor.isGrammarCheckingEnabled = spellCheckEnabled
         editor.saveAction = saveAction
         editor.syntaxClasses = syntaxClasses
+        editor.colorVersion = colorVersion
         editor.bodyFontFamily = fontFamily
         editor.lineSpacingRatio = lineSpacing
         editor.focusParagraph = focusParagraph && !readOnly
@@ -94,6 +99,7 @@ final class WritingTextView: NSTextView {
     var reviewEnabled = true
     var reviewWords = Prose.defaultWords
     var syntaxClasses = 0
+    var colorVersion = 0
     var saveAction: (() -> Void)?
     var bodyFontFamily = "Charter"
     var lineSpacingRatio = 0.28
@@ -107,6 +113,7 @@ final class WritingTextView: NSTextView {
     private var lastStyledFamily = ""
     private var lastStyledSpacing: Double = -1
     private var lastSyntaxClasses = -1
+    private var lastColorVersion = -1
     private var didSetInitialFocus = false
 
     override func viewDidMoveToWindow() {
@@ -155,7 +162,7 @@ final class WritingTextView: NSTextView {
 
     private func styleMarkdown() {
         guard !styling, !hasMarkedText(), let storage = textStorage else { return }
-        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses else { return }
+        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion else { return }
         styling = true
         defer { styling = false }
         let full = NSRange(location: 0, length: storage.length)
@@ -171,7 +178,8 @@ final class WritingTextView: NSTextView {
         for span in spans {
             if case let .heading(level) = span.kind {
                 let size = bodySize + Double(max(0, 4 - level)) * 3
-                storage.addAttribute(.font, value: NSFont.systemFont(ofSize: size, weight: .semibold), range: span.range)
+                let font = NSFontManager.shared.font(withFamily: bodyFontFamily, traits: .boldFontMask, weight: 9, size: size) ?? .systemFont(ofSize: size, weight: .semibold)
+                storage.addAttribute(.font, value: font, range: span.range)
             }
         }
         for span in spans {
@@ -218,10 +226,29 @@ final class WritingTextView: NSTextView {
         lastStyledFamily = bodyFontFamily
         lastStyledSpacing = lineSpacingRatio
         lastSyntaxClasses = syntaxClasses
+        lastColorVersion = colorVersion
     }
 
     static func wordColor(_ kind: WordClass) -> NSColor {
-        switch kind { case .noun: .systemTeal; case .verb: .systemOrange; case .adjective: .systemBlue; case .adverb: .systemPink; case .pronoun: .systemGreen }
+        if let hex = UserDefaults.standard.string(forKey: "wordColor.\(kind.rawValue)"), let custom = NSColor(quillHex: hex) {
+            return custom
+        }
+        return defaultWordColor(kind)
+    }
+    private static func defaultWordColor(_ kind: WordClass) -> NSColor {
+        // Soft, low-saturation defaults so highlighted parts of speech read as gentle tints, not neon.
+        switch kind {
+        case .noun: pastel(light: NSColor(red: 0.20, green: 0.47, blue: 0.49, alpha: 1), dark: NSColor(red: 0.62, green: 0.85, blue: 0.86, alpha: 1))
+        case .verb: pastel(light: NSColor(red: 0.62, green: 0.42, blue: 0.14, alpha: 1), dark: NSColor(red: 0.93, green: 0.78, blue: 0.55, alpha: 1))
+        case .adjective: pastel(light: NSColor(red: 0.24, green: 0.38, blue: 0.62, alpha: 1), dark: NSColor(red: 0.68, green: 0.78, blue: 0.95, alpha: 1))
+        case .adverb: pastel(light: NSColor(red: 0.62, green: 0.30, blue: 0.46, alpha: 1), dark: NSColor(red: 0.93, green: 0.70, blue: 0.83, alpha: 1))
+        case .pronoun: pastel(light: NSColor(red: 0.30, green: 0.50, blue: 0.32, alpha: 1), dark: NSColor(red: 0.72, green: 0.88, blue: 0.73, alpha: 1))
+        }
+    }
+    private static func pastel(light: NSColor, dark: NSColor) -> NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+        }
     }
     @objc func saveDocument(_ sender: Any?) {
         if let saveAction { saveAction() }
@@ -235,7 +262,13 @@ final class WritingTextView: NSTextView {
         layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
         guard focusParagraph else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
-        let faded = NSColor.labelColor.withAlphaComponent(0.25)
+        // withAlphaComponent bakes labelColor into a concrete RGBA using whatever appearance
+        // happens to be current, rather than staying dynamic — resolve it under this view's
+        // own appearance so the fade is correct in both light and dark windows.
+        var faded = NSColor.labelColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            faded = NSColor.labelColor.withAlphaComponent(0.25)
+        }
         if active.location > 0 {
             layoutManager.addTemporaryAttribute(.foregroundColor, value: faded, forCharacterRange: NSRange(location: 0, length: active.location))
         }
@@ -324,6 +357,21 @@ final class WritingTextView: NSTextView {
     @objc func markHeading(_ sender: Any?) {
         let range = (string as NSString).lineRange(for: selectedRange())
         replace(NSRange(location: range.location, length: 0), with: "## ", selection: NSRange(location: range.location + 3, length: 0))
+    }
+}
+
+extension NSColor {
+    convenience init?(quillHex hex: String) {
+        let trimmed = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard trimmed.count == 6 else { return nil }
+        var value: UInt64 = 0
+        guard Scanner(string: trimmed).scanHexInt64(&value) else { return nil }
+        self.init(red: CGFloat((value >> 16) & 0xFF) / 255, green: CGFloat((value >> 8) & 0xFF) / 255,
+                  blue: CGFloat(value & 0xFF) / 255, alpha: 1)
+    }
+    var quillHex: String {
+        let converted = usingColorSpace(.deviceRGB) ?? self
+        return String(format: "#%02X%02X%02X", Int(converted.redComponent * 255), Int(converted.greenComponent * 255), Int(converted.blueComponent * 255))
     }
 }
 
