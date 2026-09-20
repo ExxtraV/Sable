@@ -67,17 +67,37 @@ struct OutlineControls: View {
 
 struct SentenceOptions: View {
     @AppStorage("syntaxClasses") private var enabled = 0
+    @AppStorage("wordColorVersion") private var colorVersion = 0
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sentence structure").font(.headline)
             ForEach(WordClass.allCases, id: \.rawValue) { kind in
-                Toggle(isOn: Binding(get: { enabled & kind.rawValue != 0 }, set: { if $0 { enabled |= kind.rawValue } else { enabled &= ~kind.rawValue } })) {
-                    HStack { Circle().fill(Color(nsColor: WritingTextView.wordColor(kind))).frame(width: 8, height: 8); Text(kind.label) }
+                HStack {
+                    Toggle(isOn: Binding(get: { enabled & kind.rawValue != 0 }, set: { if $0 { enabled |= kind.rawValue } else { enabled &= ~kind.rawValue } })) {
+                        Text(kind.label)
+                    }
+                    Spacer(minLength: 12)
+                    ColorPicker("", selection: colorBinding(for: kind)).labelsHidden()
                 }
             }
-            Button("Clear colors") { enabled = 0 }
-            Text("On-device language predictions, not grammar rules. Invented names and unusual sentences may be misclassified. Colors appear in edit mode and are never saved to your file.")
+            HStack {
+                Button("Clear colors") { enabled = 0 }
+                Button("Reset to default colors") {
+                    for kind in WordClass.allCases { UserDefaults.standard.removeObject(forKey: "wordColor.\(kind.rawValue)") }
+                    colorVersion += 1
+                }
+            }
+            Text("Defaults are soft pastel tints; use the swatches to pick your own. On-device language predictions, not grammar rules. Invented names and unusual sentences may be misclassified. Colors appear in edit mode and are never saved to your file.")
                 .font(.caption).foregroundStyle(.secondary)
-        }.padding(20).frame(width: 310)
+        }.padding(20).frame(width: 340)
+    }
+    private func colorBinding(for kind: WordClass) -> Binding<Color> {
+        Binding(
+            get: { Color(nsColor: WritingTextView.wordColor(kind)) },
+            set: { newValue in
+                UserDefaults.standard.set(NSColor(newValue).quillHex, forKey: "wordColor.\(kind.rawValue)")
+                colorVersion += 1
+            }
+        )
     }
 }
