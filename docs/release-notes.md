@@ -1,4 +1,4 @@
-New Quill 0.6 makes the writing experience calmer and more focused.
+New Quill 0.6.1 refines the writing desk and toolbar and fixes file switching.
 
 - The Writing Desk now browses nested folders. Clicking a Markdown file switches the active document in the same window, with macOS save, discard, and cancel choices when needed.
 - Automatic writing tabs are disabled. Control-click a file to open it beside your draft instead. The parallel pane begins in a clean formatted view and can be edited and saved in place.
