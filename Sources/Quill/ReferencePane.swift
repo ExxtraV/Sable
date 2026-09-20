@@ -1,32 +1,18 @@
 import SwiftUI
-import QuillCore
 
-enum ReferenceReader {
-    static func read(_ item: WorldDocument) throws -> String {
-        let url = try item.resolve()
+enum ParallelReader {
+    static func read(_ url: URL) throws -> String {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        var coordinationError: NSError?
-        var result: Result<String, Error> = .success("")
-        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { coordinatedURL in
-            result = Result {
-                let handle = try FileHandle(forReadingFrom: coordinatedURL)
-                defer { try? handle.close() }
-                let data = try handle.read(upToCount: 200_000) ?? Data()
-                var text = String(decoding: data, as: UTF8.self)
-                if data.count == 200_000 { text += "\n\n[Preview truncated — open to read the complete document.]" }
-                return text
-            }
-        }
-        if let coordinationError { throw coordinationError }
-        return try result.get()
+        return try String(contentsOf: url, encoding: .utf8)
     }
 }
 
-struct ReferencePane: View {
-    let item: WorldDocument
-    let openToEdit: () -> Void
+struct ParallelMarkdownPane: View {
+    let url: URL
+    let closeRequest: UUID?
     let close: () -> Void
+    let didClose: () -> Void
     var hostWindow: NSWindow? = nil
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
@@ -35,79 +21,114 @@ struct ReferencePane: View {
     @State private var error: String?
     @State private var loading = true
     @State private var reload = UUID()
-    @State private var document: ReferenceDocument?
+    @State private var document: ParallelDocument?
     @State private var editing = false
+    @State private var closing = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(item.name).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                    Text(editing ? "REFERENCE · EDITING" : "REFERENCE · READING").font(.system(size: 9, weight: .medium)).tracking(1).foregroundStyle(.secondary)
+                    Text(url.deletingPathExtension().lastPathComponent).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(editing ? "PARALLEL · EDITING" : "PARALLEL · READING")
+                        .font(.system(size: 9, weight: .medium)).tracking(1).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(editing ? "Read" : "Edit") {
-                    if editing { document?.saveReference(); editing = false }
-                    else {
-                        do { document = try ReferenceDocument.open(item, host: hostWindow); editing = true }
-                        catch { self.error = error.localizedDescription }
-                    }
-                }.disabled(loading)
+                    if editing { document?.saveParallel(); editing = false }
+                    else { openForEditing() }
+                }
+                .disabled(loading)
                 Button { reload = UUID() } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(document != nil).help("Reload saved reference").accessibilityLabel("Reload reference")
-                Button { document?.saveReference(); close() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close reference")
-            }.buttonStyle(.plain).padding(16)
+                    .disabled(document != nil).help("Reload saved file").accessibilityLabel("Reload parallel document")
+                Button(action: requestClose) { Image(systemName: "xmark") }
+                    .accessibilityLabel("Close parallel document")
+            }
+            .buttonStyle(.plain)
+            .padding(16)
             Divider()
+
             if let document {
-                ReferenceDocumentContent(document: document, editing: editing)
-            } else if loading { ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity) }
-            else { ReadingView(text: text, family: family, size: size, spacing: spacing, width: 540, darker: true) }
+                ParallelDocumentContent(document: document, editing: editing)
+            } else if loading {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ReadingView(text: text, family: family, size: size, spacing: spacing, width: 540)
+            }
+
             if let error {
                 HStack { Text(error).font(.caption).foregroundStyle(.orange); Button("Dismiss") { self.error = nil } }.padding(12)
             }
-            if document == nil {
-                Divider()
-                HStack {
-                    Text("Saved version").font(.caption2).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Open in tab", action: openToEdit).font(.caption)
-                }.padding(12)
-            }
         }
-        .background(Color(white: 0.075))
-        .environment(\.colorScheme, .dark)
         .frame(minWidth: 360, idealWidth: 440, maxWidth: 640)
         .task(id: reload) {
-            if let url = try? item.resolve(), let existing = NSDocumentController.shared.document(for: url) as? ReferenceDocument {
-                document = existing; existing.hostWindow = hostWindow; loading = false; return
-            }
-            loading = true; error = nil
-            let result = await Task.detached(priority: .userInitiated) { Result { try ReferenceReader.read(item) } }.value
+            loading = true
+            error = nil
+            let result = await Task.detached(priority: .userInitiated) { Result { try ParallelReader.read(url) } }.value
             guard !Task.isCancelled else { return }
             loading = false
-            switch result { case let .success(value): text = value; case let .failure(failure): error = failure.localizedDescription }
+            switch result {
+            case let .success(value): text = value
+            case let .failure(failure): error = failure.localizedDescription
+            }
         }
-        .onDisappear { if document?.isDocumentEdited == true { document?.saveReference() } }
+        .onChange(of: closeRequest) { _, request in
+            if request != nil { requestClose() }
+        }
+        .onDisappear {
+            guard closing else { return }
+            document?.close()
+            didClose()
+        }
+    }
+
+    private func openForEditing() {
+        do {
+            document = try ParallelDocument.open(url: url, host: hostWindow)
+            editing = true
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func requestClose() {
+        guard !closing else { return }
+        guard let document, document.isDocumentEdited else {
+            closing = true
+            close()
+            return
+        }
+        closing = true
+        document.saveParallel { saveError in
+            guard saveError == nil else {
+                closing = false
+                error = saveError?.localizedDescription
+                return
+            }
+            close()
+        }
     }
 }
 
-private struct ReferenceDocumentContent: View {
-    @ObservedObject var document: ReferenceDocument
+private struct ParallelDocumentContent: View {
+    @ObservedObject var document: ParallelDocument
     let editing: Bool
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
     @AppStorage("lineSpacing") private var spacing = 0.28
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                ReferenceEditingSurface(document: document, active: editing).opacity(editing ? 1 : 0).allowsHitTesting(editing).accessibilityHidden(!editing)
-                if !editing { ReadingView(text: document.text, family: family, size: size, spacing: spacing, width: 540, darker: true) }
+                ParallelEditingSurface(document: document, active: editing)
+                    .opacity(editing ? 1 : 0)
+                    .allowsHitTesting(editing)
+                    .accessibilityHidden(!editing)
+                if !editing { ReadingView(text: document.text, family: family, size: size, spacing: spacing, width: 540) }
             }
             Divider()
             HStack {
-                Text(document.isDocumentEdited ? "Edited · autosave enabled" : "Saved").font(.caption2).foregroundStyle(.secondary)
+                Text(document.isDocumentEdited ? "Edited" : "Saved").font(.caption2).foregroundStyle(.secondary)
                 Spacer()
-                Button("Save") { document.saveReference() }.font(.caption)
+                Button("Save") { document.saveParallel() }.font(.caption)
             }.padding(12)
             if let error = document.saveError { Text(error).font(.caption).foregroundStyle(.orange).padding(12) }
         }

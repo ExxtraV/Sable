@@ -1,94 +1,102 @@
 import AppKit
 import SwiftUI
 
+/// A second Markdown file lives beside the active draft, never in another tab.
 @MainActor
-final class ReferenceDocument: NSDocument, ObservableObject {
+final class ParallelDocument: NSDocument, ObservableObject {
     @Published var text = ""
     @Published var saveError: String?
     weak var hostWindow: NSWindow?
     private var scopedURL: URL?
-    override nonisolated class var autosavesInPlace: Bool { true }
-    override var windowForSheet: NSWindow? { windowControllers.first?.window ?? hostWindow }
 
-    static func open(_ item: WorldDocument, host: NSWindow?) throws -> ReferenceDocument {
-        return try open(url: item.resolve(), host: host)
-    }
-    static func open(url: URL, host: NSWindow?) throws -> ReferenceDocument {
+    override nonisolated class var autosavesInPlace: Bool { true }
+    override var windowForSheet: NSWindow? { hostWindow }
+
+    static func open(url: URL, host: NSWindow?) throws -> ParallelDocument {
         if let existing = NSDocumentController.shared.document(for: url) {
-            guard let reference = existing as? ReferenceDocument else {
-                throw NSError(domain: "NewQuill", code: 1, userInfo: [NSLocalizedDescriptionKey: "This file is already open in a writing tab. Close that tab before editing it as a reference so there is only one editable version."])
+            guard let parallel = existing as? ParallelDocument else {
+                throw NSError(domain: "NewQuill", code: 1, userInfo: [NSLocalizedDescriptionKey: "This file is already the active document. Choose another file to open beside it."])
             }
-            reference.hostWindow = host
-            return reference
+            parallel.hostWindow = host
+            return parallel
         }
+
         let scoped = url.startAccessingSecurityScopedResource()
         do {
-            let document = try ReferenceDocument(contentsOf: url, ofType: "net.daringfireball.markdown")
+            let document = try ParallelDocument(contentsOf: url, ofType: "net.daringfireball.markdown")
             if scoped { document.scopedURL = url }
             document.hostWindow = host
             NSDocumentController.shared.addDocument(document)
             return document
-        } catch { if scoped { url.stopAccessingSecurityScopedResource() }; throw error }
+        } catch {
+            if scoped { url.stopAccessingSecurityScopedResource() }
+            throw error
+        }
     }
+
     override func read(from data: Data, ofType typeName: String) throws {
-        guard let content = String(data: data, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
         if Thread.isMainThread { MainActor.assumeIsolated { text = content } }
         else { DispatchQueue.main.sync { self.text = content } }
     }
+
     override func data(ofType typeName: String) throws -> Data { Data(text.utf8) }
+
     func edit(_ value: String) {
         guard value != text else { return }
         text = value
         updateChangeCount(.changeDone)
     }
-    func saveReference() {
-        guard let url = fileURL else { return }
+
+    func saveParallel(completion: @escaping (Error?) -> Void = { _ in }) {
+        guard let url = fileURL else {
+            let error = CocoaError(.fileNoSuchFile)
+            saveError = error.localizedDescription
+            completion(error)
+            return
+        }
         save(to: url, ofType: fileType ?? "net.daringfireball.markdown", for: .saveOperation) { [weak self] error in
             self?.saveError = error?.localizedDescription
             self?.objectWillChange.send()
+            completion(error)
         }
     }
+
     override func close() {
         scopedURL?.stopAccessingSecurityScopedResource()
         scopedURL = nil
         super.close()
     }
-    override func makeWindowControllers() {
-        guard windowControllers.isEmpty else { return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 680), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        window.contentView = NSHostingView(rootView: ReferenceStandalone(document: self))
-        addWindowController(NSWindowController(window: window))
-    }
 }
 
-struct ReferenceEditingSurface: View {
-    @ObservedObject var document: ReferenceDocument
+struct ParallelEditingSurface: View {
+    @ObservedObject var document: ParallelDocument
     var active = true
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
     @AppStorage("lineSpacing") private var spacing = 0.28
     @AppStorage("syntaxClasses") private var syntaxClasses = 0
     @StateObject private var commands = EditorCommands()
+
     var body: some View {
-        NativeEditor(text: Binding(get: { document.text }, set: { document.edit($0) }), review: false, words: "", fontSize: size,
-            pageWidth: 540, commands: commands, fontFamily: family, lineSpacing: spacing, readOnly: !active,
-            darker: true, syntaxClasses: syntaxClasses, documentUndoManager: document.undoManager, saveAction: { document.saveReference() })
-            .onChange(of: active) { _, value in
-                if value { commands.editor?.window?.makeFirstResponder(commands.editor) }
-            }
-    }
-}
-private struct ReferenceStandalone: View {
-    @ObservedObject var document: ReferenceDocument
-    var body: some View {
-        VStack(spacing: 0) {
-            ReferenceEditingSurface(document: document)
-            HStack {
-                Text(document.isDocumentEdited ? "Edited" : "Saved").foregroundStyle(.secondary)
-                Spacer()
-                Button("Save") { document.saveReference() }
-            }.padding(14)
-            if let error = document.saveError { Text(error).foregroundStyle(.red).padding() }
-        }.preferredColorScheme(.dark)
+        NativeEditor(
+            text: Binding(get: { document.text }, set: { document.edit($0) }),
+            review: false,
+            words: "",
+            fontSize: size,
+            pageWidth: 540,
+            commands: commands,
+            fontFamily: family,
+            lineSpacing: spacing,
+            readOnly: !active,
+            syntaxClasses: syntaxClasses,
+            documentUndoManager: document.undoManager,
+            saveAction: { document.saveParallel() }
+        )
+        .onChange(of: active) { _, value in
+            if value { commands.editor?.window?.makeFirstResponder(commands.editor) }
+        }
     }
 }

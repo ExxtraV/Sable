@@ -142,9 +142,8 @@ struct FolderBrowserSection: View {
     let currentURL: URL?
     let search: String
     let chooseFolder: () -> Void
-    let openFile: (URL) -> Void
-    let pinFile: (URL) -> Void
-    let showBeside: (URL) -> Void
+    let switchFile: (URL) -> Void
+    let showParallel: (URL) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -169,7 +168,7 @@ struct FolderBrowserSection: View {
                 ForEach(browser.visibleEntries.filter { search.isEmpty || $0.entry.name.localizedCaseInsensitiveContains(search) }) { row in
                     let entry = row.entry
                     Button {
-                        if entry.isDirectory { browser.toggle(entry.url) } else { openFile(entry.url) }
+                        if entry.isDirectory { browser.toggle(entry.url) } else { switchFile(entry.url) }
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: entry.isDirectory ? (browser.expanded.contains(entry.url) ? "chevron.down" : "chevron.right") : "doc.text").foregroundStyle(.secondary)
@@ -182,9 +181,8 @@ struct FolderBrowserSection: View {
                     .contextMenu {
                         if entry.isDirectory { Button("Open this folder") { browser.navigate(entry.url) } }
                         else {
-                            Button("Open to write") { openFile(entry.url) }
-                            Button("Read beside manuscript") { showBeside(entry.url) }
-                            Button("Pin as world document") { pinFile(entry.url) }
+                            Button("Switch to this file") { switchFile(entry.url) }
+                            Button("Open beside current document") { showParallel(entry.url) }
                         }
                     }
                 }
@@ -194,7 +192,7 @@ struct FolderBrowserSection: View {
                 }
             } else {
                 Button("Choose Writing Folder…", action: chooseFolder).font(.caption)
-                Text("Browse Markdown files and subfolders. Open files stay available as tabs.").font(.caption).foregroundStyle(.secondary)
+                Text("Browse Markdown files and subfolders. Click a file to switch to it.").font(.caption).foregroundStyle(.secondary)
             }
             if let error = browser.error { Text(error).font(.caption).foregroundStyle(.secondary) }
         }

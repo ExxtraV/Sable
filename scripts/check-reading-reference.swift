@@ -24,12 +24,12 @@ import QuillCore
         defer { try? FileManager.default.removeItem(at: root) }
         let url = root.appendingPathComponent("Reference.md")
         try Data("# Original\n".utf8).write(to: url)
-        let document = try ReferenceDocument.open(url: url, host: nil)
+        let document = try ParallelDocument.open(url: url, host: nil)
         precondition(document.text == "# Original\n")
         document.edit("# Updated\n\n**Bold** is still Markdown.\n")
         precondition(document.isDocumentEdited)
         precondition(NSDocumentController.shared.document(for: url) === document)
-        let reused = try ReferenceDocument.open(url: url, host: nil)
+        let reused = try ParallelDocument.open(url: url, host: nil)
         precondition(reused === document)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             document.save(to: url, ofType: "net.daringfireball.markdown", for: .saveOperation) { error in
@@ -40,6 +40,6 @@ import QuillCore
         precondition(saved == document.text)
         precondition(!document.isDocumentEdited)
         document.close()
-        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked reference edits/reuse and exact native save.")
+        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked parallel edits/reuse and exact native save.")
     }
 }

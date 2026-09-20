@@ -8,15 +8,15 @@ Open `build/Quill.app` after building. Use File → New or File → Open. Choose
 
 The writing surface now displays bold, italic, combined emphasis, headings, links, quotes, lists, inline code, fenced code, and strikethrough. Markdown markers remain visible in a subdued color. Fonts and visual attributes never become part of the saved text. Supported web/mail links have native link attributes.
 
-Text is centered in a 680-point column by default, including in a maximized window. Settings lets you change the width and text size. The sidebar button (⌃⌘S) toggles the writing desk. Its outline options let you choose Chapters, Episodes, Scenes, Outline, or any custom label and filter to one heading level. Labels and filters are shared across documents and do not rename your actual headings.
+Text is centered in a 680-point column by default, including in a maximized window. Settings lets you change the width and text size. A two-finger horizontal swipe or the sidebar button (⌃⌘S) toggles the writing desk. Its outline options let you choose Chapters, Episodes, Scenes, Outline, or any custom label and filter to one heading level. Labels and filters are shared across documents and do not rename your actual headings.
 
-The Files section's menu → Choose Writing Folder opens a persistent folder browser for Markdown and text files. Click folders to expand or collapse nested contents inline. The folder context menu can open a folder as the browsing root; use the up arrow to return, and click a file to open or select its native document tab. Each tab retains its document, undo history, and unsaved edits; switching never replaces a draft's contents. The menu also refreshes the listing or returns to the root folder. Search filters loaded, visible file rows, outline, and pinned-note names. Folder listings refresh manually; recursive full-text search is not implemented. Hidden files, symlinks, and packages are excluded.
+The Files section's menu → Choose Writing Folder opens a persistent folder browser for Markdown and text files. Click folders to expand or collapse nested contents inline. Use the up arrow to return, and click a file to switch the active document. New Quill asks macOS to save, discard, or cancel when the active document has unsaved edits, then opens the selected file in the same writing window. Automatic window tabs are disabled. The menu also refreshes the listing or returns to the root folder. Search filters loaded, visible file rows and outline headings. Folder listings refresh manually; recursive full-text search is not implemented. Hidden files, symlinks, and packages are excluded.
 
-The writing desk also keeps pinned world documents. Use + or drop `.md`, `.markdown`, or `.txt` files onto the sidebar. Pinned files are remembered between launches; unpinning does not delete the original. Selecting a note shows a bounded, read-only preview, with Reload and Open to edit controls. Use the search field to filter chapter and note names. The split-view button in a note preview opens a full-height, resizable reference pane beside the manuscript. The darker pane starts in a clean formatted reading view. Edit enables in-place Markdown editing beside your manuscript; Read returns to the formatted view. Save or ⌘S while editing saves the reference; returning to Read or closing the pane also requests a save. Native document handling tracks unsaved reference edits. A file already open in a writing tab must be closed there before editing as a reference, avoiding two competing editable copies. File rows also offer Read beside manuscript and Pin as world document in their context menu. An unavailable or moved note can be unpinned and added again. Previews do not update live; reload after external edits.
+Any Markdown file in the writing folder can be opened beside the active document from its context menu. The split pane begins in a clean formatted reading view. Edit enables in-place Markdown editing beside the draft; Read returns to the formatted view. The secondary document saves separately and closes with the split pane. It is general-purpose for now; fiction-specific world-document pinning is deferred to the Fiction Projects milestone.
 
-The Aa toolbar button opens font and style controls: five presets (Everyday / Georgia, Literary / Charter, Classic / Baskerville, Science fiction / Menlo, Manuscript / Courier New), a custom installed-font choice, size, page width, line spacing, and Dark / Light / Follow system appearance. Dark is the default. Styles are shared across documents; Markdown itself is unchanged. Some installed fonts do not include bold or italic faces, so available styles depend on the font.
+Move the pointer to the top edge to reveal the quiet toolbar. Its Aa button opens font and style controls: five presets (Everyday / Georgia, Literary / Charter, Classic / Baskerville, Science fiction / Menlo, Manuscript / Courier New), a custom installed-font choice, size, page width, line spacing, and five themes. Styles are shared across documents; Markdown itself is unchanged. Some installed fonts do not include bold or italic faces, so available styles depend on the font.
 
-Paragraph focus (target icon, ⇧⌘F) dims text outside the paragraph containing the cursor. It follows clicking, keyboard navigation, and typing. Paragraphs are separated by blank lines; soft line breaks stay in the same paragraph. Focus is per document window and never dims the reference pane or modifies text.
+Paragraph focus (target icon, ⇧⌘F) dims text outside the paragraph containing the cursor. It follows clicking, keyboard navigation, and typing. Paragraphs are separated by blank lines; soft line breaks stay in the same paragraph. Focus is per writing window and never modifies text.
 
 A session goal shows net words added since the document window opened. Set the goal in Settings, or set it to 0 to hide it. This is a per-window session count, not a daily history or a cross-device statistic.
 
@@ -60,7 +60,7 @@ The build script creates a locally ad-hoc-signed app in `build/`. Community buil
 
 ## Scope and next steps
 
-Validation: release build, prose checks, Markdown checks, folder-listing checks, and native editor checks pass. Native checks include focus tracking/clearing, font changes, source preservation, margins, Unicode, and formatting exits. Live UI verification in an isolated preview app confirmed custom outline naming and level filtering, folder-to-tab opening, switching back with edits and undo preserved, a styled side-by-side reference, paragraph dimming, font selection, and saving an existing document. The saved file was compared to the expected plain Markdown. System Save/Open confirmation buttons have appeared disabled during automated tests, so creating a new file through Save As and choosing a folder through the system picker still need direct-use verification. Cross-device iCloud syncing remains untested.
+Validation covers release builds, prose checks, Markdown checks, folder-listing checks, and native-editor checks. Native checks include focus tracking/clearing, font changes, source preservation, margins, Unicode, and formatting exits. The focused workflow also exercises first-run folder setup, saving and canceling a first save, sentence-color settings, and the parallel reading surface. Cross-device iCloud syncing remains untested.
 
 This is a first Mac prototype, not a finished cross-platform release. Prose review uses an editable list, not semantic judgment: a flagged word is not necessarily needless. The lightweight matcher excludes common fenced code, inline code, YAML front matter, URLs and inline link destinations; it is not a complete Markdown parser. The source highlighter is also a lightweight grammar, not a full CommonMark renderer; complex nesting, tables, images, and footnotes do not have a rich rendered view. Source mode retains Markdown markers; the Play button (⇧⌘R) switches to a formatted reading view. This reading view supports headings, emphasis, links, lists, quotes, and code, but is not a full CommonMark renderer. Word count is whitespace-based. Large-manuscript performance is not yet benchmarked.
 
@@ -73,13 +73,13 @@ For an iPad edition, reuse `QuillCore` and the document model, add a UIKit text 
 - `Sources/QuillCore/Prose.swift`: prose matching and default word list.
 - `Sources/QuillCore/FocusParagraph.swift`: Markdown paragraph boundaries for focus mode.
 - `Sources/Quill/FolderBrowser.swift`: folder access, file filtering, navigation, and file menu.
-- `Sources/Quill/ReferencePane.swift`: reference reading and editing split pane.
-- `Sources/Quill/ReferenceDocument.swift`: tracked reference documents and saving.
+- `Sources/Quill/ReferencePane.swift`: general parallel Markdown reading and editing pane.
+- `Sources/Quill/ReferenceDocument.swift`: tracked parallel document saving.
 - `Sources/Quill/ReadingView.swift`: native formatted reading view.
 - `Sources/QuillCore/SentenceStructure.swift`: local parts-of-speech tagging.
 - `Sources/Quill/WritingStyle.swift`: font, style, and outline controls.
 - `Sources/QuillCore/MarkdownSyntax.swift`: source highlighting spans, chapter outline, and formatting exit logic.
-- `Sources/Quill/WorldSidebar.swift`: pinned references and note previews.
+- `Sources/Quill/WorldSidebar.swift`: writing desk with file browser and outline.
 - `Sources/Quill/NativeEditor.swift`: visual overlays, text behavior, context menu, and shortcuts.
 - `Sources/Quill/QuillApp.swift`: document handling, settings, and interface.
 - `Tests/QuillCoreTests`: Unicode and Markdown-protection checks.
@@ -93,7 +93,7 @@ After building, the standalone Markdown and native editor checks can run without
 ```sh
 swiftc Sources/QuillCore/MarkdownSyntax.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
 /tmp/quill-markdown-checks
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
+swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
 /tmp/quill-editor-checks
 ```
 
@@ -110,13 +110,13 @@ swiftc Sources/Quill/FolderBrowser.swift scripts/check-folder.swift -o /tmp/quil
 
 ## New in 0.4
 
-Optional sentence coloring highlights nouns, verbs, adjectives, adverbs, and pronouns using macOS Natural Language locally. These are estimates, particularly for invented names, and are shown in source mode only. Color selections never alter your text. The toolbar now uses neutral colors and the reference pane stays dark. PDF and ebook export are deferred.
+Optional sentence coloring highlights nouns, verbs, adjectives, adverbs, and pronouns using macOS Natural Language locally. These are estimates, particularly for invented names, and are shown in source mode only. Color selections never alter your text. The toolbar stays hidden until the pointer reaches the top edge. PDF and ebook export are deferred.
 
-Standalone checks additionally verified clean reading, bold rendering, list rendering, icon decoding, parts-of-speech/code exclusions, reference document reuse, and exact native reference saves. Native document checks require access to macOS document services outside a restricted shell sandbox.
+Standalone checks additionally verified clean reading, bold rendering, list rendering, icon decoding, parts-of-speech/code exclusions, parallel document reuse, and exact native parallel saves. Native document checks require access to macOS document services outside a restricted shell sandbox.
 
 The generated logo and its prompt are in `Assets/LOGO.md`; the icon is packaged with the app.
 
-Live 0.4 preview verification: expanded World → Places → Harbor.md without leaving the root; opened Northwatch beside an empty manuscript; edited its copied fixture and saved with ⌘S; switched reference and manuscript to formatted reading. The saved reference contained the exact Markdown edit. Existing user documents were left untouched.
+The app keeps ordinary Markdown files and has no custom cloud database. Fiction-specific project templates and export stay on the roadmap.
 
 ## In-app updates (0.5)
 
@@ -125,3 +125,15 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 ## License
 
 [MIT](LICENSE). Bundled Sparkle retains its own license notice.
+
+## Minimalist editor update (in development)
+
+- First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
+- Setup can include an editable **New Quill Guide.md**. Open it again from Help; existing guide edits are never overwritten.
+- Writing Style includes Graphite, Midnight, Forest, Parchment, and Paper themes.
+- Zoom with Command-Plus/Minus, reset with Command-0, or pinch the trackpad. Pinch zoom can be disabled in Writing Style.
+- Move the pointer to the top edge to reveal the toolbar. Reading mode, focus, sidebar, styling, and sentence colors remain available from the View menu.
+- The footer shows save state. Explicit saves through the editor show completion time; cancellation never reports success. “Saved” refers to the local file, not a cloud-sync confirmation.
+- The sentence-color crash is addressed by preventing AppKit's shared color panel from modifying the plain-text manuscript and ignoring text-change notifications with unchanged content.
+
+See [the roadmap](docs/ROADMAP.md) for Fiction Projects and export plans.

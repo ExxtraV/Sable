@@ -69,6 +69,8 @@ enum MarkdownReading {
 }
 
 struct ReadingView: NSViewRepresentable {
+    @AppStorage("writingTheme") private var themeName = "graphite"
+    @AppStorage("editorZoom") private var zoom = 1.0
     let text: String
     let family: String
     let size: Double
@@ -77,7 +79,7 @@ struct ReadingView: NSViewRepresentable {
     var darker = false
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
+        let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
         let view = ReadingTextView(frame: scroll.contentView.bounds)
         view.isEditable = false; view.isSelectable = true
@@ -98,13 +100,18 @@ struct ReadingView: NSViewRepresentable {
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? ReadingTextView else { return }
-        view.columnWidth = width
+        view.columnWidth = width * zoom
         view.updateMargins()
         view.appearance = darker ? NSAppearance(named: .darkAqua) : nil
-        view.backgroundColor = darker ? NSColor(white: 0.075, alpha: 1) : .textBackgroundColor
-        let key = "\(family)|\(size)|\(spacing)|\(text)"
+        let theme = WritingTheme.named(darker ? "midnight" : themeName)
+        view.backgroundColor = theme.background
+        let key = "\(family)|\(size)|\(spacing)|\(zoom)|\(theme.id)|\(text)"
         if view.renderKey != key {
-            view.textStorage?.setAttributedString(MarkdownReading.render(text, family: family, size: size, spacing: spacing))
+            let rendered = NSMutableAttributedString(attributedString: MarkdownReading.render(text, family: family, size: size * zoom, spacing: spacing))
+            rendered.enumerateAttribute(.foregroundColor, in: NSRange(location: 0, length: rendered.length)) { value, range, _ in
+                if (value as? NSColor) == NSColor.labelColor { rendered.addAttribute(.foregroundColor, value: theme.foreground, range: range) }
+            }
+            view.textStorage?.setAttributedString(rendered)
             view.renderKey = key
         }
     }

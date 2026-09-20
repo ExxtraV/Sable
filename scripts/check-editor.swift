@@ -53,6 +53,15 @@ import QuillCore
         editor.focusParagraph = false
         editor.updateFocus()
         precondition(layout.temporaryAttribute(.foregroundColor, atCharacterIndex: 1, effectiveRange: nil) == nil)
+        // Regression: the shared color panel must never mutate plain Markdown or
+        // issue text-change notifications while SwiftUI lays out its color wells.
+        let beforeColor = editor.attributedString()
+        let selectionBeforeColor = editor.selectedRange()
+        editor.changeColor(nil)
+        precondition(editor.attributedString().isEqual(to: beforeColor))
+        precondition(editor.selectedRange() == selectionBeforeColor)
+        precondition(NSColor(white: 0.5, alpha: 1).quillHex == "#7F7F7F")
+        precondition(NSColor(srgbRed: 1.2, green: -0.1, blue: 0.5, alpha: 1).quillHex == "#FF007F")
         let unchanged = editor.string
         editor.bodyFontFamily = "Helvetica"
         editor.lineSpacingRatio = 0.5
@@ -60,6 +69,13 @@ import QuillCore
         let chosenFont = editor.textStorage!.attribute(.font, at: 1, effectiveRange: nil) as! NSFont
         precondition(chosenFont.familyName == "Helvetica")
         precondition(editor.string == unchanged)
+        editor.themeName = "parchment"
+        editor.decorate()
+        precondition((editor.textStorage!.attribute(.foregroundColor, at: 1, effectiveRange: nil) as? NSColor) == WritingTheme.named("parchment").foreground)
+        precondition(editor.string == unchanged)
+        editor.bodySize = 30
+        editor.decorate()
+        precondition(editor.string == unchanged, "Zoom must not change saved Markdown")
         precondition(FocusParagraph.range(in: "One\nsoft\n\nTwo", caret: 5) == NSRange(location: 0, length: 9))
         precondition(FocusParagraph.range(in: "One\n\n", caret: 5) == NSRange(location: 5, length: 0))
         precondition(FocusParagraph.range(in: "", caret: 0) == NSRange(location: 0, length: 0))

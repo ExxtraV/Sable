@@ -12,6 +12,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build app and verify embedded signatures
         run: sh scripts/build-app.sh
+      - name: Native editor regression checks
+        run: |
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-editor-checks
+          /tmp/quill-editor-checks
+      - name: Parallel document regression checks
+        run: |
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/ReadingView.swift Sources/Quill/ReferenceDocument.swift Sources/Quill/ReferencePane.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-reading-reference.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-parallel-checks
+          /tmp/quill-parallel-checks
       - name: Core tests
         run: swift test --disable-sandbox
       - name: Verify update signature rejection

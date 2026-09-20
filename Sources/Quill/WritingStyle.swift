@@ -8,6 +8,8 @@ struct WritingStyleControls: View {
     @AppStorage("pageWidth") private var width = 680.0
     @AppStorage("lineSpacing") private var spacing = 0.28
     @AppStorage("appearance") private var appearance = "dark"
+    @AppStorage("writingTheme") private var theme = "graphite"
+    @AppStorage("pinchToZoom") private var pinch = true
     @AppStorage("customFont") private var customFont = false
     private let presets = [("Everyday", "Georgia"), ("Literary", "Charter"), ("Classic", "Baskerville"), ("Science fiction", "Menlo"), ("Manuscript", "Courier New")]
     private let families = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
@@ -31,14 +33,15 @@ struct WritingStyleControls: View {
             Slider(value: $size, in: 14...30, step: 1) { Text("Size: \(Int(size))") }
             Slider(value: $width, in: 480...880, step: 20) { Text("Page width: \(Int(width))") }
             Slider(value: $spacing, in: 0.1...0.65, step: 0.05) { Text("Line spacing") }
-            Picker("Appearance", selection: $appearance) {
-                Text("Dark").tag("dark")
-                Text("Light").tag("light")
-                Text("Follow system").tag("system")
+            Picker("Theme", selection: $theme) {
+                ForEach(WritingTheme.all) { item in Text(item.name).tag(item.id) }
             }
+            Toggle("Pinch to zoom", isOn: $pinch)
+            Text("Zoom: ⌘+ / ⌘− · Reset: ⌘0 · Move the pointer to the top edge for controls.")
+                .font(.caption).foregroundStyle(.secondary)
             Text("The story begins with a door.")
                 .font(.custom(family, size: size)).padding(.vertical, 8)
-            Button("Reset writing style") { family = "Charter"; customFont = false; size = 19; width = 680; spacing = 0.28; appearance = "dark" }
+            Button("Reset writing style") { family = "Charter"; customFont = false; size = 19; width = 680; spacing = 0.28; appearance = "dark"; theme = "graphite"; WritingZoom.set(1) }
         }
     }
 }
@@ -66,6 +69,7 @@ struct OutlineControls: View {
 }
 
 struct SentenceOptions: View {
+    @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("syntaxClasses") private var enabled = 0
     @AppStorage("wordColorVersion") private var colorVersion = 0
     var body: some View {
@@ -77,7 +81,7 @@ struct SentenceOptions: View {
                         Text(kind.label)
                     }
                     Spacer(minLength: 12)
-                    ColorPicker("", selection: colorBinding(for: kind)).labelsHidden()
+                    ColorPicker(kind.label + " color", selection: colorBinding(for: kind), supportsOpacity: false).labelsHidden()
                 }
             }
             HStack {
@@ -93,7 +97,14 @@ struct SentenceOptions: View {
     }
     private func colorBinding(for kind: WordClass) -> Binding<Color> {
         Binding(
-            get: { Color(nsColor: WritingTextView.wordColor(kind)) },
+            get: {
+                var resolved = NSColor.gray
+                let appearance = NSAppearance(named: WritingTheme.named(themeName).dark ? .darkAqua : .aqua)!
+                appearance.performAsCurrentDrawingAppearance {
+                    resolved = WritingTextView.wordColor(kind).usingColorSpace(.sRGB) ?? .gray
+                }
+                return Color(nsColor: resolved)
+            },
             set: { newValue in
                 UserDefaults.standard.set(NSColor(newValue).quillHex, forKey: "wordColor.\(kind.rawValue)")
                 colorVersion += 1

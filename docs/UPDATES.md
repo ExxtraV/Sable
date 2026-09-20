@@ -12,7 +12,7 @@ No Apple certificate, Apple account password, notarization credentials, or paid 
 
 ## Each release
 
-Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community**, and supply a version such as `0.5.0` and a positive build number greater than all previously published builds (the current local build is 5).
+Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community**, and supply a version such as `0.6.0` and a positive build number greater than all previously published builds (the current local build is 7).
 
 The workflow builds both Apple Silicon and Intel, runs tests, packages the app, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums. Ordinary code pushes do not publish updates.
 

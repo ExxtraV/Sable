@@ -3,6 +3,8 @@ import SwiftUI
 import QuillCore
 
 struct NativeEditor: NSViewRepresentable {
+    @AppStorage("writingTheme") private var themeName = "graphite"
+    @AppStorage("editorZoom") private var zoom = 1.0
     @Binding var text: String
     var review: Bool
     var words: String
@@ -19,13 +21,15 @@ struct NativeEditor: NSViewRepresentable {
     var spellCheckEnabled: Bool = true
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
+    var sidebarGesture: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 760, height: 600))
+        let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 760, height: 600))
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
         scroll.findBarPosition = .aboveContent
+        scroll.sidebarGesture = sidebarGesture
         let editor = WritingTextView(frame: scroll.contentView.bounds)
         editor.isRichText = false
         editor.allowsUndo = true
@@ -66,16 +70,19 @@ struct NativeEditor: NSViewRepresentable {
         editor.isContinuousSpellCheckingEnabled = spellCheckEnabled
         editor.isGrammarCheckingEnabled = spellCheckEnabled
         editor.saveAction = saveAction
+        (scroll as? WritingScrollView)?.sidebarGesture = sidebarGesture
         editor.syntaxClasses = syntaxClasses
         editor.colorVersion = colorVersion
         editor.bodyFontFamily = fontFamily
         editor.lineSpacingRatio = lineSpacing
         editor.focusParagraph = focusParagraph && !readOnly
-        editor.bodySize = fontSize
-        editor.pageWidth = pageWidth
+        editor.bodySize = fontSize * zoom
+        editor.themeName = darker ? "midnight" : themeName
+        editor.pageWidth = pageWidth * zoom
         editor.updatePageMargins()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
-        editor.backgroundColor = darker ? NSColor(white: 0.075, alpha: 1) : .textBackgroundColor
+        editor.backgroundColor = WritingTheme.named(editor.themeName).background
+        editor.insertionPointColor = WritingTheme.named(editor.themeName).foreground
         editor.reviewEnabled = review
         editor.reviewWords = words
         editor.decorate()
@@ -89,6 +96,7 @@ struct NativeEditor: NSViewRepresentable {
         }
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? WritingTextView else { return }
+            guard parent.text != editor.string else { return }
             parent.text = editor.string
             editor.decorate()
         }
@@ -101,6 +109,8 @@ final class WritingTextView: NSTextView {
     var syntaxClasses = 0
     var colorVersion = 0
     var saveAction: (() -> Void)?
+    var themeName = "graphite"
+    private var lastThemeName = ""
     var bodyFontFamily = "Charter"
     var lineSpacingRatio = 0.28
     var focusParagraph = false
@@ -140,6 +150,10 @@ final class WritingTextView: NSTextView {
         if textContainerInset != inset { textContainerInset = inset }
     }
 
+    // A color well can send changeColor through the first-responder chain.
+    // Markdown colors are display preferences, never rich-text document mutations.
+    override func changeColor(_ sender: Any?) {}
+
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         if (event.keyCode == 48 || event.keyCode == 53), modifiers.isEmpty, leaveFormatting() { return }
@@ -162,7 +176,7 @@ final class WritingTextView: NSTextView {
 
     private func styleMarkdown() {
         guard !styling, !hasMarkedText(), let storage = textStorage else { return }
-        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion else { return }
+        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName else { return }
         styling = true
         defer { styling = false }
         let full = NSRange(location: 0, length: storage.length)
@@ -170,7 +184,7 @@ final class WritingTextView: NSTextView {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = bodySize * lineSpacingRatio
         paragraph.paragraphSpacing = bodySize * 0.25
-        let attributes: [NSAttributedString.Key: Any] = [.font: base, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph]
+        let attributes: [NSAttributedString.Key: Any] = [.font: base, .foregroundColor: WritingTheme.named(themeName).foreground, .paragraphStyle: paragraph]
         storage.beginEditing()
         storage.setAttributes(attributes, range: full)
         let spans = MarkdownSyntax.spans(in: string)
@@ -227,6 +241,7 @@ final class WritingTextView: NSTextView {
         lastStyledSpacing = lineSpacingRatio
         lastSyntaxClasses = syntaxClasses
         lastColorVersion = colorVersion
+        lastThemeName = themeName
     }
 
     static func wordColor(_ kind: WordClass) -> NSColor {
@@ -267,7 +282,7 @@ final class WritingTextView: NSTextView {
         // own appearance so the fade is correct in both light and dark windows.
         var faded = NSColor.labelColor
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            faded = NSColor.labelColor.withAlphaComponent(0.25)
+            faded = WritingTheme.named(themeName).foreground.withAlphaComponent(0.25)
         }
         if active.location > 0 {
             layoutManager.addTemporaryAttribute(.foregroundColor, value: faded, forCharacterRange: NSRange(location: 0, length: active.location))
@@ -370,8 +385,8 @@ extension NSColor {
                   blue: CGFloat(value & 0xFF) / 255, alpha: 1)
     }
     var quillHex: String {
-        let converted = usingColorSpace(.deviceRGB) ?? self
-        return String(format: "#%02X%02X%02X", Int(converted.redComponent * 255), Int(converted.greenComponent * 255), Int(converted.blueComponent * 255))
+        guard let converted = usingColorSpace(.sRGB) else { return "#808080" }
+        return String(format: "#%02X%02X%02X", Int(min(1, max(0, converted.redComponent)) * 255), Int(min(1, max(0, converted.greenComponent)) * 255), Int(min(1, max(0, converted.blueComponent)) * 255))
     }
 }
 
@@ -385,27 +400,9 @@ final class EditorCommands: ObservableObject {
         editor.scrollRangeToVisible(range)
         editor.showFindIndicator(for: range)
     }
-    func openInTab(_ url: URL, completion: @escaping (Error?) -> Void) {
-        let sourceWindow = editor?.window
-        let scoped = url.startAccessingSecurityScopedResource()
-        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { document, _, error in
-            if scoped { url.stopAccessingSecurityScopedResource() }
-            if let target = document?.windowControllers.first?.window {
-                if let sourceWindow, target !== sourceWindow, !(sourceWindow.tabbedWindows ?? []).contains(target) {
-                    sourceWindow.addTabbedWindow(target, ordered: .above)
-                }
-                target.makeKeyAndOrderFront(nil)
-                @MainActor func writingEditor(in view: NSView) -> WritingTextView? {
-                    if let editor = view as? WritingTextView, editor.isEditable { return editor }
-                    for child in view.subviews { if let editor = writingEditor(in: child) { return editor } }
-                    return nil
-                }
-                if let content = target.contentView, let editor = writingEditor(in: content) {
-                    target.makeFirstResponder(editor)
-                }
-            }
-            completion(error)
-        }
+    func switchTo(_ url: URL, completion: @escaping (Error?) -> Void) {
+        let source = editor?.window?.windowController?.document as? NSDocument
+        SingleDocumentCoordinator.shared.switchDocument(from: source, to: url, completion: completion)
     }
     func format(_ action: Selector) {
         guard let editor else { return }
