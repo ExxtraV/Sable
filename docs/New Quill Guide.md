@@ -6,7 +6,18 @@ Your words live in ordinary Markdown files. They are plain text, so you can open
 
 Choose a writing folder during setup. We recommend iCloud Drive, Dropbox, or OneDrive for access across devices. Your cloud service handles synchronization; let it finish before editing the same file on another device.
 
-The writing desk lets you browse nested folders. Click a file to switch to it; New Quill asks you to save or discard unsaved changes before it changes documents. Choose another folder from its Files menu at any time. New documents can be saved anywhere with Command-S. The status at the bottom confirms when a save completes; this does not confirm cloud synchronization.
+The writing desk has two tabs: **Files** and your **Outline**. Click a file to open it in the same window (full screen stays on); New Quill asks you to save or discard unsaved changes first.
+
+- **Create:** the **+** button makes a new file or folder. Control-click a folder to create inside it.
+- **Rearrange:** drag files and folders onto folders to nest them. Drop on the path above the list to move things back up.
+- **Rename and trash:** Control-click for Rename and Move to Trash, with an Undo shortcut just after trashing.
+- **Colors and pins:** give any file or folder a color or pin it to the top. Name your colors (Draft, Revised…) in the list options. Chips above the list filter by color or pin.
+- **Focus:** Control-click a folder and choose Focus on This Folder to see only that folder. The path above the list takes you back out.
+- **Search:** the search box looks through every folder beneath the one you're viewing, not only the ones that are open.
+- **Keyboard:** arrow keys move through the list, → and ← open and close folders, Return opens, ⇧Return renames, ⌘Delete moves to the Trash.
+- **Make it yours:** the sliders button sets sorting, icons, file extensions, last-modified dates, word counts and compact rows. Drag the desk's right edge to resize it.
+
+Choose another folder from the ⋯ menu at any time.
 
 ## A little Markdown
 
@@ -42,7 +53,7 @@ Pinch the trackpad to zoom. You can turn this off in Writing Style. A two-finger
 
 ## A quiet writing space
 
-Try Graphite, Midnight, Forest, Parchment, or Paper in Writing Style. Pick one of five writing fonts or choose your own. The toolbar stays hidden until you move the pointer to the top edge; the writing desk can be shown or hidden with its shortcut or a two-finger horizontal swipe.
+Try Graphite, Midnight, Forest, Parchment, or Paper in Writing Style. Pick one of five writing fonts or choose your own. The toolbar slides in when you move the pointer near its edge and never shifts your page. Put it on the top, left or right, keep it visible, or turn it off entirely with ⌥⌘T; the writing desk can be shown or hidden with its shortcut or a two-finger horizontal swipe.
 
 Paragraph Focus dims surrounding paragraphs. Reading Mode hides Markdown marks. Prose suggestions cross out possible cuts only on screen. Sentence Structure colors nouns, verbs, and other word classes on your Mac; invented names can be misclassified. None of these display features changes your saved text.
 
