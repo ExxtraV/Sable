@@ -6,4 +6,10 @@ New Quill 0.6 makes the writing experience calmer and more focused.
 - Five themes, fiction-oriented font presets, custom fonts, zoom, optional pinch-to-zoom, paragraph focus, and a top-edge toolbar make the page easier to shape around your work.
 - The writing desk can be shown with a two-finger horizontal trackpad gesture. The sentence-structure color picker no longer changes or crashes the Markdown editor.
 
+- Fixes: switching files no longer closes and reopens the window or leaves full screen. The top toolbar and the writing desk now slide in and out smoothly.
+- The writing desk is calmer: Files and Outline are separate tabs, extensions are hidden by default, and the list can be sorted, resized, and tuned (icons, dates, word counts, compact rows).
+- Folders can be colored, given your own color labels, pinned, filtered, focused, searched (across every subfolder), dragged into each other, renamed, and moved to the Trash with undo. Arrow keys work in the list.
+- The toolbar can sit on the top, left, or right; auto-hide, always show, or turn off (⌥⌘T).
+- Settings can regenerate the New Quill guide. The app no longer opens a file picker at launch; it reopens your last document.
+
 This remains a Mac prototype. iCloud conflict behavior, large-manuscript performance, Fiction Projects, PDF export, and ebook export are still ahead.

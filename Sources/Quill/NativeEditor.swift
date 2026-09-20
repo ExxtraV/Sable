@@ -393,6 +393,9 @@ extension NSColor {
 @MainActor
 final class EditorCommands: ObservableObject {
     weak var editor: WritingTextView?
+    /// Replaces the open document's text in place; set by the view that owns the document binding.
+    var loadText: ((String, URL) -> Void)?
+    init() { SingleDocumentCoordinator.shared.register(self) }
     func jump(to range: NSRange) {
         guard let editor, NSMaxRange(range) <= (editor.string as NSString).length else { return }
         editor.window?.makeFirstResponder(editor)

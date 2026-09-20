@@ -29,15 +29,16 @@ struct QuillApp: App {
     @NSApplicationDelegateAdaptor(QuillAppDelegate.self) private var appDelegate
     @StateObject private var updater = AppUpdater()
     @StateObject private var browser = FolderBrowser()
-    #if QUILL_PREVIEW
     init() {
+        LaunchBehavior.register()
+        #if QUILL_PREVIEW
         let previewBrowser = FolderBrowser()
         if let folder = Bundle.main.resourceURL?.appendingPathComponent("Examples") {
             try? previewBrowser.choose(folder)
         }
         _browser = StateObject(wrappedValue: previewBrowser)
+        #endif
     }
-    #endif
     var body: some Scene {
         DocumentGroup(newDocument: MarkdownDocument()) { file in
             WritingView(document: file.$document, fileURL: file.fileURL)
@@ -72,7 +73,7 @@ struct QuillApp: App {
         }
         Window("Sentence Structure", id: "sentence-options") { SentenceOptions() }
             .windowResizability(.contentSize)
-        Settings { PreferencesView(updater: updater) }
+        Settings { PreferencesView(updater: updater).environmentObject(browser) }
     }
     private func send(_ selector: Selector) {
         NSApp.sendAction(selector, to: nil, from: nil)
@@ -91,6 +92,13 @@ struct WritingView: View {
     @AppStorage("pageWidth") private var pageWidth = 680.0
     @AppStorage("sessionGoal") private var sessionGoal = 500
     @AppStorage("showWritingDesk") private var sidebar = true
+    @AppStorage("toolbarEdge") private var toolbarEdgeName = ToolbarEdge.top.rawValue
+    @AppStorage("toolbarAutoHide") private var toolbarAutoHide = true
+    @AppStorage("toolbarEnabled") private var toolbarEnabled = true
+    @AppStorage("sidebarWidth") private var sidebarWidth = 270.0
+    @State private var sidebarDragStart: Double?
+    @State private var resizeCursorActive = false
+    @State private var showToolbarOptions = false
     @StateObject private var commands = EditorCommands()
     @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("editorZoom") private var zoom = 1.0
@@ -113,27 +121,26 @@ struct WritingView: View {
     @State private var pendingParallelURL: URL?
     @State private var closeParallelRequest: UUID?
     @State private var startingWords: Int?
+    @State private var bankedWords = 0
+    @State private var activeURL: URL?
     @State private var errorMessage: String?
 
     private var count: Int { Prose.wordCount(document.text) }
-    private var sessionWords: Int { max(0, count - (startingWords ?? count)) }
+    private var sessionWords: Int { bankedWords + max(0, count - (startingWords ?? count)) }
     private var colorScheme: ColorScheme? { WritingTheme.named(themeName).dark ? .dark : .light }
 
     var body: some View {
         workspace
-            .frame(minWidth: (sidebar ? 710 : 560) + (parallelURL == nil ? 0 : 370), minHeight: 520)
+            .frame(minWidth: (sidebar ? sidebarWidth + 440 : 560) + (parallelURL == nil ? 0 : 370), minHeight: 520)
             .preferredColorScheme(colorScheme)
             .tint(.gray)
-            .toolbarBackground(Color(nsColor: .windowBackgroundColor), for: .windowToolbar)
-            .toolbarBackground(.visible, for: .windowToolbar)
             .onAppear(perform: prepareWorkspace)
             .sheet(isPresented: $needsSetup) { folderSetup }
             .sheet(isPresented: $showStyle) { writingStyleSheet }
             .focusedSceneValue(\.writingActions, writingActions)
-            .background(ToolbarHoverTracker())
+            .background(WindowConfigurator())
             .onChange(of: document.text) { _, _ in saveFeedback.message = ""; edited = true }
             .onReceive(savePoll) { _ in updateSaveState() }
-            .toolbar { toolbarItems }
             .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
             .alert("Could not open selection", isPresented: errorPresented) {
                 Button("OK") { errorMessage = nil }
@@ -142,15 +149,37 @@ struct WritingView: View {
 
     private var workspace: some View {
         HStack(spacing: 0) {
-            if sidebar {
-                writingDesk.frame(width: 270)
+            HStack(spacing: 0) {
+                writingDesk.frame(width: sidebarWidth).overlay(alignment: .trailing) { sidebarResizeHandle }
                 Divider()
             }
+            .offset(x: sidebar ? 0 : -(sidebarWidth + 1))
+            .frame(width: sidebar ? sidebarWidth + 1 : 0, alignment: .leading)
+            .clipped()
+            .allowsHitTesting(sidebar)
+            .accessibilityHidden(!sidebar)
             HSplitView {
                 editorPanel.frame(minWidth: 420)
                 parallelPane
             }
         }
+        .animation(.smooth(duration: 0.3), value: sidebar)
+    }
+
+    /// A thin strip on the desk's edge; drag it to make the desk wider or narrower.
+    private var sidebarResizeHandle: some View {
+        Color.clear.frame(width: 8).contentShape(Rectangle())
+            .onHover { inside in
+                if inside && !resizeCursorActive { NSCursor.resizeLeftRight.push(); resizeCursorActive = true }
+                else if !inside && resizeCursorActive { NSCursor.pop(); resizeCursorActive = false }
+            }
+            .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { drag in
+                    let start = sidebarDragStart ?? sidebarWidth
+                    sidebarDragStart = start
+                    sidebarWidth = min(420, max(220, start + drag.translation.width))
+                }
+                .onEnded { _ in sidebarDragStart = nil })
     }
 
     private var writingDesk: some View {
@@ -158,9 +187,10 @@ struct WritingView: View {
             text: document.text,
             commands: commands,
             chooseFolder: { choosingFolder = true },
-            currentURL: fileURL,
+            currentURL: activeURL ?? fileURL,
             switchFile: switchPrimaryDocument,
-            showParallel: showParallelDocument
+            showParallel: showParallelDocument,
+            parallelURL: parallelURL
         )
     }
 
@@ -200,35 +230,51 @@ struct WritingView: View {
         )
     }
 
-    @ToolbarContentBuilder
-    private var toolbarItems: some ToolbarContent {
-            ToolbarItem(placement: .navigation) {
-                Button { sidebar.toggle() } label: { Label("Writing desk", systemImage: "sidebar.left") }
-                    .help("Show or hide the writing desk (⌃⌘S)")
-            }
-            ToolbarItemGroup {
-                Button { reading.toggle() } label: { Image(systemName: reading ? "pencil" : "play") }
-                    .help(reading ? "Return to editing" : "Reading mode — hide Markdown marks")
-                    .accessibilityLabel(reading ? "Edit manuscript" : "Reading mode")
-                Button { commands.format(#selector(WritingTextView.markBold(_:))) } label: { Image(systemName: "bold") }
-                    .help("Bold (⌘B)").accessibilityLabel("Bold").disabled(reading)
-                Button { commands.format(#selector(WritingTextView.markItalic(_:))) } label: { Image(systemName: "italic") }
-                    .help("Italic (⌘I)").accessibilityLabel("Italic").disabled(reading)
-                Button { commands.format(#selector(WritingTextView.markLink(_:))) } label: { Image(systemName: "link") }
-                    .help("Link (⌘K)").accessibilityLabel("Link").disabled(reading)
-                Button { showStyle.toggle() } label: { Image(systemName: "textformat") }
-                    .help("Fonts and writing style").accessibilityLabel("Writing style")
+    private var toolbarEdge: ToolbarEdge { ToolbarEdge(rawValue: toolbarEdgeName) ?? .top }
 
-                Toggle(isOn: $focus) { Label("Paragraph focus", systemImage: "scope") }
-                    .help("Dim everything outside the current paragraph (⇧⌘F)").disabled(reading)
-                Button { openWindow(id: "sentence-options") } label: { Image(systemName: "text.magnifyingglass") }
-                    .help("Color parts of speech").accessibilityLabel("Sentence structure")
-
-                Toggle(isOn: $review) { Label("Prose suggestions", systemImage: "text.badge.checkmark") }
-                    .help("Show possible cuts without changing your manuscript")
-                Toggle(isOn: $spellCheckEnabled) { Label("Spelling & grammar", systemImage: "textformat.abc") }
-                    .help("Turn off spelling and grammar checking — handy for distraction-free first drafts").disabled(reading)
+    private var hoverToolbar: some View {
+        let edge = toolbarEdge
+        return HoverToolbar(edge: edge, enabled: toolbarEnabled, autoHide: toolbarAutoHide, keepOpen: showToolbarOptions) {
+            AnyLayout(edge.vertical ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 4))) {
+                BarButton(icon: "sidebar.left", label: "Writing desk", help: "Show or hide the writing desk (⌃⌘S)", active: sidebar) { sidebar.toggle() }
+                barDivider
+                BarButton(icon: reading ? "pencil" : "play", label: reading ? "Edit manuscript" : "Reading mode",
+                          help: reading ? "Return to editing" : "Reading mode — hide Markdown marks") { reading.toggle() }
+                BarButton(icon: "bold", label: "Bold", help: "Bold (⌘B)") { commands.format(#selector(WritingTextView.markBold(_:))) }.disabled(reading)
+                BarButton(icon: "italic", label: "Italic", help: "Italic (⌘I)") { commands.format(#selector(WritingTextView.markItalic(_:))) }.disabled(reading)
+                BarButton(icon: "link", label: "Link", help: "Link (⌘K)") { commands.format(#selector(WritingTextView.markLink(_:))) }.disabled(reading)
+                BarButton(icon: "textformat", label: "Writing style", help: "Fonts and writing style") { showStyle.toggle() }
+                barDivider
+                BarButton(icon: "scope", label: "Paragraph focus", help: "Dim everything outside the current paragraph (⇧⌘F)", active: focus) { focus.toggle() }.disabled(reading)
+                BarButton(icon: "text.magnifyingglass", label: "Sentence structure", help: "Color parts of speech") { openWindow(id: "sentence-options") }
+                barDivider
+                BarButton(icon: "text.badge.checkmark", label: "Prose suggestions", help: "Show possible cuts without changing your manuscript", active: review) { review.toggle() }
+                BarButton(icon: "textformat.abc", label: "Spelling & grammar", help: "Turn off spelling and grammar checking — handy for distraction-free first drafts", active: spellCheckEnabled) { spellCheckEnabled.toggle() }.disabled(reading)
+                barDivider
+                BarButton(icon: "ellipsis", label: "Toolbar options", help: "Move or auto-hide the toolbar", active: showToolbarOptions) { showToolbarOptions.toggle() }
+                    .popover(isPresented: $showToolbarOptions) { toolbarOptions }
             }
+        }
+    }
+
+    private var toolbarOptions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Toolbar").font(.headline)
+            Toggle("Show toolbar", isOn: $toolbarEnabled)
+            Picker("Position", selection: $toolbarEdgeName) {
+                ForEach(ToolbarEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+            }.pickerStyle(.segmented).labelsHidden().disabled(!toolbarEnabled)
+            Toggle("Hide when not in use", isOn: $toolbarAutoHide).disabled(!toolbarEnabled)
+            Text(!toolbarEnabled ? "The toolbar is off. Every action is still in the menus. Bring it back with ⌥⌘T."
+                 : toolbarAutoHide ? "Move the pointer near the \(toolbarEdge.rawValue) edge to bring it back."
+                 : "The toolbar stays put and the page makes room for it.")
+                .font(.caption).foregroundStyle(.secondary)
+        }.padding(18).frame(width: 260)
+    }
+
+    private var barDivider: some View {
+        Divider().frame(width: toolbarEdge.vertical ? 22 : nil, height: toolbarEdge.vertical ? nil : 22)
+            .padding(toolbarEdge.vertical ? .vertical : .horizontal, 4)
     }
 
     private var errorPresented: Binding<Bool> {
@@ -238,12 +284,24 @@ struct WritingView: View {
     private func prepareWorkspace() {
         if startingWords == nil { startingWords = count }
         needsSetup = browser.root == nil
+        let binding = $document
+        commands.loadText = { text, url in
+            bankedWords = sessionWords
+            binding.wrappedValue.text = text
+            startingWords = Prose.wordCount(text)
+            saveFeedback.message = ""
+            activeURL = url
+            edited = false
+            hasSavedFile = true
+        }
     }
 
     private func updateSaveState() {
         guard let native = commands.editor?.window?.windowController?.document as? NSDocument else { return }
         edited = native.isDocumentEdited
         hasSavedFile = native.fileURL != nil
+        if activeURL != native.fileURL { activeURL = native.fileURL }
+        LaunchBehavior.remember(native.fileURL)
     }
 
     private func handleFolderImport(_ result: Result<[URL], Error>) {
@@ -296,7 +354,20 @@ struct WritingView: View {
         commands.switchTo(target) { errorMessage = $0?.localizedDescription }
     }
 
+    /// A pinned toolbar reserves its own strip so it never covers the page; an auto-hiding one floats above it.
     private var editorPanel: some View {
+        let edge = toolbarEdge
+        let reserve: CGFloat = (toolbarAutoHide || !toolbarEnabled) ? 0 : 68
+        return editorColumn
+            .padding(.top, edge == .top ? reserve : 0)
+            .padding(.leading, edge == .left ? reserve : 0)
+            .padding(.trailing, edge == .right ? reserve : 0)
+            .overlay { hoverToolbar }
+            .animation(.smooth(duration: 0.3), value: reserve)
+            .animation(.smooth(duration: 0.3), value: edge)
+    }
+
+    private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
                 NativeEditor(text: $document.text, review: review, words: words, fontSize: fontSize,
@@ -329,7 +400,7 @@ struct WritingView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Keep your hands on the story").font(.headline)
                             Text("⌘B bold · ⌘I italic · ⌘K link\n⇧⌘H heading · ⌘F find\nTab / Escape: move past closing markers\nReturn: leave formatting and start a new line\n⇧⌘F: paragraph focus · ⌃⌘S: writing desk")
-                            Text("Click a file in the writing desk to switch to it. Control-click a file to open it beside your current document. A two-finger horizontal swipe also shows or hides the writing desk. Outline options let you name and filter your headings.")
+                            Text("Click a file in the writing desk to switch to it; drag files and folders to rearrange them. Use the arrow keys to move through the list, Return to open, ⇧Return to rename, ⌘Delete to trash. Control-click for colors, pins, and more. A two-finger horizontal swipe shows or hides the desk.")
                             Text("Visual styles, focus dimming, and prose suggestions never change your saved Markdown.").foregroundStyle(.secondary)
                         }.padding(22).frame(width: 370)
                     }
@@ -344,9 +415,22 @@ struct PreferencesView: View {
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("pageWidth") private var pageWidth = 680.0
     @AppStorage("sessionGoal") private var sessionGoal = 500
+    @EnvironmentObject private var browser: FolderBrowser
+    @State private var confirmGuide = false
+    @State private var guideMessage: String?
     var body: some View {
         Form {
             UpdateSettings(updater: updater)
+            Section("New Quill Guide") {
+                Button("Regenerate Guide…") { regenerateGuide() }
+                if let guideMessage { Text(guideMessage).font(.caption).foregroundStyle(.secondary) }
+                else { Text("Adds a fresh copy of the Markdown guide to your writing folder.").font(.caption).foregroundStyle(.secondary) }
+            }
+            .confirmationDialog("A guide is already in your writing folder.", isPresented: $confirmGuide) {
+                Button("Replace It", role: .destructive) { writeGuide(replacing: true) }
+                Button("Keep Both") { writeGuide(replacing: false) }
+                Button("Cancel", role: .cancel) {}
+            } message: { Text("Replacing it discards any changes you made to that file. Keep Both saves the new copy with a number.") }
             WritingStyleControls()
             Stepper("Session goal: \(sessionGoal) words", value: $sessionGoal, in: 0...10000, step: 100)
             Text("Set the goal to 0 to hide it.").font(.caption).foregroundStyle(.secondary)
@@ -356,5 +440,21 @@ struct PreferencesView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Button("Restore default words") { words = Prose.defaultWords }
         }.padding(24).frame(width: 450)
+    }
+
+    private var guideFolder: URL {
+        browser.root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("New Quill")
+    }
+
+    private func regenerateGuide() {
+        if Tutorial.guideExists(in: guideFolder) { confirmGuide = true } else { writeGuide(replacing: false) }
+    }
+
+    private func writeGuide(replacing: Bool) {
+        do {
+            let url = try Tutorial.regenerate(in: guideFolder, replacing: replacing)
+            guideMessage = "Saved “\(url.lastPathComponent)” in \(guideFolder.lastPathComponent)."
+            browser.reload()
+        } catch { guideMessage = "Could not write the guide: \(error.localizedDescription)" }
     }
 }
