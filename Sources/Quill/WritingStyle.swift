@@ -17,6 +17,8 @@ struct WritingStyleControls: View {
     @AppStorage("sceneTagsFade") private var sceneTagsFade = true
     @AppStorage("sceneTagsColor") private var sceneTagsColor = true
     @AppStorage("dimMarkers") private var dimMarkers = true
+    @AppStorage("edgeShading") private var edgeShading = true
+    @AppStorage("edgeStrength") private var edgeStrength = 1.0
     @AppStorage("smartTypography") private var smartTypography = false
     private let presets = [("Everyday", "Georgia"), ("Literary", "Charter"), ("Classic", "Baskerville"), ("Science fiction", "Menlo"), ("Manuscript", "Courier New")]
     private let families = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
@@ -48,6 +50,10 @@ struct WritingStyleControls: View {
                 Picker("Theme", selection: $theme) {
                     ForEach(WritingTheme.all) { item in Text(item.name).tag(item.id) }
                 }
+                Toggle("Darken toward the edges (dark themes)", isOn: $edgeShading)
+                Slider(value: $edgeStrength, in: 0.3...1.6) { Text("Edge darkness: \(Int(edgeStrength * 100))%") }.disabled(!edgeShading)
+                Text("The page is lightest around the text and shades toward the edges, so the eye settles on your words. Light themes have no shading.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Scrolling & focus") {
                 Picker("Scrolling", selection: $typewriterMode) {

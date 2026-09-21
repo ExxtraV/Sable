@@ -30,6 +30,10 @@ jobs:
         run: |
           swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-import-checks
           /tmp/quill-import-checks
+      - name: Toolbar checks
+        run: |
+          swiftc Sources/Quill/ToolbarTools.swift scripts/check-toolbar.swift -o /tmp/quill-toolbar-checks
+          /tmp/quill-toolbar-checks
       - name: Revision checks
         run: |
           swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks

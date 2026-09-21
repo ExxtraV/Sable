@@ -136,6 +136,15 @@ import QuillCore
         named.nameShimmer = true
         named.decorate()
         precondition(named.nameRanges.isEmpty, "Turned off, nothing is highlighted")
+        // Every dark theme narrows toward its edges; light themes don't
+        precondition(WritingTheme.all.filter(\.dark).allSatisfy { $0.edgeColor != nil }, "Dark themes have an edge shade")
+        precondition(WritingTheme.all.filter { !$0.dark }.allSatisfy { $0.edgeColor == nil }, "Light themes don't")
+        for theme in WritingTheme.all.filter(\.dark) {
+            var paper = (0.0 as CGFloat), edge = (0.0 as CGFloat)
+            paper = theme.background.usingColorSpace(.sRGB)!.brightnessComponent
+            edge = NSColor(quillHex: theme.edge!)!.usingColorSpace(.sRGB)!.brightnessComponent
+            precondition(edge < paper, "\(theme.name)'s edges are darker than its middle")
+        }
         // Lists, quotes, headings, and smart typography in the editor itself
         let writer = WritingTextView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
         writer.isRichText = false
