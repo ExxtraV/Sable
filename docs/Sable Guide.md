@@ -34,6 +34,8 @@ A **Fiction Project** is a folder that Sable treats as one story world. Every ne
 - **Pictures.** Click a card's portrait (or drop an image on the card) to tag a picture. A framing window lets you drag and zoom to crop the portrait, and you can reopen it any time from the card's ⋯ menu with **Adjust Crop…**. Sable copies the picture into **Images** and adds `image:` and `image-crop:` lines to the file. Your original picture is never altered.
 - **Just Markdown.** Everything is ordinary Markdown. Card details live in a small block at the top of each file (`type`, `role`, `image`, `tags`), so any other editor can open, read, and edit it all. The only extra is a hidden marker file named `.sable-project.json`.
 - **Convert back.** From the project's ⋯ menu choose **Convert to Regular Folder…**. That removes only the marker; every file and folder stays exactly as it is.
+- **Names & places.** Character, location, and world names glow softly as you write: full names, first and last names, file names, and `aliases:`. Turn it on or off in View → Highlight Names & Places, or pick the color in Writing Style.
+- **Export.** On the Manuscript tab press **Export…** (⇧⌘E) to make one PDF, EPUB, Word, or Markdown file from your chapters, in your order. Choose the chapters, a title page, and a Manuscript or Book look. File → Export This Document… exports only the open page.
 
 ## A little Markdown
 

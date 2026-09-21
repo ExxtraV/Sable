@@ -96,6 +96,8 @@ struct SentenceOptions: View {
     @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("syntaxClasses") private var enabled = 0
     @AppStorage("wordColorVersion") private var colorVersion = 0
+    @AppStorage("nameHighlights") private var nameHighlights = true
+    @AppStorage("nameStyle") private var nameStyle = "glow"
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sentence structure").font(.headline)
@@ -117,7 +119,41 @@ struct SentenceOptions: View {
             }
             Text("Defaults are soft pastel tints; use the swatches to pick your own. On-device language predictions, not grammar rules. Invented names and unusual sentences may be misclassified. Colors appear in edit mode and are never saved to your file.")
                 .font(.caption).foregroundStyle(.secondary)
+            Divider().padding(.vertical, 4)
+            Text("Names & places").font(.headline)
+            Toggle("Highlight characters, locations, and world notes", isOn: $nameHighlights)
+            Picker("Style", selection: $nameStyle) {
+                Text("Glow").tag("glow")
+                Text("Color only").tag("color")
+            }.pickerStyle(.segmented).disabled(!nameHighlights)
+            ForEach(CardKind.allCases, id: \.self) { kind in
+                HStack {
+                    Text(kind.pickerTitle)
+                    Spacer(minLength: 12)
+                    ColorPicker(kind.pickerTitle + " color", selection: nameColorBinding(for: kind), supportsOpacity: false).labelsHidden()
+                }.disabled(!nameHighlights)
+            }
+            Button("Reset name colors") {
+                for kind in CardKind.allCases { UserDefaults.standard.removeObject(forKey: "nameColor.\(kind.rawValue)") }
+                colorVersion += 1
+            }.disabled(!nameHighlights)
+            Text("In a Fiction Project, names come from your character, location, and world cards: full names, first and last names, file names, and aliases. Everyday words and titles like Captain are never highlighted.")
+                .font(.caption).foregroundStyle(.secondary)
         }.padding(20).frame(width: 340)
+    }
+    private func nameColorBinding(for kind: CardKind) -> Binding<Color> {
+        Binding(
+            get: {
+                var resolved = NSColor.gray
+                let appearance = NSAppearance(named: WritingTheme.named(themeName).dark ? .darkAqua : .aqua)!
+                appearance.performAsCurrentDrawingAppearance { resolved = WritingTextView.nameColor(kind).usingColorSpace(.sRGB) ?? .gray }
+                return Color(nsColor: resolved)
+            },
+            set: { newValue in
+                UserDefaults.standard.set(NSColor(newValue).quillHex, forKey: "nameColor.\(kind.rawValue)")
+                colorVersion += 1
+            }
+        )
     }
     private func colorBinding(for kind: WordClass) -> Binding<Color> {
         Binding(

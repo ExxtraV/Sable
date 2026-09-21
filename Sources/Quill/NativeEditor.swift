@@ -39,6 +39,9 @@ struct NativeEditor: NSViewRepresentable {
     var spellCheckEnabled: Bool = true
     /// "off", "room" (scroll past the last line), or "center" (also keep the line you're writing centered).
     var typewriterMode: String = "off"
+    /// Names of the project's characters, places, and world notes to make stand out (nil when off).
+    var nameHighlighter: NameHighlighter? = nil
+    var nameGlow: Bool = true
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -105,6 +108,8 @@ struct NativeEditor: NSViewRepresentable {
         editor.themeName = darker ? "midnight" : themeName
         editor.pageWidth = pageWidth * zoom
         editor.typewriterMode = typewriterMode
+        editor.nameHighlighter = nameHighlighter
+        editor.nameGlow = nameGlow
         editor.updatePageMargins()
         editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
@@ -158,6 +163,12 @@ final class WritingTextView: NSTextView {
     private var lastStyledSpacing: Double = -1
     private var lastSyntaxClasses = -1
     private var lastColorVersion = -1
+    private var lastNameKey = ""
+    var nameHighlighter: NameHighlighter?
+    var nameGlow = true
+    /// Where names were found on the last styling pass, so paragraph focus can quiet their glow.
+    private(set) var nameRanges: [NSRange] = []
+    private var nameKey: String { (nameHighlighter?.signature ?? "") + (nameGlow ? "#glow" : "#color") }
     private var didSetInitialFocus = false
 
     override func viewDidMoveToWindow() {
@@ -272,7 +283,7 @@ final class WritingTextView: NSTextView {
 
     private func styleMarkdown() {
         guard !styling, !hasMarkedText(), let storage = textStorage else { return }
-        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName else { return }
+        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName || lastNameKey != nameKey else { return }
         styling = true
         defer { styling = false }
         let full = NSRange(location: 0, length: storage.length)
@@ -329,6 +340,16 @@ final class WritingTextView: NSTextView {
         for word in SentenceStructure.words(in: string, enabled: syntaxClasses) {
             storage.addAttribute(.foregroundColor, value: Self.wordColor(word.kind), range: word.range)
         }
+        // Names of characters, places, and world notes stand out on top of everything else, by color and optionally a glow.
+        nameRanges = []
+        if let namer = nameHighlighter, !namer.isEmpty {
+            for match in namer.matches(in: string) {
+                let color = Self.nameColor(match.kind)
+                storage.addAttribute(.foregroundColor, value: color, range: match.range)
+                if nameGlow { storage.addAttribute(.shadow, value: Self.glow(for: color, appearance: effectiveAppearance), range: match.range) }
+                nameRanges.append(match.range)
+            }
+        }
         storage.endEditing()
         typingAttributes = attributes
         lastStyledText = string
@@ -338,6 +359,28 @@ final class WritingTextView: NSTextView {
         lastSyntaxClasses = syntaxClasses
         lastColorVersion = colorVersion
         lastThemeName = themeName
+        lastNameKey = nameKey
+    }
+
+    /// The color for a kind of name: your own choice, or a warm gold for characters, teal for places, violet for world notes.
+    static func nameColor(_ kind: CardKind) -> NSColor {
+        if let hex = UserDefaults.standard.string(forKey: "nameColor.\(kind.rawValue)"), let custom = NSColor(quillHex: hex) { return custom }
+        switch kind {
+        case .character: return pastel(light: NSColor(red: 0.64, green: 0.40, blue: 0.02, alpha: 1), dark: NSColor(red: 1.00, green: 0.83, blue: 0.42, alpha: 1))
+        case .location: return pastel(light: NSColor(red: 0.02, green: 0.47, blue: 0.52, alpha: 1), dark: NSColor(red: 0.45, green: 0.93, blue: 0.96, alpha: 1))
+        case .lore: return pastel(light: NSColor(red: 0.44, green: 0.26, blue: 0.72, alpha: 1), dark: NSColor(red: 0.82, green: 0.70, blue: 1.00, alpha: 1))
+        }
+    }
+
+    /// A soft halo in the name's own color. The color is resolved for the current appearance, since shadows don't adapt on their own.
+    static func glow(for color: NSColor, appearance: NSAppearance) -> NSShadow {
+        var resolved = color
+        appearance.performAsCurrentDrawingAppearance { resolved = color.usingColorSpace(.sRGB) ?? color }
+        let shadow = NSShadow()
+        shadow.shadowOffset = .zero
+        shadow.shadowBlurRadius = 7
+        shadow.shadowColor = resolved.withAlphaComponent(0.85)
+        return shadow
     }
 
     static func wordColor(_ kind: WordClass) -> NSColor {
@@ -391,6 +434,7 @@ final class WritingTextView: NSTextView {
         let length = (string as NSString).length
         let whole = NSRange(location: 0, length: length)
         layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
+        layoutManager.removeTemporaryAttribute(.shadow, forCharacterRange: whole)
         guard focusParagraph, length > 0 else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
         // withAlphaComponent bakes a dynamic color into concrete RGBA using whatever appearance
@@ -400,6 +444,14 @@ final class WritingTextView: NSTextView {
         func fade(_ alpha: CGFloat, _ range: NSRange) {
             guard range.length > 0 else { return }
             layoutManager.addTemporaryAttribute(.foregroundColor, value: base.withAlphaComponent(alpha), forCharacterRange: range)
+        }
+        // Names outside the paragraph being written lose their glow along with their color, so nothing outshines the page.
+        defer {
+            let quiet = NSShadow()
+            quiet.shadowColor = .clear
+            for range in nameRanges where NSIntersectionRange(range, active).length == 0 && NSMaxRange(range) <= length {
+                layoutManager.addTemporaryAttribute(.shadow, value: quiet, forCharacterRange: range)
+            }
         }
         guard focusGradient else {
             fade(0.25, NSRange(location: 0, length: active.location))

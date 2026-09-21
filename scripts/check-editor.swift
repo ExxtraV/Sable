@@ -90,6 +90,59 @@ import QuillCore
         secondPane.zoomKey = WritingZoom.parallelKey
         precondition(firstPane.zoomKey == WritingZoom.mainKey && secondPane.zoomKey == WritingZoom.parallelKey)
         WritingZoom.set(1, for: WritingZoom.mainKey); WritingZoom.set(1, for: WritingZoom.parallelKey)
+        // Names and places stand out by color and glow, only where they occur
+        func nameCard(_ title: String, _ kind: CardKind) -> IndexedCard {
+            IndexedCard(url: URL(fileURLWithPath: "/p/\(title).md"), kind: kind, stem: title, title: title, subtitle: "", aliases: [], modified: nil)
+        }
+        let namer = NameHighlighter.build(from: [nameCard("Marren Vale", .character), nameCard("The Pier", .location)])
+        let named = WritingTextView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
+        named.isRichText = false
+        named.nameHighlighter = namer
+        named.nameGlow = true
+        named.string = "Marren Vale walked to the Pier. marren said nothing.\n\nVale waited."
+        named.decorate()
+        let namedText = named.string as NSString
+        let marrenAt = namedText.range(of: "Marren Vale").location, walkedAt = namedText.range(of: "walked").location
+        let pierAt = namedText.range(of: "Pier").location, lowerAt = namedText.range(of: "marren said").location
+        func attr(_ key: NSAttributedString.Key, _ at: Int) -> Any? { named.textStorage!.attribute(key, at: at, effectiveRange: nil) }
+        // Dynamic colors are new objects each time, so compare what they resolve to.
+        func rgb(_ value: Any?) -> String {
+            var text = "none"
+            NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+                if let color = (value as? NSColor)?.usingColorSpace(.sRGB) { text = String(format: "%.3f,%.3f,%.3f", color.redComponent, color.greenComponent, color.blueComponent) }
+            }
+            return text
+        }
+        precondition((rgb(attr(.foregroundColor, marrenAt)) == rgb(WritingTextView.nameColor(.character))), "A character's name takes the character color")
+        precondition((rgb(attr(.foregroundColor, pierAt)) == rgb(WritingTextView.nameColor(.location))), "A place takes the location color")
+        precondition(attr(.shadow, marrenAt) is NSShadow && attr(.shadow, pierAt) is NSShadow, "Glow style adds a halo")
+        precondition(attr(.shadow, walkedAt) == nil && rgb(attr(.foregroundColor, walkedAt)) != rgb(WritingTextView.nameColor(.character)), "Ordinary words are untouched")
+        precondition(attr(.shadow, lowerAt) == nil, "A lowercase single word isn't a name")
+        precondition(named.nameRanges.count == 3, "Marren Vale, the Pier, and Vale: \(named.nameRanges.count)")
+        // Color only: same colors, no halo
+        named.nameGlow = false
+        named.decorate()
+        precondition(attr(.shadow, marrenAt) == nil && (rgb(attr(.foregroundColor, marrenAt)) == rgb(WritingTextView.nameColor(.character))), "Color-only style has no glow")
+        // A change of names restyles even though the text is the same
+        named.nameHighlighter = NameHighlighter.build(from: [nameCard("Walked Far", .character)])
+        named.decorate()
+        precondition((rgb(attr(.foregroundColor, marrenAt)) != rgb(WritingTextView.nameColor(.character))), "Old names stop standing out when the cards change")
+        // Off
+        named.nameHighlighter = nil
+        named.nameGlow = true
+        named.decorate()
+        precondition(named.nameRanges.isEmpty && attr(.shadow, marrenAt) == nil, "Turned off, nothing is highlighted")
+        // Paragraph focus quiets the halo outside the paragraph being written
+        named.nameHighlighter = namer
+        named.decorate()
+        named.focusParagraph = true
+        named.setSelectedRange(NSRange(location: 2, length: 0))
+        named.updateFocus()
+        let valeAt = namedText.range(of: "Vale waited").location
+        func temp(_ key: NSAttributedString.Key, _ at: Int) -> Any? { named.layoutManager!.temporaryAttribute(key, atCharacterIndex: at, effectiveRange: nil) }
+        precondition(temp(.shadow, marrenAt) == nil, "The name in the paragraph you're writing keeps its glow")
+        precondition(temp(.shadow, valeAt) != nil, "A name in another paragraph loses it")
+
         // Scrolling past the end, and keeping the line you're writing centered
         let scrollHost = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         scrollHost.hasVerticalScroller = true

@@ -30,4 +30,15 @@ pathlib.Path('dist/Sable-Markdown-Writer.html').write_text('<!doctype html><meta
 PYNOTES
 printf '%s' "$SPARKLE_PRIVATE_KEY" | .build/artifacts/sparkle/Sparkle/bin/generate_appcast --ed-key-file - --maximum-deltas 0 --release-notes-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION/" --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/v$RELEASE_VERSION/" dist
 python3 scripts/check-appcast.py dist/appcast.xml dist/Sable-Markdown-Writer.zip
-(cd dist && shasum -a 256 Sable-Markdown-Writer.zip appcast.xml > SHA256SUMS)
+# The disk image is for first-time installs from the website; updates keep using the zip. It is built only now,
+# after the appcast, because the appcast generator would list a .dmg in dist/ as a second copy of this update.
+DMG="dist/Sable-Markdown-Writer.dmg"
+sh scripts/make-dmg.sh "$APP" "$DMG" "Sable Markdown Writer"
+if [ "${DISTRIBUTION_MODE:-community}" = notarized ]; then
+    KEYCHAIN="$RUNNER_TEMP/sable.keychain-db"
+    codesign --force --sign "${SIGNING_IDENTITY:?}" --timestamp "$DMG"
+    xcrun notarytool submit "$DMG" --keychain-profile sable-notary --keychain "$KEYCHAIN" --wait
+    xcrun stapler staple "$DMG"
+fi
+hdiutil verify -quiet "$DMG"
+(cd dist && shasum -a 256 Sable-Markdown-Writer.zip Sable-Markdown-Writer.dmg appcast.xml > SHA256SUMS)

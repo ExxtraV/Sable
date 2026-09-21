@@ -545,6 +545,10 @@ struct WritingActions {
     var style: () -> Void
     var sentences: () -> Void
     var tagScene: () -> Void = {}
+    var exportManuscript: () -> Void = {}
+    var exportDocument: () -> Void = {}
+    /// True inside a Fiction Project, where the whole manuscript can be exported.
+    var canExportManuscript = false
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
 extension FocusedValues {
@@ -560,7 +564,13 @@ struct WritingCommands: Commands {
     @AppStorage("toolbarEdge") private var toolbarEdge = ToolbarEdge.top.rawValue
     @AppStorage("toolbarAutoHide") private var toolbarAutoHide = true
     @AppStorage("toolbarEnabled") private var toolbarEnabled = true
+    @AppStorage("nameHighlights") private var nameHighlights = true
     var body: some Commands {
+        CommandGroup(after: .saveItem) {
+            Divider()
+            Button("Export Manuscript…") { actions?.exportManuscript() }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(actions?.canExportManuscript != true)
+            Button("Export This Document…") { actions?.exportDocument() }.disabled(actions == nil)
+        }
         CommandGroup(after: .toolbar) {
             Toggle("Show Writing Desk", isOn: $sidebar).keyboardShortcut("s", modifiers: [.command, .control])
             Toggle("Show Toolbar", isOn: $toolbarEnabled).keyboardShortcut("t", modifiers: [.command, .option])
@@ -575,6 +585,7 @@ struct WritingCommands: Commands {
             Button("Paragraph Focus") { actions?.focus() }.keyboardShortcut("f", modifiers: [.command, .shift]).disabled(actions == nil)
             Button("Writing Style…") { actions?.style() }.keyboardShortcut(",", modifiers: [.command, .option]).disabled(actions == nil)
             Button("Sentence Structure…") { actions?.sentences() }.keyboardShortcut("j", modifiers: [.command, .option]).disabled(actions == nil)
+            Toggle("Highlight Names & Places", isOn: $nameHighlights)
             Button("Tag Scene…") { actions?.tagScene() }.keyboardShortcut("t", modifiers: [.command, .control]).disabled(actions == nil)
             Divider()
             Button("Zoom In") { WritingZoom.step(0.1) }.keyboardShortcut("=", modifiers: .command)

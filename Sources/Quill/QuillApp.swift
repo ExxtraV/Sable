@@ -103,6 +103,9 @@ struct WritingView: View {
     @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("focusStyle") private var focusStyle = "gradient"
     @AppStorage("typewriterMode") private var typewriterMode = "room"
+    @AppStorage("nameHighlights") private var nameHighlights = true
+    @AppStorage("nameStyle") private var nameStyle = "glow"
+    @StateObject private var cardIndex = SceneIndexModel()
     @AppStorage("editorZoom") private var zoom = 1.0
     @StateObject private var saveFeedback = SaveFeedback()
     @State private var needsSetup = false
@@ -127,6 +130,7 @@ struct WritingView: View {
     @State private var activeURL: URL?
     @State private var openCards: [OpenCard] = []
     @State private var tagSceneSignal = 0
+    @State private var exportSource: ExportSource?
     @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
     @State private var errorMessage: String?
 
@@ -197,7 +201,8 @@ struct WritingView: View {
             showParallel: showParallelDocument,
             parallelURL: parallelURL,
             showCard: showCard,
-            releaseCurrentDocument: releaseCurrentDocument
+            releaseCurrentDocument: releaseCurrentDocument,
+            exportManuscript: startManuscriptExport
         )
     }
 
@@ -234,7 +239,10 @@ struct WritingView: View {
             focus: { focus.toggle() },
             style: { showStyle = true },
             sentences: { openWindow(id: "sentence-options") },
-            tagScene: { tagSceneSignal += 1 }
+            tagScene: { tagSceneSignal += 1 },
+            exportManuscript: startManuscriptExport,
+            exportDocument: startDocumentExport,
+            canExportManuscript: browser.projectURL != nil
         )
     }
 
@@ -248,7 +256,7 @@ struct WritingView: View {
 
     private var sceneLayer: some View {
         SceneTagsLayer(activeURL: activeURL, liveText: document.text, editSignal: tagSceneSignal, focusDim: focus && !reading,
-                       openCard: showCard, setTags: setSceneTags, createCard: createSceneCard)
+                       openCard: showCard, setTags: setSceneTags, createCard: createSceneCard, index: cardIndex)
     }
 
     /// Cards stack clear of the scene strip when it sits in a corner.
@@ -273,6 +281,19 @@ struct WritingView: View {
         let item: NewProjectItem
         switch kind { case .character: item = .character; case .location: item = .location; case .lore: item = .lore }
         do { try browser.createProjectItem(item, named: name) } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Opens the export sheet for the whole manuscript. A chapter that's open with unsaved changes is exported as it stands on screen.
+    private func startManuscriptExport() {
+        guard let projectURL = browser.projectURL else { return }
+        var unsaved: [String: String] = [:]
+        if let url = activeURL, browser.isChapter(url) { unsaved[url.lastPathComponent] = document.text }
+        exportSource = .manuscript(project: projectURL, title: browser.project?.title ?? projectURL.lastPathComponent, unsaved: unsaved)
+    }
+
+    private func startDocumentExport() {
+        let name = activeURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        exportSource = .document(title: name, markdown: document.text)
     }
 
     /// Empties the editor so the file it has open can be moved to the Trash.
@@ -445,6 +466,7 @@ struct WritingView: View {
             .padding(.trailing, edge == .right ? reserve : 0)
             .overlay { cardDock }
             .overlay { hoverToolbar }
+            .sheet(item: $exportSource) { source in ExportSheet(source: source, close: { exportSource = nil }) }
             .animation(.smooth(duration: 0.3), value: reserve)
             .animation(.smooth(duration: 0.3), value: edge)
     }
@@ -456,6 +478,7 @@ struct WritingView: View {
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
                              lineSpacing: lineSpacing, focusParagraph: focus, focusGradient: focusStyle == "gradient", readOnly: reading, syntaxClasses: syntaxClasses,
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
+                             nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameGlow: nameStyle == "glow",
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)

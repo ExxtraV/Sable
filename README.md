@@ -99,6 +99,13 @@ swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.s
 
 The last command uses the Apple Silicon build path; substitute `x86_64-apple-macosx` on Intel. Sample manuscript and world-note files are in `Examples/`.
 
+For manuscript export checks (PDF, EPUB, Word, Markdown):
+
+```sh
+swiftc Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift -o /tmp/quill-export-checks
+/tmp/quill-export-checks
+```
+
 For folder-listing checks:
 
 ```sh
