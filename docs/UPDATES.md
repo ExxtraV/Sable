@@ -1,10 +1,10 @@
 # Publishing Sable Markdown Writer updates
 
-Sable Markdown Writer is MIT licensed at https://github.com/ExxtraV/new-quill (the repository keeps its original name until you rename it). The default **community** release works without paid Apple membership. It is ad-hoc signed, not notarized by Apple. Sparkle separately verifies update downloads with Sable's Ed25519 signing key.
+Sable Markdown Writer is MIT licensed at https://github.com/ExxtraV/Sable. The default **community** release works without paid Apple membership. It is ad-hoc signed, not notarized by Apple. Sparkle separately verifies update downloads with Sable's Ed25519 signing key.
 
 ## One-time setup for free-account releases
 
-The public feed URL and public signing key are committed in `UpdateConfig.json`. The private key is stored in the Mac Keychain under the Sparkle account `new-quill`; never put it in source control.
+The public feed URL and public signing key are committed in `UpdateConfig.json`. The private key is stored in the Mac Keychain under the Sparkle account `new-quill` (the account keeps its original name from before the rename; that is only a local label, so leave it as it is); never put it in source control.
 
 In GitHub, open Settings → Secrets and variables → Actions → New repository secret. Name it `SPARKLE_PRIVATE_KEY` and enter the contents of the protected local key export directly into GitHub. Do not paste it into chat or a commit. Keep a secure backup in your password manager or encrypted storage. The `.secrets/` directory is ignored by Git.
 
@@ -18,7 +18,7 @@ The workflow builds both Apple Silicon and Intel, runs tests, packages the app, 
 
 Review and test the draft before publishing it. Mark the published release as the latest stable release so the app can reach its feed at:
 
-https://github.com/ExxtraV/new-quill/releases/latest/download/appcast.xml
+https://github.com/ExxtraV/Sable/releases/latest/download/appcast.xml
 
 Every app download in the feed points to a specific version, not a moving latest-download URL. Never reuse a version or build number or overwrite a published archive.
 
