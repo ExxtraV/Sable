@@ -66,13 +66,24 @@ struct QuillApp: App {
                 Button("Bold") { send(#selector(WritingTextView.markBold(_:))) }.keyboardShortcut("b")
                 Button("Italic") { send(#selector(WritingTextView.markItalic(_:))) }.keyboardShortcut("i")
                 Button("Link") { send(#selector(WritingTextView.markLink(_:))) }.keyboardShortcut("k")
+                Button("Strikethrough") { send(#selector(WritingTextView.markStrikethrough(_:))) }.keyboardShortcut("x", modifiers: [.command, .shift])
+                Button("Inline Code") { send(#selector(WritingTextView.markCode(_:))) }.keyboardShortcut("k", modifiers: [.command, .shift])
                 Button("Leave Formatting") { send(#selector(WritingTextView.exitFormatting(_:))) }.keyboardShortcut("\\", modifiers: [.command])
                 Divider()
-                Button("Heading") { send(#selector(WritingTextView.markHeading(_:))) }.keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Heading (cycle # ## ###)") { send(#selector(WritingTextView.markHeading(_:))) }.keyboardShortcut("h", modifiers: [.command, .shift])
+                Button("Quote") { send(#selector(WritingTextView.markQuote(_:))) }.keyboardShortcut("q", modifiers: [.command, .option])
+                Button("Bulleted List") { send(#selector(WritingTextView.markBulletList(_:))) }.keyboardShortcut("8", modifiers: [.command, .shift])
+                Button("Numbered List") { send(#selector(WritingTextView.markNumberedList(_:))) }.keyboardShortcut("7", modifiers: [.command, .shift])
+                Button("Task List") { send(#selector(WritingTextView.markTaskList(_:))) }.keyboardShortcut("9", modifiers: [.command, .shift])
+                Button("Scene Break") { send(#selector(WritingTextView.markSceneBreak(_:))) }.keyboardShortcut("l", modifiers: [.command, .shift])
+                Divider()
+                Button("Paste as Markdown") { send(#selector(WritingTextView.pasteAsMarkdown(_:))) }.keyboardShortcut("v", modifiers: [.command, .control])
             }
         }
         Window("Sentence Structure", id: "sentence-options") { SentenceOptions() }
             .windowResizability(.contentSize)
+        Window("Markdown Cheat Sheet", id: "markdown-cheat-sheet") { MarkdownCheatSheet() }
+            .windowResizability(.contentMinSize)
         Settings { PreferencesView(updater: updater).environmentObject(browser) }
     }
     private func send(_ selector: Selector) {
@@ -134,6 +145,10 @@ struct WritingView: View {
     @State private var openCards: [OpenCard] = []
     @State private var tagSceneSignal = 0
     @State private var exportSource: ExportSource?
+    @State private var findRequest: FindRequest?
+    @State private var importMessage: String?
+    @AppStorage("dimMarkers") private var dimMarkers = true
+    @AppStorage("smartTypography") private var smartTypography = false
     @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
     @State private var errorMessage: String?
 
@@ -246,7 +261,9 @@ struct WritingView: View {
             tagScene: { tagSceneSignal += 1 },
             exportManuscript: startManuscriptExport,
             exportDocument: startDocumentExport,
-            canExportManuscript: browser.projectURL != nil
+            canExportManuscript: browser.projectURL != nil,
+            findInProject: startFindInProject,
+            importDocument: startImport
         )
     }
 
@@ -293,6 +310,49 @@ struct WritingView: View {
         var unsaved: [String: String] = [:]
         if let url = activeURL, browser.isChapter(url) { unsaved[url.lastPathComponent] = document.text }
         exportSource = .manuscript(project: projectURL, title: browser.project?.title ?? projectURL.lastPathComponent, unsaved: unsaved)
+    }
+
+    /// Opens Find & Replace across the Fiction Project, or the writing folder outside one.
+    private func startFindInProject() {
+        guard let root = browser.projectURL ?? browser.root else {
+            importMessage = "Choose a writing folder first; Find & Replace looks through every Markdown file in it."
+            return
+        }
+        findRequest = FindRequest(root: root, openURL: activeURL, openText: document.text)
+    }
+
+    private func openSearchHit(_ url: URL, _ range: NSRange) {
+        findRequest = nil
+        if url.standardizedFileURL == activeURL?.standardizedFileURL {
+            commands.jump(to: range)
+        } else {
+            commands.switchTo(url) { error in
+                errorMessage = error?.localizedDescription
+                if error == nil { DispatchQueue.main.async { commands.jump(to: range) } }
+            }
+        }
+    }
+
+    /// Turns a Word, Google Docs, RTF, OpenDocument, or web page file into a new Markdown file and opens it.
+    private func startImport() {
+        let panel = NSOpenPanel()
+        panel.title = "Import a Document"
+        panel.message = "Choose a Word, RTF, OpenDocument, HTML, or text file. A Markdown copy is added to your writing folder; the original isn't changed."
+        panel.prompt = "Import"
+        panel.allowedContentTypes = RichTextMarkdown.importTypes.compactMap { UTType(filenameExtension: $0) }
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let source = panel.url else { return }
+        do {
+            let markdown = try RichTextMarkdown.importDocument(at: source)
+            let folder = browser.projectURL.map { FictionProject.folder(for: .chapter, in: $0) } ?? browser.current ?? browser.root
+                ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let destination = try DocumentImport.write(markdown, named: source, in: folder)
+            browser.reload()
+            commands.switchTo(destination) { errorMessage = $0?.localizedDescription }
+        } catch {
+            importMessage = "Could not import “\(source.lastPathComponent)”: \(error.localizedDescription)"
+        }
     }
 
     private func startDocumentExport() {
@@ -471,6 +531,14 @@ struct WritingView: View {
             .overlay { cardDock }
             .overlay { hoverToolbar }
             .sheet(item: $exportSource) { source in ExportSheet(source: source, close: { exportSource = nil }) }
+            .sheet(item: $findRequest) { request in
+                FindReplaceSheet(request: request,
+                                 replaceOpenText: { commands.editor?.replaceEntireText($0) },
+                                 open: openSearchHit, filesChanged: { browser.reload() }, close: { findRequest = nil })
+            }
+            .alert("Import", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(importMessage ?? "") }
             .animation(.smooth(duration: 0.3), value: reserve)
             .animation(.smooth(duration: 0.3), value: edge)
     }
@@ -484,6 +552,7 @@ struct WritingView: View {
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
                              nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameShimmer: nameStyle == "shimmer",
                              nameKinds: Set(CardKind.allCases.filter { ($0 == .character && nameCharacters) || ($0 == .location && nameLocations) || ($0 == .lore && nameLore) }),
+                             dimMarkers: dimMarkers, smartTypography: smartTypography,
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
@@ -497,7 +566,7 @@ struct WritingView: View {
             }
             Divider().opacity(0.5)
             HStack(spacing: 12) {
-                Text("\(count) words")
+                Text(commands.selectionWords > 0 ? "\(commands.selectionWords) of \(count) words selected" : "\(count) words")
                 Text("\(Int(zoom * 100))%")
                 Button { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) } label: {
                     Text(saveFeedback.message.isEmpty ? (edited ? "Unsaved changes" : (hasSavedFile ? "Saved" : "Not saved yet")) : saveFeedback.message)
@@ -511,7 +580,7 @@ struct WritingView: View {
                     .popover(isPresented: $showHelp) {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Keep your hands on the story").font(.headline)
-                            Text("⌘B bold · ⌘I italic · ⌘K link\n⇧⌘H heading · ⌘F find\nTab / Escape: move past closing markers\nReturn: leave formatting and start a new line\n⇧⌘F: paragraph focus · ⌃⌘S: writing desk")
+                            Text("⌘B bold · ⌘I italic · ⌘K link · ⇧⌘X strikethrough\n⇧⌘H heading · ⇧⌘8 bullets · ⇧⌘7 numbers · ⇧⌘L scene break · ⌘F find\nReturn continues a list; Tab indents it\nTab / Escape: move past closing markers\nReturn: leave formatting and start a new line\n⇧⌘F: paragraph focus · ⌃⌘S: writing desk")
                             Text("Click a file in the writing desk to switch to it; drag files and folders to rearrange them. Use the arrow keys to move through the list, Return to open, ⇧Return to rename, ⌘Delete to trash. Control-click for colors, pins, and more. A two-finger horizontal swipe shows or hides the desk.")
                             Text("Visual styles, focus dimming, and prose suggestions never change your saved Markdown.").foregroundStyle(.secondary)
                         }.padding(22).frame(width: 370)

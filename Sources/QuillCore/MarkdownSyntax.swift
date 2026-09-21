@@ -1,7 +1,16 @@
 import Foundation
 
 public struct MarkdownSpan {
-    public enum Kind { case bold, italic, boldItalic, code, link, heading(Int), quote, list, strike }
+    public enum Kind { case bold, italic, boldItalic, code, link, heading(Int), quote, list, strike
+        /// A scene break or horizontal rule on its own line.
+        case rule
+        /// `<!-- … -->`, an author's note that never reaches an export.
+        case comment
+        case image
+        /// `- [ ]` or `- [x]`; `range` is the whole line and `content` is the checkbox.
+        case task(done: Bool)
+        case footnote
+        case table }
     public let kind: Kind
     public let range: NSRange
     public let content: NSRange
@@ -34,9 +43,27 @@ public enum MarkdownSyntax {
         func available(_ range: NSRange) -> Bool {
             !protected.contains { NSIntersectionRange($0, range).length > 0 }
         }
+        for match in matches("(?s)<!--.*?(?:-->|\\z)") where available(match.range) {
+            protected.append(match.range)
+            result.append(MarkdownSpan(kind: .comment, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        }
         for match in matches("(?<![\\\\`])(`+)([^`\\n]+)\\1(?!`)") where available(match.range) {
             protected.append(match.range)
             result.append(MarkdownSpan(kind: .code, range: match.range, content: match.range(at: 2), markers: [match.range(at: 1), NSRange(location: NSMaxRange(match.range) - match.range(at: 1).length, length: match.range(at: 1).length)], closing: NSRange(location: NSMaxRange(match.range) - match.range(at: 1).length, length: match.range(at: 1).length), destination: nil))
+        }
+        // A scene break is protected before emphasis is looked for, or "* * *" would read as italics. A bare "****" is left
+        // to bold: it is what pressing ⌘B on nothing types.
+        let frontMatter = frontMatterRange(in: text)
+        for match in matches("(?m)^ {0,3}(?!\\*{4}[ \\t]*$)([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$") where available(match.range) && NSIntersectionRange(frontMatter, match.range).length == 0 {
+            protected.append(match.range)
+            result.append(MarkdownSpan(kind: .rule, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        }
+        for match in matches("!\\[([^]\\n]*)\\]\\(([^)\\n]*)\\)") where available(match.range) {
+            let alt = match.range(at: 1)
+            protected.append(match.range)
+            result.append(MarkdownSpan(kind: .image, range: match.range, content: alt,
+                markers: [NSRange(location: match.range.location, length: 2), NSRange(location: NSMaxRange(alt), length: NSMaxRange(match.range) - NSMaxRange(alt))],
+                closing: nil, destination: match.range(at: 2)))
         }
         for match in matches("(?<![\\\\!])\\[([^]\\n]*)\\]\\(([^)\\n]*)\\)") where available(match.range) {
             let label = match.range(at: 1), destination = match.range(at: 2)
@@ -70,7 +97,27 @@ public enum MarkdownSyntax {
         for match in matches("(?m)^([ \\t]*(?:[-+*]|[0-9]+\\.)[ \\t]+)(.*)$") where available(match.range) {
             result.append(MarkdownSpan(kind: .list, range: match.range, content: match.range(at: 2), markers: [match.range(at: 1)], closing: nil, destination: nil))
         }
+        for match in matches("(?m)^[ \\t]*[-+*][ \\t]+(\\[[ xX]\\])[ \\t].*$") where available(match.range) {
+            let box = match.range(at: 1)
+            let done = (text as NSString).substring(with: box).lowercased() == "[x]"
+            result.append(MarkdownSpan(kind: .task(done: done), range: match.range, content: box, markers: [], closing: nil, destination: nil))
+        }
+        for match in matches("(?m)^ {0,3}\\|.*\\|[ \\t]*$") where available(match.range) {
+            result.append(MarkdownSpan(kind: .table, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        }
+        for match in matches("\\[\\^[^\\]\\s]+\\]:?") where available(match.range) {
+            result.append(MarkdownSpan(kind: .footnote, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        }
         return result
+    }
+
+    /// The `---` metadata block at the very top of a file, if there is one.
+    static func frontMatterRange(in text: String) -> NSRange {
+        let ns = text as NSString
+        guard ns.hasPrefix("---\n") else { return NSRange(location: 0, length: 0) }
+        let close = ns.range(of: "\n---", options: [], range: NSRange(location: 3, length: ns.length - 3))
+        guard close.location != NSNotFound else { return NSRange(location: 0, length: 0) }
+        return NSRange(location: 0, length: NSMaxRange(close))
     }
 
     public static func headings(in text: String) -> [ChapterHeading] {

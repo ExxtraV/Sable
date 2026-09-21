@@ -8,8 +8,9 @@ enum MarkdownReading {
         let output = NSMutableAttributedString()
         var fence: String?
         var paragraph: [String] = []
-        func append(_ text: String, font: NSFont, color: NSColor = .labelColor, indent: CGFloat = 0, literal: Bool = false) {
+        func append(_ text: String, font: NSFont, color: NSColor = .labelColor, indent: CGFloat = 0, literal: Bool = false, centered: Bool = false) {
             let style = NSMutableParagraphStyle()
+            if centered { style.alignment = .center }
             style.lineSpacing = size * spacing
             style.paragraphSpacing = size * 0.8
             style.headIndent = indent
@@ -32,10 +33,17 @@ enum MarkdownReading {
             }
             output.append(NSAttributedString(string: "\n", attributes: defaults))
         }
+        func isSceneBreak(_ line: String) -> Bool {
+            let compact = line.filter { !$0.isWhitespace }
+            guard compact.count >= 3, let first = compact.first, "-*_".contains(first) else { return false }
+            return compact.allSatisfy { $0 == first }
+        }
         func flush() {
             if !paragraph.isEmpty { append(paragraph.joined(separator: " "), font: base); paragraph = [] }
         }
-        for line in source.components(separatedBy: .newlines) {
+        // Notes to yourself (<!-- … -->) stay out of the reading view, as they do in an export.
+        let visible = source.replacingOccurrences(of: "<!--[\\s\\S]*?(?:-->|\\z)", with: "", options: .regularExpression)
+        for line in visible.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 flush()
@@ -52,6 +60,8 @@ enum MarkdownReading {
                 let font = NSFontManager.shared.font(withFamily: family, traits: .boldFontMask, weight: 9, size: headingSize) ?? .systemFont(ofSize: headingSize, weight: .semibold)
                 let title = String(trimmed[match.upperBound...]).replacingOccurrences(of: "\\s+#+\\s*$", with: "", options: .regularExpression)
                 append(title, font: font)
+            } else if isSceneBreak(trimmed) {
+                flush(); append("*  *  *", font: base, color: .tertiaryLabelColor, centered: true)
             } else if trimmed.hasPrefix(">") {
                 flush(); append(trimmed.replacingOccurrences(of: "^(>\\s*)+", with: "", options: .regularExpression), font: base, color: .secondaryLabelColor, indent: 18)
             } else if let match = trimmed.range(of: "^(?:[-+*]|[0-9]+[.)])\\s+", options: .regularExpression) {
@@ -59,8 +69,14 @@ enum MarkdownReading {
                 let prefix = String(trimmed[match]).trimmingCharacters(in: .whitespaces)
                 let bullet = prefix.first?.isNumber == true ? prefix : "•"
                 let indent = CGFloat(line.prefix { $0 == " " || $0 == "\t" }.count) * 5
-                append(bullet + "  " + String(trimmed[match.upperBound...]), font: base, indent: indent)
-            } else if ["---", "***", "___"].contains(trimmed) { flush(); append("―", font: base, color: .tertiaryLabelColor) }
+                var item = String(trimmed[match.upperBound...])
+                var mark = bullet
+                if bullet == "•" {
+                    if item.hasPrefix("[ ] ") { mark = "☐"; item = String(item.dropFirst(4)) }
+                    else if item.lowercased().hasPrefix("[x] ") { mark = "☑"; item = String(item.dropFirst(4)) }
+                }
+                append(mark + "  " + item, font: base, indent: indent)
+            }
             else { paragraph.append(trimmed) }
         }
         flush()

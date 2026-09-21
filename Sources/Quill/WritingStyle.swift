@@ -16,6 +16,8 @@ struct WritingStyleControls: View {
     @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
     @AppStorage("sceneTagsFade") private var sceneTagsFade = true
     @AppStorage("sceneTagsColor") private var sceneTagsColor = true
+    @AppStorage("dimMarkers") private var dimMarkers = true
+    @AppStorage("smartTypography") private var smartTypography = false
     private let presets = [("Everyday", "Georgia"), ("Literary", "Charter"), ("Classic", "Baskerville"), ("Science fiction", "Menlo"), ("Manuscript", "Courier New")]
     private let families = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
@@ -59,6 +61,12 @@ struct WritingStyleControls: View {
                 }
                 Toggle("Pinch to zoom", isOn: $pinch)
                 Text("Zoom: ⌘+ / ⌘− · Reset: ⌘0 · Move the pointer to the top edge for controls.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Markdown") {
+                Toggle("Dim Markdown symbols (stars, hashes, brackets)", isOn: $dimMarkers)
+                Toggle("Curly quotes, em dashes, and ellipses as I type", isOn: $smartTypography)
+                Text("Curly quotes turn \" into “ ” and ' into ‘ ’, -- into —, and ... into …. Never inside code, links, or the block at the top of a file. Your Markdown stays plain text.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Scene tags") {

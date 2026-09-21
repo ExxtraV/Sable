@@ -44,6 +44,10 @@ struct NativeEditor: NSViewRepresentable {
     /// Whether highlighted names shimmer (a soft moving light inside the letters) instead of just taking a color.
     var nameShimmer: Bool = true
     var nameKinds: Set<CardKind> = Set(CardKind.allCases)
+    /// Dim the symbols of Markdown (the stars, hashes, and brackets) so the words stand out.
+    var dimMarkers: Bool = true
+    /// Curly quotes, em dashes, and ellipses as you type.
+    var smartTypography: Bool = false
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -113,6 +117,8 @@ struct NativeEditor: NSViewRepresentable {
         editor.nameHighlighter = nameHighlighter
         editor.nameShimmer = nameShimmer
         editor.nameKinds = nameKinds
+        editor.dimMarkers = dimMarkers
+        editor.smartTypography = smartTypography
         editor.updatePageMargins()
         editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
@@ -130,6 +136,7 @@ struct NativeEditor: NSViewRepresentable {
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let editor = notification.object as? WritingTextView else { return }
             editor.updateFocus()
+            parent.commands.reportSelection(in: editor)
             if !WritingTextView.isPointerDriven(NSApp.currentEvent) { editor.centerCaretIfNeeded() }
         }
         func textDidChange(_ notification: Notification) {
@@ -170,6 +177,8 @@ final class WritingTextView: NSTextView {
     var nameHighlighter: NameHighlighter?
     var nameShimmer = true
     var nameKinds = Set(CardKind.allCases)
+    var dimMarkers = true { didSet { if oldValue != dimMarkers { lastStyledText = nil } } }
+    var smartTypography = false
     /// Where names were found on the last styling pass, so the shimmer knows where to play.
     private(set) var nameRanges: [NSRange] = []
     private var nameKey: String {
@@ -296,7 +305,41 @@ final class WritingTextView: NSTextView {
 
     override func insertNewline(_ sender: Any?) {
         _ = leaveFormatting()
+        // Inside a list or quote, Return continues it (and on an empty item, ends it).
+        if isEditable, !hasMarkedText(), let edit = MarkdownEditing.newline(in: string, selection: selectedRange()) {
+            apply(edit)
+            return
+        }
         super.insertNewline(sender)
+    }
+
+    override func insertTab(_ sender: Any?) {
+        if isEditable, let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: false) { apply(edit); return }
+        super.insertTab(sender)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if isEditable, let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: true) { apply(edit); return }
+        super.insertBacktab(sender)
+    }
+
+    /// Curly quotes, dashes, and ellipses as you type, when that is turned on.
+    override func insertText(_ insertString: Any, replacementRange: NSRange) {
+        if smartTypography, isEditable, !hasMarkedText(), replacementRange.location == NSNotFound,
+           let typed = insertString as? String, typed.count == 1, selectedRange().length == 0 {
+            let caret = selectedRange().location
+            if let change = SmartTypography.change(typing: typed, in: string, at: caret) {
+                apply(TextEdit(range: NSRange(location: caret - change.deleteCount, length: change.deleteCount),
+                               replacement: change.insert,
+                               selection: NSRange(location: caret - change.deleteCount + (change.insert as NSString).length, length: 0)))
+                return
+            }
+        }
+        super.insertText(insertString, replacementRange: replacementRange)
+    }
+
+    private func apply(_ edit: TextEdit) {
+        replace(edit.range, with: edit.replacement, selection: edit.selection)
     }
 
     @discardableResult
@@ -356,12 +399,32 @@ final class WritingTextView: NSTextView {
                 storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: span.range)
             case .strike:
                 storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: span.content)
+            case .rule:
+                storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .kern: bodySize * 0.3], range: span.range)
+            case .comment:
+                let note = NSMutableParagraphStyle()
+                note.lineSpacing = paragraph.lineSpacing
+                storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .font: NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)], range: span.range)
+            case .image:
+                storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .font: NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)], range: span.range)
+                if let destination = span.destination {
+                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: destination)
+                }
+            case let .task(done):
+                storage.addAttributes([.foregroundColor: NSColor.linkColor, .font: NSFont.monospacedSystemFont(ofSize: bodySize * 0.9, weight: .regular)], range: span.content)
+                if done { storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: NSMaxRange(span.content), length: NSMaxRange(span.range) - NSMaxRange(span.content))) }
+            case .table:
+                storage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: bodySize * 0.86, weight: .regular), range: span.range)
+            case .footnote:
+                storage.addAttributes([.foregroundColor: NSColor.linkColor, .baselineOffset: bodySize * 0.28, .font: NSFont.systemFont(ofSize: bodySize * 0.72)], range: span.range)
             default: break
             }
         }
-        for span in spans {
-            for marker in span.markers {
-                storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: marker)
+        if dimMarkers {
+            for span in spans {
+                for marker in span.markers {
+                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: marker)
+                }
             }
         }
         for word in SentenceStructure.words(in: string, enabled: syntaxClasses) {
@@ -638,14 +701,40 @@ final class WritingTextView: NSTextView {
     }
     @objc func markBold(_ sender: Any?) { wrap("**") }
     @objc func markItalic(_ sender: Any?) { wrap("*") }
+    @objc func markStrikethrough(_ sender: Any?) { wrap("~~") }
+    @objc func markCode(_ sender: Any?) { wrap("`") }
     @objc func markLink(_ sender: Any?) {
-        let range = selectedRange()
-        let selected = (string as NSString).substring(with: range)
-        replace(range, with: "[" + selected + "](url)", selection: NSRange(location: range.location + range.length + 3, length: 3))
+        apply(MarkdownEditing.link(in: string, selection: selectedRange(), clipboard: NSPasteboard.general.string(forType: .string)))
     }
-    @objc func markHeading(_ sender: Any?) {
-        let range = (string as NSString).lineRange(for: selectedRange())
-        replace(NSRange(location: range.location, length: 0), with: "## ", selection: NSRange(location: range.location + 3, length: 0))
+    @objc func markHeading(_ sender: Any?) { apply(MarkdownEditing.cycleHeading(in: string, selection: selectedRange())) }
+    @objc func markQuote(_ sender: Any?) { apply(MarkdownEditing.toggleLine(.quote, in: string, selection: selectedRange())) }
+    @objc func markBulletList(_ sender: Any?) { apply(MarkdownEditing.toggleLine(.bullet, in: string, selection: selectedRange())) }
+    @objc func markNumberedList(_ sender: Any?) { apply(MarkdownEditing.toggleLine(.numbered, in: string, selection: selectedRange())) }
+    @objc func markTaskList(_ sender: Any?) { apply(MarkdownEditing.toggleLine(.task, in: string, selection: selectedRange())) }
+    @objc func markSceneBreak(_ sender: Any?) { apply(MarkdownEditing.horizontalRule(in: string, selection: selectedRange())) }
+
+    /// Paste from Word, Google Docs, or a web page with its italics, bold, headings, lists, and links as Markdown.
+    @objc func pasteAsMarkdown(_ sender: Any?) {
+        guard isEditable else { return }
+        let board = NSPasteboard.general
+        var rich: NSAttributedString?
+        if let data = board.data(forType: .rtf) { rich = NSAttributedString(rtf: data, documentAttributes: nil) }
+        else if let data = board.data(forType: .html) { rich = try? NSAttributedString(data: data, options: [.documentType: NSAttributedString.DocumentType.html, .characterEncoding: String.Encoding.utf8.rawValue], documentAttributes: nil) }
+        if let rich, rich.length > 0 {
+            let markdown = RichTextMarkdown.markdown(from: rich)
+            let range = selectedRange()
+            replace(range, with: markdown, selection: NSRange(location: range.location + (markdown as NSString).length, length: 0))
+        } else {
+            pasteAsPlainText(sender)
+        }
+    }
+
+    /// Replaces the whole text in one undoable step, keeping the caret where it was.
+    func replaceEntireText(_ text: String) {
+        let old = selectedRange()
+        let length = (text as NSString).length
+        replace(NSRange(location: 0, length: (string as NSString).length), with: text,
+                selection: NSRange(location: min(old.location, length), length: 0))
     }
 }
 
@@ -680,6 +769,15 @@ final class EditorCommands: ObservableObject {
     func switchTo(_ url: URL, completion: @escaping (Error?) -> Void) {
         let source = editor?.window?.windowController?.document as? NSDocument
         SingleDocumentCoordinator.shared.switchDocument(from: source, to: url, completion: completion)
+    }
+    /// Words in the selection, for the status bar (0 when nothing is selected).
+    @Published var selectionWords = 0
+    func reportSelection(in editor: WritingTextView) {
+        let range = editor.selectedRange()
+        let count = range.length > 0 && range.length < 400_000 ? Prose.wordCount((editor.string as NSString).substring(with: range)) : 0
+        DispatchQueue.main.async { [weak self] in
+            if self?.selectionWords != count { self?.selectionWords = count }
+        }
     }
     func format(_ action: Selector) {
         guard let editor else { return }
