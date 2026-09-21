@@ -112,7 +112,7 @@ struct WritingView: View {
     @State private var showToolbarOptions = false
     @State private var showToolbarCustomizer = false
     @AppStorage("edgeShading") private var edgeShading = true
-    @AppStorage("edgeStrength") private var edgeStrength = 1.0
+    @AppStorage("edgeStrength") private var edgeStrength = 0.65
     @AppStorage("toolbarTools") private var toolbarTools = ToolbarLayout.defaultToken
     @StateObject private var commands = EditorCommands()
     @AppStorage("writingTheme") private var themeName = "graphite"
@@ -252,12 +252,16 @@ struct WritingView: View {
     }
 
     private var writingStyleSheet: some View {
-        VStack {
-            Form { WritingStyleControls() }
-            Button("Done") { showStyle = false }
+        VStack(spacing: 0) {
+            HStack {
+                Text("Writing Style").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Done") { showStyle = false }.keyboardShortcut(.defaultAction)
+            }.padding(.horizontal, 20).padding(.vertical, 14)
+            Divider()
+            Form { WritingStyleControls() }.formStyle(.grouped)
         }
-        .padding(24)
-        .frame(width: 440)
+        .frame(width: 540, height: 660)
     }
 
     private var writingActions: WritingActions {
@@ -425,6 +429,9 @@ struct WritingView: View {
             do { try CardStore.setField(key, to: value, in: url) } catch { errorMessage = error.localizedDescription }
         }
     }
+
+    /// Dark themes shade toward the edges of the page when that is on.
+    private var shadedPage: Bool { edgeShading && WritingTheme.named(themeName).edgeColor != nil }
 
     private var toolbarEdge: ToolbarEdge { ToolbarEdge(rawValue: toolbarEdgeName) ?? .top }
 
@@ -635,18 +642,22 @@ struct WritingView: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
+                // The page and its edge shading sit behind the text, so the words are never darkened.
+                if shadedPage, let edge = WritingTheme.named(themeName).edgeColor {
+                    Color(nsColor: WritingTheme.named(themeName).background)
+                    VignetteOverlay(color: edge, strength: edgeStrength)
+                }
                 NativeEditor(text: $document.text, review: review, words: words, fontSize: fontSize,
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
                              lineSpacing: lineSpacing, focusParagraph: focus, focusGradient: focusStyle == "gradient", readOnly: reading, syntaxClasses: syntaxClasses,
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
                              nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameShimmer: nameStyle == "shimmer",
                              nameKinds: Set(CardKind.allCases.filter { ($0 == .character && nameCharacters) || ($0 == .location && nameLocations) || ($0 == .lore && nameLore) }),
-                             dimMarkers: dimMarkers, smartTypography: smartTypography,
+                             dimMarkers: dimMarkers, smartTypography: smartTypography, transparentBackground: shadedPage,
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
-                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth) }
-                if edgeShading, let edge = WritingTheme.named(themeName).edgeColor { VignetteOverlay(color: edge, strength: edgeStrength) }
+                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth, transparent: shadedPage) }
                 sceneLayer
             }
             .onChange(of: reading) { _, value in

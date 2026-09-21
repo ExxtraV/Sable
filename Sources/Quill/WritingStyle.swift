@@ -18,13 +18,35 @@ struct WritingStyleControls: View {
     @AppStorage("sceneTagsColor") private var sceneTagsColor = true
     @AppStorage("dimMarkers") private var dimMarkers = true
     @AppStorage("edgeShading") private var edgeShading = true
-    @AppStorage("edgeStrength") private var edgeStrength = 1.0
+    @AppStorage("edgeStrength") private var edgeStrength = 0.65
     @AppStorage("smartTypography") private var smartTypography = false
+    private func valueSlider(_ value: Binding<Double>, _ range: ClosedRange<Double>, step: Double, label: String) -> some View {
+        HStack {
+            Slider(value: value, in: range, step: step)
+            Text(label).monospacedDigit().foregroundStyle(.secondary).frame(width: 52, alignment: .trailing)
+        }
+    }
     private let presets = [("Everyday", "Georgia"), ("Literary", "Charter"), ("Classic", "Baskerville"), ("Science fiction", "Menlo"), ("Manuscript", "Courier New")]
     private let families = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
     var body: some View {
         Group {
+            Section("Theme") {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                    ForEach(WritingTheme.all) { item in
+                        ThemeSwatch(theme: item, selected: theme == item.id) { theme = item.id }
+                    }
+                }.padding(.vertical, 4)
+                Toggle("Darken toward the edges (dark themes)", isOn: $edgeShading)
+                LabeledContent("Edge darkness") {
+                    HStack {
+                        Slider(value: $edgeStrength, in: 0.3...1.6)
+                        Text("\(Int(edgeStrength * 100))%").monospacedDigit().foregroundStyle(.secondary).frame(width: 44, alignment: .trailing)
+                    }
+                }.disabled(!edgeShading)
+                Text("The page is lightest around your text and shades toward the edges, behind the words, so the eye settles on them. Light themes have no shading.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Typeface") {
                 Picker("Writing font", selection: Binding(get: {
                     customFont || !presets.contains(where: { $0.1 == family }) ? "custom" : family
@@ -40,20 +62,17 @@ struct WritingStyleControls: View {
                         ForEach(families, id: \.self) { name in Text(name).tag(name) }
                     }
                 }
-                Slider(value: $size, in: 14...30, step: 1) { Text("Size: \(Int(size))") }
-                Slider(value: $width, in: 480...880, step: 20) { Text("Page width: \(Int(width))") }
-                Slider(value: $spacing, in: 0.1...0.65, step: 0.05) { Text("Line spacing") }
+                LabeledContent("Size") { valueSlider($size, 14...30, step: 1, label: "\(Int(size)) pt") }
+                LabeledContent("Page width") { valueSlider($width, 480...880, step: 20, label: "\(Int(width))") }
+                LabeledContent("Line spacing") { valueSlider($spacing, 0.1...0.65, step: 0.05, label: String(format: "%.2f", spacing)) }
+                let active = WritingTheme.named(theme)
                 Text("The story begins with a door.")
-                    .font(.custom(family, size: size)).padding(.vertical, 4)
-            }
-            Section("Theme") {
-                Picker("Theme", selection: $theme) {
-                    ForEach(WritingTheme.all) { item in Text(item.name).tag(item.id) }
-                }
-                Toggle("Darken toward the edges (dark themes)", isOn: $edgeShading)
-                Slider(value: $edgeStrength, in: 0.3...1.6) { Text("Edge darkness: \(Int(edgeStrength * 100))%") }.disabled(!edgeShading)
-                Text("The page is lightest around the text and shades toward the edges, so the eye settles on your words. Light themes have no shading.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.custom(family, size: size))
+                    .foregroundStyle(Color(nsColor: active.foreground))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color(nsColor: active.background), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 0.5))
             }
             Section("Scrolling & focus") {
                 Picker("Scrolling", selection: $typewriterMode) {
@@ -91,6 +110,30 @@ struct WritingStyleControls: View {
                 Button("Reset writing style") { family = "Charter"; customFont = false; size = 19; width = 680; spacing = 0.28; appearance = "dark"; theme = "graphite"; WritingZoom.set(1) }
             }
         }
+    }
+}
+
+/// A theme shown as a small page: its paper, its ink, and its name.
+struct ThemeSwatch: View {
+    let theme: WritingTheme
+    let selected: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack {
+                    Color(nsColor: theme.background)
+                    if let edge = theme.edgeColor { VignetteOverlay(color: edge, strength: 0.65) }
+                    Text("Aa").font(.system(size: 20, weight: .medium, design: .serif)).foregroundStyle(Color(nsColor: theme.foreground))
+                }
+                .frame(height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.18), lineWidth: selected ? 2.5 : 0.5))
+                Text(theme.name).font(.caption).foregroundStyle(selected ? Color.primary : Color.secondary)
+            }.contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(theme.name).accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

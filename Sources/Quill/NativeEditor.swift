@@ -48,6 +48,8 @@ struct NativeEditor: NSViewRepresentable {
     var dimMarkers: Bool = true
     /// Curly quotes, em dashes, and ellipses as you type.
     var smartTypography: Bool = false
+    /// The page is drawn behind the editor (edge shading), so the editor paints nothing of its own.
+    var transparentBackground: Bool = false
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -122,8 +124,12 @@ struct NativeEditor: NSViewRepresentable {
         editor.updatePageMargins()
         editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
-        editor.backgroundColor = WritingTheme.named(editor.themeName).background
-        scroll.contentView.backgroundColor = WritingTheme.named(editor.themeName).background
+        let paper = WritingTheme.named(editor.themeName).background
+        editor.backgroundColor = transparentBackground ? .clear : paper
+        editor.drawsBackground = !transparentBackground
+        scroll.drawsBackground = !transparentBackground
+        scroll.contentView.drawsBackground = !transparentBackground
+        scroll.contentView.backgroundColor = transparentBackground ? .clear : paper
         editor.insertionPointColor = WritingTheme.named(editor.themeName).foreground
         editor.reviewEnabled = review
         editor.reviewWords = words
@@ -260,10 +266,24 @@ final class WritingTextView: NSTextView {
 
     /// In "center" mode, glides the page so the line you're writing sits in the middle of the window, wherever
     /// on the page you started, except that the page never slides down past its first line. It moves a line at a time, smoothly, and stays put while you stay on a line.
+    /// `defaults write local.quill.editor debugCentering -bool true` makes the page-centering code log what it decides to
+    /// /tmp/sable-centering.log, which is how a scrolling problem gets tracked down.
+    static var debugCentering: Bool { UserDefaults.standard.bool(forKey: "debugCentering") }
+    static func logCentering(_ message: String) {
+        guard debugCentering else { return }
+        let line = "\(Date().formatted(.iso8601)) \(message)\n"
+        let url = URL(fileURLWithPath: "/tmp/sable-centering.log")
+        if let handle = try? FileHandle(forWritingTo: url) { handle.seekToEndOfFile(); handle.write(Data(line.utf8)); try? handle.close() }
+        else { try? line.write(to: url, atomically: true, encoding: .utf8) }
+    }
+
     func centerCaretIfNeeded(animated: Bool = true) {
         guard typewriterMode == "center", window?.firstResponder === self,
-              let scroll = enclosingScrollView, let rect = caretLineRect() else { return }
+              let scroll = enclosingScrollView, let lineRect = caretLineRect() else { return }
         let clip = scroll.contentView
+        // AppKit can leave the text view's own frame origin away from zero (it shifts it as the page is laid out), and the
+        // clip view's scroll position is measured in the space around that frame. Measure the line the same way.
+        let rect = convert(lineRect, to: clip)
         // scroll(to:) doesn't clamp, so ask the clip view where that position is allowed to be.
         let wanted = NSRect(x: clip.bounds.minX, y: rect.midY - clip.bounds.height / 2, width: clip.bounds.width, height: clip.bounds.height)
         // Layout is lazy: after an edit only the text near the top may be laid out, which makes the page look short and would
@@ -274,6 +294,7 @@ final class WritingTextView: NSTextView {
             scroll.reflectScrolledClipView(clip)
         }
         let target = clip.constrainBoundsRect(wanted).origin
+        Self.logCentering("center caretMid=\(Int(rect.midY)) clipOrigin=\(Int(clip.bounds.origin.y)) clipH=\(Int(clip.bounds.height)) wanted=\(Int(wanted.origin.y)) target=\(Int(target.y)) docRect=\(clip.documentRect) frame=\(frame) rooms=\((clip as? RoomClipView).map { "\($0.topRoom)/\($0.bottomRoom)" } ?? "-") len=\((string as NSString).length) sel=\(selectedRange().location)")
         guard abs(target.y - clip.bounds.origin.y) > rect.height * 0.4 else { return }
         guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
             clip.scroll(to: target)
@@ -551,7 +572,11 @@ final class WritingTextView: NSTextView {
         clip.postsBoundsChangedNotifications = true
         scrollObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.focusParagraph, self.focusGradient else { return }
+                guard let self else { return }
+                if Self.debugCentering {
+                    Self.logCentering("scroll origin=\(Int(clip.bounds.origin.y)) via \(Thread.callStackSymbols.dropFirst(2).prefix(7).map { String($0.split(separator: " ", omittingEmptySubsequences: true).dropFirst(3).joined(separator: " ").prefix(70)) }.joined(separator: " <- "))")
+                }
+                guard self.focusParagraph, self.focusGradient else { return }
                 self.updateFocus()
             }
         }

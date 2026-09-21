@@ -74,6 +74,8 @@ struct ReadingView: NSViewRepresentable {
     let spacing: Double
     var width: Double = 680
     var darker = false
+    /// Let the page behind show through (the edge shading is drawn there).
+    var transparent = false
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
@@ -104,7 +106,10 @@ struct ReadingView: NSViewRepresentable {
         view.updateMargins()
         view.appearance = darker ? NSAppearance(named: .darkAqua) : nil
         let theme = WritingTheme.named(darker ? "midnight" : themeName)
-        view.backgroundColor = theme.background
+        view.backgroundColor = transparent ? .clear : theme.background
+        view.drawsBackground = !transparent
+        scroll.drawsBackground = !transparent
+        scroll.contentView.drawsBackground = !transparent
         let key = "\(family)|\(size)|\(spacing)|\(zoom)|\(theme.id)|\(text)"
         if view.renderKey != key {
             let rendered = NSMutableAttributedString(attributedString: MarkdownReading.render(text, family: family, size: size * zoom, spacing: spacing))
