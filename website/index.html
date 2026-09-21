@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sable Markdown Writer — Free Markdown Editor for Mac</title>
+<meta name="description" content="Sable Markdown Writer is a free, open-source Mac editor made for fiction writers. Paragraph focus, calm themes, plain files you own. No account.">
+<link rel="canonical" href="https://sable.jtsjaden.com/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161514">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F6F2EA">
+<meta name="author" content="Jaden">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sable Markdown Writer">
+<meta property="og:url" content="https://sable.jtsjaden.com/">
+<meta property="og:title" content="Sable Markdown Writer — Free Markdown Editor for Mac">
+<meta property="og:description" content="A quiet, native Mac Markdown editor for fiction writers. Plain files you own. Free and open source.">
+<meta property="og:image" content="https://sable.jtsjaden.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Sable Markdown Writer: a quiet Markdown editor for fiction">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sable Markdown Writer — Free Markdown Editor for Mac">
+<meta name="twitter:description" content="A quiet, native Mac Markdown editor for fiction writers. Plain files you own. Free and open source.">
+<meta name="twitter:image" content="https://sable.jtsjaden.com/og.png">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://sable.jtsjaden.com/#website",
+      "url": "https://sable.jtsjaden.com/",
+      "name": "Sable Markdown Writer",
+      "inLanguage": "en"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://sable.jtsjaden.com/#app",
+      "name": "Sable Markdown Writer",
+      "alternateName": "Sable",
+      "url": "https://sable.jtsjaden.com/",
+      "description": "A free, open-source, native Markdown editor for Mac made for writing fiction, with paragraph focus, calm themes, a writing desk, and plain files you own.",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "macOS 14 or later",
+      "softwareRequirements": "macOS 14 (Sonoma) or later; Apple Silicon or Intel",
+      "image": "https://sable.jtsjaden.com/og.png",
+      "downloadUrl": "https://github.com/ExxtraV/new-quill/releases/latest",
+      "license": "https://github.com/ExxtraV/new-quill/blob/main/LICENSE",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Person", "name": "Jaden", "url": "https://jtsjaden.com" },
+      "sameAs": ["https://github.com/ExxtraV/new-quill"]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "Is Sable really free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Sable is open source under the MIT license, with no account, subscription, or paid tier." } },
+        { "@type": "Question", "name": "Is Sable a good Markdown editor for writing a novel?", "acceptedAnswer": { "@type": "Answer", "text": "It is built for exactly that. Your headings become a chapter outline, paragraph focus keeps you inside one passage, a second file can sit beside your draft for notes, and every chapter stays an ordinary Markdown file. It is a young app, and it does not yet export to PDF or ebooks." } },
+        { "@type": "Question", "name": "Does it sync between devices?", "acceptedAnswer": { "@type": "Answer", "text": "Sable does not run a cloud service. Keep your writing folder in iCloud Drive, Dropbox, or OneDrive and that service syncs the files. Let it finish syncing before you edit the same file elsewhere." } },
+        { "@type": "Question", "name": "Does Sable use AI?", "acceptedAnswer": { "@type": "Answer", "text": "No. Prose suggestions come from a word list you control, and sentence coloring uses Apple's Natural Language tools on your Mac. Nothing you write is sent anywhere." } },
+        { "@type": "Question", "name": "What files can it open?", "acceptedAnswer": { "@type": "Answer", "text": "Markdown and text files: .md, .markdown, and .txt. Files stay exactly as you wrote them." } },
+        { "@type": "Question", "name": "Can I keep using other apps on the same files?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Sable saves plain Markdown in ordinary folders, so any other editor can open the same files. Themes, focus, colors, and suggestions are display only and never change what is saved." } },
+        { "@type": "Question", "name": "Is there a Windows, iPad, or iPhone version?", "acceptedAnswer": { "@type": "Answer", "text": "Sable is Mac-only for now. An iPad edition, Fiction Projects, and PDF and ebook export are on the roadmap, not in the app today." } },
+        { "@type": "Question", "name": "Why does macOS say I have to choose Open Anyway?", "acceptedAnswer": { "@type": "Answer", "text": "The app is signed for updates but not notarized by Apple, which needs a paid developer membership. It is a one-time approval in System Settings, Privacy and Security, and you can read every line of the source." } }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="/"><img src="/logo.png" alt="" width="30" height="30"> Sable</a>
+    <nav aria-label="Main">
+      <a href="/#features">Features</a>
+      <a href="/#files">Your files</a>
+      <a href="/guide">Guide</a>
+      <a href="/#faq">FAQ</a>
+      <a class="btn primary small" href="/#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<div class="wrap">
+  <div class="hero">
+    <p class="eyebrow">For Mac · Free · Open source</p>
+    <h1>A quiet place to write your story.</h1>
+    <p class="lede">Sable Markdown Writer is a free, open-source Markdown editor for Mac, made for novelists and fiction writers. Your words stay in plain files you own, and everything else stays out of the way until you need it.</p>
+    <div class="cta">
+      <a class="btn primary" href="#download">Download for Mac</a>
+      <a class="btn ghost" href="https://github.com/ExxtraV/new-quill">View on GitHub</a>
+    </div>
+    <ul class="trust" aria-label="Highlights">
+      <li>No account</li>
+      <li>Plain Markdown files</li>
+      <li>MIT licensed</li>
+      <li>Apple Silicon and Intel</li>
+    </ul>
+
+    <div class="stage" role="img" aria-label="Illustration of the Sable editor: a writing desk of folders on the left and a manuscript page with one paragraph in focus on the right.">
+      <div class="app" id="app" data-theme="graphite" aria-hidden="true">
+        <div class="titlebar">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="name">Chapter 2 — The Crossing</span>
+        </div>
+        <div class="body">
+          <div class="desk">
+            <div class="seg"><span class="on">Files</span><span>Chapters</span></div>
+            <div class="chips">
+              <span class="chip">All</span>
+              <span class="chip" style="--c:#4f8cff"><i></i>Draft</span>
+              <span class="chip" style="--c:#39b36a"><i></i>Final</span>
+            </div>
+            <div class="row tint" style="--c:#4f8cff"><span class="chev">▾</span><span class="fold" style="--c:#4f8cff"></span>The Crossing<span class="pin">●</span></div>
+            <div class="row d1"><span class="doc"></span>Chapter 1</div>
+            <div class="row d1 sel"><span class="doc"></span>Chapter 2</div>
+            <div class="row d1"><span class="doc"></span>Chapter 3</div>
+            <div class="row tint" style="--c:#39b36a"><span class="chev">▸</span><span class="fold" style="--c:#39b36a"></span>Northwatch</div>
+            <div class="row"><span class="chev">▾</span><span class="fold" style="--c:#a06be0"></span>World</div>
+            <div class="row d1"><span class="fold"></span>Places</div>
+            <div class="row d2"><span class="doc"></span>Harbor</div>
+            <div class="row"><span class="doc"></span>Notes</div>
+          </div>
+          <div class="page">
+            <div class="pill"><span>▶</span><span><b>B</b></span><span><i>I</i></span><span>Aa</span><span class="on">◎</span><span>✓</span></div>
+            <h4>Chapter 2</h4>
+            <p class="dim">The harbor bell rang twice before dawn, which meant someone had lied about the tide. Marren pulled her coat tight and went down to the water anyway.</p>
+            <p>The <mark>very</mark> last of the lamps guttered as she reached the pier. Below her, the boats knocked together like quiet knuckles, and somewhere in the fog a voice was counting.</p>
+            <p class="dim">She did not answer. Counting was how the harbor kept its dead, and it had never once been wrong.</p>
+            <div class="status"><span>1,240 words</span><span>Saved</span><span style="margin-left:auto">Paragraph focus on</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="themes">
+      <span>Five calm themes</span>
+      <button class="swatch" style="--p:#242424;--i:#E0DDD7" data-theme="graphite" aria-pressed="true" aria-label="Graphite theme">Aa</button>
+      <button class="swatch" style="--p:#131820;--i:#D6DEE8" data-theme="midnight" aria-pressed="false" aria-label="Midnight theme">Aa</button>
+      <button class="swatch" style="--p:#1D2925;--i:#DCE4D9" data-theme="forest" aria-pressed="false" aria-label="Forest theme">Aa</button>
+      <button class="swatch" style="--p:#F3EBDD;--i:#40382E" data-theme="parchment" aria-pressed="false" aria-label="Parchment theme">Aa</button>
+      <button class="swatch" style="--p:#FAFAF8;--i:#30302E" data-theme="paper" aria-pressed="false" aria-label="Paper theme">Aa</button>
+    </div>
+  </div>
+
+  <section id="features" aria-labelledby="features-h">
+    <div class="head">
+      <p class="eyebrow">What it does</p>
+      <h2 id="features-h">Everything a draft needs. Nothing it doesn’t.</h2>
+      <p>No accounts, no dashboards, no clutter. Just the handful of tools that help you stay inside the story.</p>
+    </div>
+    <div class="grid">
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg></div>
+        <h3>Paragraph focus</h3>
+        <p>Dim everything except the paragraph you’re writing. It follows your cursor as you type and never touches your text.</p>
+      </article>
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+        <h3>A writing desk that behaves</h3>
+        <p>Browse your folder, drag files into place, color and pin what matters, rename, and search every subfolder. Switch files without leaving the window.</p>
+      </article>
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h16"/></svg></div>
+        <h3>Your outline, your words</h3>
+        <p>Headings become an outline you can name Chapters, Scenes, or Episodes. Jump anywhere with a click.</p>
+      </article>
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/></svg></div>
+        <h3>A second file beside your draft</h3>
+        <p>Open a character sheet or a map of the world next to your chapter, read it cleanly, and edit it in place when you need to.</p>
+      </article>
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3-1 10-10a2 2 0 0 0-3-3L5 15z"/><path d="M14 6l3 3"/></svg></div>
+        <h3>Gentle prose suggestions</h3>
+        <p>Light strikethroughs mark words you might cut. Sentence coloring shows nouns and verbs. Both run on your Mac and change nothing until you say so.</p>
+      </article>
+      <article class="card">
+        <div class="glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg></div>
+        <h3>A toolbar that gets out of the way</h3>
+        <p>It slides in when you reach for it and disappears when you don’t. Put it on the top or the side, keep it visible, or turn it off.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="files" aria-labelledby="files-h">
+    <div class="split">
+      <div>
+        <p class="eyebrow">No lock-in</p>
+        <h2 id="files-h">Your writing is just files.</h2>
+        <p class="sub">Sable saves ordinary Markdown. Open your chapters in any editor, keep them in a folder you control, and take them anywhere.</p>
+        <ul class="checks">
+          <li><span><b>Plain text.</b> Bold, italics, headings and quotes are ordinary Markdown marks. Nothing proprietary, nothing hidden.</span></li>
+          <li><span><b>Your cloud, your rules.</b> Keep the folder in iCloud Drive, Dropbox, or OneDrive and your service handles sync.</span></li>
+          <li><span><b>Display only.</b> Themes, focus, colors and suggestions never change what’s saved.</span></li>
+        </ul>
+      </div>
+      <div class="file" role="img" aria-label="An example Markdown file with a heading, bold and italic text, a quotation and a list.">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <span class="k">#</span> <b>Chapter 2</b><br><br>
+        The harbor bell rang <span class="k">**</span><b>twice</b><span class="k">**</span> before dawn,<br>
+        which meant someone had lied about<br>
+        the <span class="k">*</span>tide<span class="k">*</span>.<br><br>
+        <span class="k">&gt;</span> Counting was how the harbor kept<br>
+        <span class="k">&gt;</span> its dead.<br><br>
+        <span class="k">-</span> Marren<br>
+        <span class="k">-</span> The pier
+      </div>
+    </div>
+  </section>
+
+  <section id="specs" aria-labelledby="specs-h">
+    <div class="head">
+      <p class="eyebrow">At a glance</p>
+      <h2 id="specs-h">The details</h2>
+    </div>
+    <dl class="specs">
+      <div><dt>Price</dt><dd>Free</dd></div>
+      <div><dt>License</dt><dd>MIT, open source</dd></div>
+      <div><dt>Platform</dt><dd>macOS 14 or later</dd></div>
+      <div><dt>Processors</dt><dd>Apple Silicon and Intel</dd></div>
+      <div><dt>Files</dt><dd>.md, .markdown, .txt</dd></div>
+      <div><dt>Updates</dt><dd>Built in, signed</dd></div>
+    </dl>
+  </section>
+
+  <section id="roadmap" aria-labelledby="road-h">
+    <div class="head">
+      <p class="eyebrow">What’s next</p>
+      <h2 id="road-h">Small and focused, on purpose.</h2>
+      <p>Sable is a young app. These are plans, not promises, and none of them are in the app today.</p>
+    </div>
+    <div class="road">
+      <article class="card"><span class="tag">Planned</span><h3>Fiction Projects</h3><p>A project folder with places for manuscripts, characters, background, and world notes, all still plain files.</p></article>
+      <article class="card"><span class="tag">Planned</span><h3>PDF and ebook export</h3><p>Export a manuscript with a preview and explicit settings.</p></article>
+      <article class="card"><span class="tag">Exploring</span><h3>iPad</h3><p>The core is written to be reused, so an iPad edition is possible later.</p></article>
+    </div>
+  </section>
+</div>
+
+<div class="download" id="download">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">Get Sable</p>
+      <h2>Free for Mac. Open source, MIT licensed.</h2>
+      <p>Download the latest release from GitHub. It works on Apple Silicon and Intel Macs running macOS 14 or later.</p>
+    </div>
+    <div class="cta left">
+      <a class="btn primary" href="https://github.com/ExxtraV/new-quill/releases/latest">Download the latest release</a>
+      <a class="btn ghost" href="https://github.com/ExxtraV/new-quill">Read the source</a>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Download and unzip</h3><p>Get <b>Sable-Markdown-Writer.zip</b> from the latest release and double-click it.</p></div>
+      <div class="step"><h3>Move to Applications</h3><p>Drag <b>Sable Markdown Writer.app</b> into your Applications folder.</p></div>
+      <div class="step"><h3>Open it</h3><p>Choose a writing folder when asked, or create a new one. Then start on page one. The <a href="/guide">guide</a> covers shortcuts and tips.</p></div>
+    </div>
+    <div class="note"><b>A note on first launch.</b> Sable isn’t notarized by Apple yet, so macOS may block it the first time. If you trust the download, open System Settings → Privacy &amp; Security and choose <b>Open Anyway</b>. Updates later arrive inside the app, verified with the project’s signing key.</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <section id="faq" aria-labelledby="faq-h" style="padding-top:80px">
+    <div class="head"><p class="eyebrow">Questions</p><h2 id="faq-h">Good to know</h2></div>
+    <div class="faq">
+      <details><summary>Is Sable really free?</summary><p>Yes. Sable is open source under the MIT license, with no account, subscription, or paid tier.</p></details>
+      <details><summary>Is Sable a good Markdown editor for writing a novel?</summary><p>It is built for exactly that. Your headings become a chapter outline, paragraph focus keeps you inside one passage, a second file can sit beside your draft for notes, and every chapter stays an ordinary Markdown file. It is a young app, and it does not yet export to PDF or ebooks.</p></details>
+      <details><summary>Does it sync between devices?</summary><p>Sable does not run a cloud service. Keep your writing folder in iCloud Drive, Dropbox, or OneDrive and that service syncs the files. Let it finish syncing before you edit the same file elsewhere.</p></details>
+      <details><summary>Does Sable use AI?</summary><p>No. Prose suggestions come from a word list you control, and sentence coloring uses Apple’s Natural Language tools on your Mac. Nothing you write is sent anywhere.</p></details>
+      <details><summary>What files can it open?</summary><p>Markdown and text files: <code>.md</code>, <code>.markdown</code>, and <code>.txt</code>. Files stay exactly as you wrote them.</p></details>
+      <details><summary>Can I keep using other apps on the same files?</summary><p>Yes. Sable saves plain Markdown in ordinary folders, so any other editor can open the same files. Themes, focus, colors, and suggestions are display only and never change what is saved.</p></details>
+      <details><summary>Is there a Windows, iPad, or iPhone version?</summary><p>Sable is Mac-only for now. An iPad edition, Fiction Projects, and PDF and ebook export are on the roadmap, not in the app today.</p></details>
+      <details><summary>Why does macOS say I have to choose Open Anyway?</summary><p>The app is signed for updates but not notarized by Apple, which needs a paid developer membership. It is a one-time approval in System Settings, Privacy &amp; Security, and you can read every line of the source.</p></details>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap foot">
+    <span>Sable Markdown Writer — made by <a href="https://jtsjaden.com"><u>Jaden</u></a>. MIT licensed.</span>
+    <nav aria-label="Footer">
+      <a href="/guide">Guide</a>
+      <a href="/privacy">Privacy</a>
+      <a href="https://github.com/ExxtraV/new-quill">GitHub</a>
+      <a href="https://github.com/ExxtraV/new-quill/releases">Releases</a>
+      <a href="https://github.com/ExxtraV/new-quill/issues">Report a bug</a>
+      <a href="https://jtsjaden.com">Portfolio</a>
+    </nav>
+  </div>
+</footer>
+<script src="/site.js" defer></script>
+</body>
+</html>

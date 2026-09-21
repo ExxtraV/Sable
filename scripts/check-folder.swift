@@ -94,6 +94,33 @@ import Foundation
         let labelDefaults = UserDefaults(suiteName: "quill-label-check-\(UUID())")!
         ColorLabels.save([.red: "Draft", .blue: "Final"], defaults: labelDefaults)
         precondition(ColorLabels.load(defaults: labelDefaults) == [.red: "Draft", .blue: "Final"])
+        // Categories
+        var cats = FolderCategories()
+        let school = cats.add(name: " School ")!
+        let work = cats.add(name: "Work")!
+        precondition(school.name == "School" && cats.list.map(\.name) == ["School", "Work"])
+        precondition(cats.add(name: "school") == nil && cats.add(name: "  ") == nil, "Names are unique and non-empty")
+        precondition(cats.add(name: String(repeating: "x", count: 90))!.name.count == 40, "Names are capped")
+        cats.assign(key: "Biology", to: school.id); cats.assign(key: "Reports", to: work.id); cats.assign(key: "Chem", to: school.id)
+        precondition(cats.members(of: school.id) == ["Biology", "Chem"] && cats.categoryID(forKey: "Reports") == work.id)
+        cats.assign(key: "Chem", to: nil)
+        precondition(cats.categoryID(forKey: "Chem") == nil && cats.members(of: school.id) == ["Biology"], "Dragging back to the ordinary list unassigns")
+        precondition(cats.rename(work.id, to: "Job") && cats.list[1].name == "Job")
+        precondition(!cats.rename(work.id, to: "School"), "Can't rename onto another category's name")
+        precondition(cats.rename(school.id, to: "school"), "Changing only the case of your own name is fine")
+        cats.move(work.id, by: -1)
+        precondition(cats.list.first?.id == work.id, "Categories reorder")
+        cats.move(work.id, by: -5)
+        precondition(cats.list.first?.id == work.id)
+        let catRoot = URL(fileURLWithPath: "/tmp/Library")
+        let catMoved = cats.remapped(moves: [(catRoot.appendingPathComponent("Biology"), catRoot.appendingPathComponent("Archive/Biology"))], root: catRoot)
+        precondition(catMoved.categoryID(forKey: "Archive/Biology") == school.id && catMoved.categoryID(forKey: "Biology") == nil, "A moved folder keeps its category")
+        let catDefaults = UserDefaults(suiteName: "quill-category-check-\(UUID())")!
+        FolderCategoriesStore.save(cats, for: catRoot, defaults: catDefaults)
+        precondition(FolderCategoriesStore.load(for: catRoot, defaults: catDefaults) == cats)
+        precondition(FolderCategoriesStore.load(for: URL(fileURLWithPath: "/tmp/Other"), defaults: catDefaults).isEmpty)
+        cats.delete(school.id)
+        precondition(cats.categoryID(forKey: "Biology") == nil && cats.list.count == 2, "Deleting a category only ungroups its folders")
         let marksRoot = URL(fileURLWithPath: "/tmp/Writing")
         precondition(FolderMarks.key(for: marksRoot.appendingPathComponent("Scenes/One.md"), in: marksRoot) == "Scenes/One.md")
         precondition(FolderMarks.key(for: marksRoot, in: marksRoot) == nil)
@@ -108,6 +135,6 @@ import Foundation
         FolderMarksStore.save(marks, for: marksRoot, defaults: defaults)
         precondition(FolderMarksStore.load(for: marksRoot, defaults: defaults) == marks)
         precondition(FolderMarksStore.load(for: URL(fileURLWithPath: "/tmp/Elsewhere"), defaults: defaults).isEmpty)
-        print("Passed: natural sorting, subfolders, Markdown extensions, hidden/unsupported-file and symlink exclusions, folder marks (keys, filters, persistence), new file/folder creation, moving (safety checks, marks follow moved items), search, sorting, rename, and color labels.")
+        print("Passed: natural sorting, subfolders, Markdown extensions, hidden/unsupported-file and symlink exclusions, folder marks (keys, filters, persistence), new file/folder creation, moving (safety checks, marks follow moved items), search, sorting, rename, color labels, and folder categories.")
     }
 }

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>New Quill Markdown Editor</string>
+	<string>Sable Markdown Writer</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -23,11 +23,11 @@
 	<key>CFBundleExecutable</key>
 	<string>Quill</string>
 	<key>CFBundleIconFile</key>
-	<string>NewQuill</string>
+	<string>Sable</string>
 	<key>CFBundleIdentifier</key>
 	<string>local.quill.editor</string>
 	<key>CFBundleName</key>
-	<string>New Quill</string>
+	<string>Sable Markdown Writer</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

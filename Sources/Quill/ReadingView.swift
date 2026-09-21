@@ -70,7 +70,9 @@ enum MarkdownReading {
 
 struct ReadingView: NSViewRepresentable {
     @AppStorage("writingTheme") private var themeName = "graphite"
-    @AppStorage("editorZoom") private var zoom = 1.0
+    @AppStorage("editorZoom") private var globalZoom = 1.0
+    var zoom: Double? = nil
+    var zoomKey: String = WritingZoom.mainKey
     let text: String
     let family: String
     let size: Double
@@ -81,6 +83,7 @@ struct ReadingView: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
+        scroll.zoomKey = zoomKey
         let view = ReadingTextView(frame: scroll.contentView.bounds)
         view.isEditable = false; view.isSelectable = true
         view.isVerticallyResizable = true; view.autoresizingMask = [.width]
@@ -100,6 +103,8 @@ struct ReadingView: NSViewRepresentable {
     }
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? ReadingTextView else { return }
+        (scroll as? WritingScrollView)?.zoomKey = zoomKey
+        let zoom = self.zoom ?? globalZoom
         view.columnWidth = width * zoom
         view.updateMargins()
         view.appearance = darker ? NSAppearance(named: .darkAqua) : nil

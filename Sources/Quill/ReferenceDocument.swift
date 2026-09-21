@@ -15,7 +15,7 @@ final class ParallelDocument: NSDocument, ObservableObject {
     static func open(url: URL, host: NSWindow?) throws -> ParallelDocument {
         if let existing = NSDocumentController.shared.document(for: url) {
             guard let parallel = existing as? ParallelDocument else {
-                throw NSError(domain: "NewQuill", code: 1, userInfo: [NSLocalizedDescriptionKey: "This file is already the active document. Choose another file to open beside it."])
+                throw NSError(domain: "SableMarkdownWriter", code: 1, userInfo: [NSLocalizedDescriptionKey: "This file is already the active document. Choose another file to open beside it."])
             }
             parallel.hostWindow = host
             return parallel
@@ -74,6 +74,7 @@ final class ParallelDocument: NSDocument, ObservableObject {
 struct ParallelEditingSurface: View {
     @ObservedObject var document: ParallelDocument
     var active = true
+    var zoom = 1.0
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
     @AppStorage("lineSpacing") private var spacing = 0.28
@@ -82,6 +83,8 @@ struct ParallelEditingSurface: View {
 
     var body: some View {
         NativeEditor(
+            zoom: zoom,
+            zoomKey: WritingZoom.parallelKey,
             text: Binding(get: { document.text }, set: { document.edit($0) }),
             review: false,
             words: "",

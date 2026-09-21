@@ -8,11 +8,18 @@ struct WritingTheme: Identifiable {
     let paper: String
     let ink: String
     let dark: Bool
+    /// A darker shade for the bottom status bar; nil keeps the window's own color.
+    var chrome: String? = nil
+    /// Darker shade the page fades toward at its edges. Themes that set it feel "narrowed in" on the writing.
+    var edge: String? = nil
     var background: NSColor { NSColor(quillHex: paper)! }
     var foreground: NSColor { NSColor(quillHex: ink)! }
+    var chromeColor: Color { chrome.flatMap { NSColor(quillHex: $0) }.map(Color.init(nsColor:)) ?? Color(nsColor: .windowBackgroundColor) }
+    var edgeColor: Color? { edge.flatMap { NSColor(quillHex: $0) }.map(Color.init(nsColor:)) }
     static let all = [
-        WritingTheme(id: "graphite", name: "Graphite", paper: "242424", ink: "E0DDD7", dark: true),
-        WritingTheme(id: "midnight", name: "Midnight", paper: "131820", ink: "D6DEE8", dark: true),
+        WritingTheme(id: "graphite", name: "Graphite", paper: "242424", ink: "E0DDD7", dark: true, chrome: "191919"),
+        WritingTheme(id: "midnight", name: "Midnight", paper: "131820", ink: "D6DEE8", dark: true, chrome: "0C1015"),
+        WritingTheme(id: "chalk", name: "Chalk", paper: "2D3034", ink: "EEECE4", dark: true, chrome: "1A1C1F", edge: "121416"),
         WritingTheme(id: "forest", name: "Forest", paper: "1D2925", ink: "DCE4D9", dark: true),
         WritingTheme(id: "parchment", name: "Parchment", paper: "F3EBDD", ink: "40382E", dark: false),
         WritingTheme(id: "paper", name: "Paper", paper: "FAFAF8", ink: "30302E", dark: false)
@@ -20,20 +27,60 @@ struct WritingTheme: Identifiable {
     static func named(_ id: String) -> WritingTheme { all.first { $0.id == id } ?? all[0] }
 }
 
+/// Soft shading toward the top, bottom, and sides of the page, so the eye settles on the middle.
+struct VignetteOverlay: View {
+    let color: Color
+    var body: some View {
+        ZStack {
+            LinearGradient(stops: [
+                .init(color: color.opacity(0.66), location: 0), .init(color: color.opacity(0.24), location: 0.12),
+                .init(color: .clear, location: 0.30), .init(color: .clear, location: 0.70),
+                .init(color: color.opacity(0.24), location: 0.88), .init(color: color.opacity(0.66), location: 1)
+            ], startPoint: .top, endPoint: .bottom)
+            LinearGradient(stops: [
+                .init(color: color.opacity(0.55), location: 0), .init(color: .clear, location: 0.18),
+                .init(color: .clear, location: 0.82), .init(color: color.opacity(0.55), location: 1)
+            ], startPoint: .leading, endPoint: .trailing)
+        }
+        .allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+/// Zoom is kept per surface, so scaling the manuscript never resizes the reference document beside it.
+/// Keyboard zoom follows the pointer: whichever pane it is over gets scaled.
 @MainActor enum WritingZoom {
-    static var value: Double { UserDefaults.standard.object(forKey: "editorZoom") as? Double ?? 1 }
-    static func set(_ value: Double) { UserDefaults.standard.set(min(2, max(0.65, value)), forKey: "editorZoom") }
-    static func step(_ delta: Double) { set(value + delta) }
+    nonisolated static let mainKey = "editorZoom"
+    nonisolated static let parallelKey = "parallelZoom"
+    static var value: Double { value(for: mainKey) }
+    static func value(for key: String) -> Double { UserDefaults.standard.object(forKey: key) as? Double ?? 1 }
+    static func set(_ value: Double, for key: String = mainKey) { UserDefaults.standard.set(min(2, max(0.65, value)), forKey: key) }
+
+    static func step(_ delta: Double) { let key = keyUnderPointer(); set(value(for: key) + delta, for: key) }
+    static func reset() { set(1, for: keyUnderPointer()) }
+
+    /// The zoom setting of the reading or editing surface under the pointer in the key window (the manuscript otherwise).
+    static func keyUnderPointer() -> String {
+        guard let window = NSApp.keyWindow, let content = window.contentView else { return mainKey }
+        let point = content.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+        var view = content.hitTest(point)
+        while let current = view {
+            if let scroll = current as? WritingScrollView { return scroll.zoomKey }
+            view = current.superview
+        }
+        return mainKey
+    }
 }
 
 final class WritingScrollView: NSScrollView {
     var sidebarGesture: (() -> Void)?
+    /// Which zoom setting a pinch on this surface changes.
+    var zoomKey = WritingZoom.mainKey
     private var horizontalGestureDistance: CGFloat = 0
     private var handledHorizontalGesture = false
 
     override func magnify(with event: NSEvent) {
         guard UserDefaults.standard.object(forKey: "pinchToZoom") as? Bool ?? true else { return }
-        WritingZoom.set(WritingZoom.value * (1 + event.magnification))
+        WritingZoom.set(WritingZoom.value(for: zoomKey) * (1 + event.magnification), for: zoomKey)
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -211,6 +258,19 @@ final class SingleDocumentCoordinator: NSObject {
         completion(nil)
     }
 
+    /// Lets go of the open document's file so it can be moved to the Trash: the window stays put and becomes
+    /// a blank, untitled page. The file is released first, so nothing can be autosaved back over it.
+    func detach(_ source: NSDocument, using commands: EditorCommands) {
+        source.fileURL = nil
+        source.fileModificationDate = nil
+        commands.loadText?("", nil)
+        source.undoManager?.removeAllActions()
+        commands.editor?.undoManager?.removeAllActions()
+        source.windowControllers.first?.synchronizeWindowTitleWithDocumentName()
+        source.updateChangeCount(.changeCleared)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { source.updateChangeCount(.changeCleared) }
+    }
+
     private func open(_ target: URL, completion: @escaping (Error?) -> Void) {
         let scoped = target.startAccessingSecurityScopedResource()
         NSDocumentController.shared.openDocument(withContentsOf: target, display: true) { _, _, error in
@@ -353,6 +413,7 @@ struct HoverToolbar<Content: View>: View {
 
     var body: some View {
         content
+            .environment(\.barEdge, edge)
             .padding(edge.vertical ? .horizontal : .vertical, 6)
             .padding(edge.vertical ? .vertical : .horizontal, 10)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -400,24 +461,81 @@ struct HoverToolbar<Content: View>: View {
     }
 }
 
+private struct BarEdgeKey: EnvironmentKey { static let defaultValue = ToolbarEdge.top }
+extension EnvironmentValues {
+    var barEdge: ToolbarEdge {
+        get { self[BarEdgeKey.self] }
+        set { self[BarEdgeKey.self] = newValue }
+    }
+}
+
+/// A toolbar button that names itself as soon as the pointer rests on it, with a line on what it does.
 struct BarButton: View {
     let icon: String
     let label: String
-    var help: String?
+    var detail: String = ""
+    var shortcut: String?
     var active = false
     let action: () -> Void
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.barEdge) private var edge
     @State private var hovering = false
+    @State private var tipVisible = false
+    @State private var tipTask: Task<Void, Never>?
+
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 16, weight: .regular))
-                .frame(width: 38, height: 34)
+            Image(systemName: icon).font(.system(size: edge.vertical ? 16 : 15, weight: .regular))
+                .frame(width: edge.vertical ? 38 : 34, height: edge.vertical ? 34 : 30)
                 .foregroundStyle(active ? Color.accentColor : Color.primary)
                 .background(active ? Color.accentColor.opacity(0.16) : (hovering && enabled ? Color.primary.opacity(0.08) : .clear), in: RoundedRectangle(cornerRadius: 8))
                 .opacity(enabled ? 1 : 0.35)
         }
-        .buttonStyle(.plain).onHover { hovering = $0 }
-        .help(help ?? label).accessibilityLabel(label)
+        .buttonStyle(.plain)
+        .accessibilityLabel(label).accessibilityHint(detail)
+        .onHover { inside in
+            hovering = inside
+            tipTask?.cancel()
+            if inside {
+                tipTask = Task {
+                    try? await Task.sleep(for: .milliseconds(260))
+                    if !Task.isCancelled { tipVisible = true }
+                }
+            } else { tipVisible = false }
+        }
+        .overlay(alignment: overlayAlignment) { if tipVisible { tip.offset(tipOffset).transition(.opacity) } }
+        .zIndex(tipVisible ? 10 : 0)
+        .animation(.easeOut(duration: 0.12), value: tipVisible)
+    }
+
+    private var overlayAlignment: Alignment {
+        switch edge { case .top: return .top; case .left: return .leading; case .right: return .trailing }
+    }
+    private var tipOffset: CGSize {
+        switch edge {
+        case .top: return CGSize(width: 0, height: 42)
+        case .left: return CGSize(width: 46, height: 0)
+        case .right: return CGSize(width: -46, height: 0)
+        }
+    }
+
+    private var tip: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(label).font(.system(size: 12, weight: .semibold))
+                if let shortcut {
+                    Text(shortcut).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundStyle(.secondary)
+                        .padding(.horizontal, 5).padding(.vertical, 1).background(Color.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                }
+            }
+            if !detail.isEmpty { Text(detail).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .frame(width: 214, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(.separator, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.22), radius: 8, y: 2)
+        .allowsHitTesting(false)
     }
 }
 
@@ -426,6 +544,7 @@ struct WritingActions {
     var focus: () -> Void
     var style: () -> Void
     var sentences: () -> Void
+    var tagScene: () -> Void = {}
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
 extension FocusedValues {
@@ -456,52 +575,54 @@ struct WritingCommands: Commands {
             Button("Paragraph Focus") { actions?.focus() }.keyboardShortcut("f", modifiers: [.command, .shift]).disabled(actions == nil)
             Button("Writing Style…") { actions?.style() }.keyboardShortcut(",", modifiers: [.command, .option]).disabled(actions == nil)
             Button("Sentence Structure…") { actions?.sentences() }.keyboardShortcut("j", modifiers: [.command, .option]).disabled(actions == nil)
+            Button("Tag Scene…") { actions?.tagScene() }.keyboardShortcut("t", modifiers: [.command, .control]).disabled(actions == nil)
             Divider()
             Button("Zoom In") { WritingZoom.step(0.1) }.keyboardShortcut("=", modifiers: .command)
             Button("Zoom Out") { WritingZoom.step(-0.1) }.keyboardShortcut("-", modifiers: .command)
-            Button("Actual Size") { WritingZoom.set(1) }.keyboardShortcut("0", modifiers: .command)
+            Button("Actual Size") { WritingZoom.reset() }.keyboardShortcut("0", modifiers: .command)
         }
         CommandGroup(replacing: .help) {
-            Button("New Quill Guide") { Tutorial.open() }
+            Button("Sable Guide") { Tutorial.open() }
         }
     }
 }
 
 @MainActor enum Tutorial {
     static func install(in folder: URL) throws -> URL {
-        guard let source = Bundle.main.url(forResource: "New Quill Guide", withExtension: "md") else {
+        guard let source = Bundle.main.url(forResource: "Sable Guide", withExtension: "md") else {
             throw CocoaError(.fileNoSuchFile)
         }
-        let destination = folder.appendingPathComponent("New Quill Guide.md")
+        let destination = folder.appendingPathComponent("Sable Guide.md")
         if !FileManager.default.fileExists(atPath: destination.path) {
             try Data(contentsOf: source).write(to: destination, options: .withoutOverwriting)
         }
         return destination
     }
-    /// Writes a fresh copy of the guide. Replacing overwrites "New Quill Guide.md"; otherwise the copy gets a numbered name.
+    /// Writes a fresh copy of the guide. Replacing overwrites "Sable Guide.md"; otherwise the copy gets a numbered name.
     static func regenerate(in folder: URL, replacing: Bool) throws -> URL {
-        guard let source = Bundle.main.url(forResource: "New Quill Guide", withExtension: "md") else {
+        guard let source = Bundle.main.url(forResource: "Sable Guide", withExtension: "md") else {
             throw CocoaError(.fileNoSuchFile)
         }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        var destination = folder.appendingPathComponent("New Quill Guide.md")
+        var destination = folder.appendingPathComponent("Sable Guide.md")
         if !replacing {
             var number = 2
             while FileManager.default.fileExists(atPath: destination.path) {
-                destination = folder.appendingPathComponent("New Quill Guide \(number).md")
+                destination = folder.appendingPathComponent("Sable Guide \(number).md")
                 number += 1
             }
         }
         try Data(contentsOf: source).write(to: destination, options: replacing ? .atomic : .withoutOverwriting)
         return destination
     }
+    /// True if the guide is already there, under its current name or the one it had before the app was renamed.
     static func guideExists(in folder: URL) -> Bool {
-        FileManager.default.fileExists(atPath: folder.appendingPathComponent("New Quill Guide.md").path)
+        ["Sable Guide.md", "New Quill Guide.md"].contains { FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path) }
     }
     static func open(in folder: URL? = nil) {
         do {
             let browser = FolderBrowser()
-            let directory = folder ?? browser.root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("New Quill")
+            let directory = folder ?? browser.root ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Sable Markdown Writer")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let url = try install(in: directory)
             NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
@@ -522,7 +643,7 @@ struct WritingFolderSetup: View {
             Text("A home for your writing").font(.title2.weight(.semibold))
             Text("Choose or create a folder for your Markdown files. You can still open and save documents anywhere.")
             Text("We recommend a folder in iCloud Drive, Dropbox, or OneDrive so your writing is available on your other devices. Your chosen service handles syncing.").foregroundStyle(.secondary)
-            Toggle("Include the New Quill Markdown guide", isOn: $includeGuide)
+            Toggle("Include the Sable guide", isOn: $includeGuide)
             if let error { Text(error).font(.caption).foregroundStyle(.red) }
             HStack {
                 Spacer()

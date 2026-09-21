@@ -4,15 +4,15 @@ import base64, json, os, pathlib, plistlib, re, shutil, subprocess, sys
 root = pathlib.Path(__file__).resolve().parent.parent
 scratch = pathlib.Path(sys.argv[1]).resolve()
 preview = '--preview' in sys.argv
-app = root / 'build' / ('New Quill Preview.app' if preview else 'Quill.app')
+app = root / 'build' / ('Sable Markdown Writer Preview.app' if preview else 'Sable Markdown Writer.app')
 contents = app / 'Contents'
 for name in ['MacOS', 'Resources', 'Frameworks']:
     (contents / name).mkdir(parents=True, exist_ok=True)
 binary_dir = pathlib.Path(os.environ.get('QUILL_BINARY_DIR', str(scratch / 'release')))
 shutil.copy2(binary_dir / 'Quill', contents / 'MacOS/Quill')
-shutil.copy2(root / 'docs/New Quill Guide.md', contents / 'Resources/New Quill Guide.md')
+shutil.copy2(root / 'docs/Sable Guide.md', contents / 'Resources/Sable Guide.md')
 shutil.copy2(root / 'LICENSE', contents / 'Resources/LICENSE.txt')
-shutil.copy2(root / 'Assets/NewQuill.icns', contents / 'Resources/NewQuill.icns')
+shutil.copy2(root / 'Assets/Sable.icns', contents / 'Resources/Sable.icns')
 shutil.copy2(scratch / 'artifacts/sparkle/Sparkle/LICENSE', contents / 'Resources/Sparkle-LICENSE.txt')
 frameworks = list((scratch / 'artifacts').glob('**/macos-arm64_x86_64/Sparkle.framework'))
 if len(frameworks) != 1:
@@ -41,7 +41,7 @@ if build:
     if not re.fullmatch(r'[1-9]\d*', build): raise SystemExit('Build must be a positive integer.')
     info['CFBundleVersion'] = build
 if preview:
-    info.update(CFBundleIdentifier='local.quill.preview.v5', CFBundleName='New Quill Preview', CFBundleDisplayName='New Quill Preview')
+    info.update(CFBundleIdentifier='local.quill.preview.v5', CFBundleName='Sable Markdown Writer Preview', CFBundleDisplayName='Sable Markdown Writer Preview')
     info.pop('SUFeedURL', None); info.pop('SUPublicEDKey', None)
     shutil.copytree(root / 'Examples', contents / 'Resources/Examples', dirs_exist_ok=True)
 plistlib.dump(info, open(contents / 'Info.plist', 'wb'))

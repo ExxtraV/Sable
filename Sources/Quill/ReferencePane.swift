@@ -17,6 +17,7 @@ struct ParallelMarkdownPane: View {
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
     @AppStorage("lineSpacing") private var spacing = 0.28
+    @AppStorage("parallelZoom") private var zoom = 1.0
     @State private var text = ""
     @State private var error: String?
     @State private var loading = true
@@ -34,6 +35,10 @@ struct ParallelMarkdownPane: View {
                         .font(.system(size: 9, weight: .medium)).tracking(1).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if abs(zoom - 1) > 0.01 {
+                    Button("\(Int((zoom * 100).rounded()))%") { WritingZoom.set(1, for: WritingZoom.parallelKey) }
+                        .font(.system(size: 11)).foregroundStyle(.secondary).help("This pane is zoomed on its own. Click to reset it to 100%.")
+                }
                 Button(editing ? "Read" : "Edit") {
                     if editing { document?.saveParallel(); editing = false }
                     else { openForEditing() }
@@ -49,11 +54,11 @@ struct ParallelMarkdownPane: View {
             Divider()
 
             if let document {
-                ParallelDocumentContent(document: document, editing: editing)
+                ParallelDocumentContent(document: document, editing: editing, zoom: zoom)
             } else if loading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ReadingView(text: text, family: family, size: size, spacing: spacing, width: 540)
+                ReadingView(zoom: zoom, zoomKey: WritingZoom.parallelKey, text: text, family: family, size: size, spacing: spacing, width: 540)
             }
 
             if let error {
@@ -111,6 +116,7 @@ struct ParallelMarkdownPane: View {
 private struct ParallelDocumentContent: View {
     @ObservedObject var document: ParallelDocument
     let editing: Bool
+    var zoom = 1.0
     @AppStorage("fontFamily") private var family = "Charter"
     @AppStorage("fontSize") private var size = 19.0
     @AppStorage("lineSpacing") private var spacing = 0.28
@@ -118,11 +124,11 @@ private struct ParallelDocumentContent: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                ParallelEditingSurface(document: document, active: editing)
+                ParallelEditingSurface(document: document, active: editing, zoom: zoom)
                     .opacity(editing ? 1 : 0)
                     .allowsHitTesting(editing)
                     .accessibilityHidden(!editing)
-                if !editing { ReadingView(text: document.text, family: family, size: size, spacing: spacing, width: 540) }
+                if !editing { ReadingView(zoom: zoom, zoomKey: WritingZoom.parallelKey, text: document.text, family: family, size: size, spacing: spacing, width: 540) }
             }
             Divider()
             HStack {

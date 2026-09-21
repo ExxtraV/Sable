@@ -2,9 +2,26 @@ import AppKit
 import SwiftUI
 import QuillCore
 
+/// A clip view that lets the text scroll past its ends, so the line you're writing can rest in the middle of the
+/// window instead of being stuck near the top or bottom.
+final class RoomClipView: NSClipView {
+    var bottomRoom: CGFloat = 0 { didSet { if oldValue != bottomRoom { refresh() } } }
+    var topRoom: CGFloat = 0 { didSet { if oldValue != topRoom { refresh() } } }
+    private func refresh() { (superview as? NSScrollView)?.reflectScrolledClipView(self) }
+    override var documentRect: NSRect {
+        var rect = super.documentRect
+        rect.origin.y -= topRoom
+        rect.size.height += topRoom + bottomRoom
+        return rect
+    }
+}
+
 struct NativeEditor: NSViewRepresentable {
     @AppStorage("writingTheme") private var themeName = "graphite"
-    @AppStorage("editorZoom") private var zoom = 1.0
+    @AppStorage("editorZoom") private var globalZoom = 1.0
+    /// A surface that scales on its own (the parallel pane) passes its own zoom and key.
+    var zoom: Double? = nil
+    var zoomKey: String = WritingZoom.mainKey
     @Binding var text: String
     var review: Bool
     var words: String
@@ -14,11 +31,14 @@ struct NativeEditor: NSViewRepresentable {
     var fontFamily: String = "Charter"
     var lineSpacing: Double = 0.28
     var focusParagraph: Bool = false
+    var focusGradient: Bool = true
     var readOnly: Bool = false
     var darker: Bool = false
     var syntaxClasses: Int = 0
     var colorVersion: Int = 0
     var spellCheckEnabled: Bool = true
+    /// "off", "room" (scroll past the last line), or "center" (also keep the line you're writing centered).
+    var typewriterMode: String = "off"
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -30,6 +50,7 @@ struct NativeEditor: NSViewRepresentable {
         scroll.autohidesScrollers = true
         scroll.findBarPosition = .aboveContent
         scroll.sidebarGesture = sidebarGesture
+        scroll.zoomKey = zoomKey
         let editor = WritingTextView(frame: scroll.contentView.bounds)
         editor.isRichText = false
         editor.allowsUndo = true
@@ -53,6 +74,7 @@ struct NativeEditor: NSViewRepresentable {
         editor.usesFindBar = true
         editor.delegate = context.coordinator
         editor.string = text
+        scroll.contentView = RoomClipView()
         scroll.documentView = editor
         return scroll
     }
@@ -71,17 +93,23 @@ struct NativeEditor: NSViewRepresentable {
         editor.isGrammarCheckingEnabled = spellCheckEnabled
         editor.saveAction = saveAction
         (scroll as? WritingScrollView)?.sidebarGesture = sidebarGesture
+        (scroll as? WritingScrollView)?.zoomKey = zoomKey
+        let zoom = self.zoom ?? globalZoom
         editor.syntaxClasses = syntaxClasses
         editor.colorVersion = colorVersion
         editor.bodyFontFamily = fontFamily
         editor.lineSpacingRatio = lineSpacing
         editor.focusParagraph = focusParagraph && !readOnly
+        editor.focusGradient = focusGradient
         editor.bodySize = fontSize * zoom
         editor.themeName = darker ? "midnight" : themeName
         editor.pageWidth = pageWidth * zoom
+        editor.typewriterMode = typewriterMode
         editor.updatePageMargins()
+        editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
         editor.backgroundColor = WritingTheme.named(editor.themeName).background
+        scroll.contentView.backgroundColor = WritingTheme.named(editor.themeName).background
         editor.insertionPointColor = WritingTheme.named(editor.themeName).foreground
         editor.reviewEnabled = review
         editor.reviewWords = words
@@ -92,13 +120,16 @@ struct NativeEditor: NSViewRepresentable {
         init(_ parent: NativeEditor) { self.parent = parent }
         func undoManager(for view: NSTextView) -> UndoManager? { parent.documentUndoManager ?? view.window?.undoManager }
         func textViewDidChangeSelection(_ notification: Notification) {
-            (notification.object as? WritingTextView)?.updateFocus()
+            guard let editor = notification.object as? WritingTextView else { return }
+            editor.updateFocus()
+            if !WritingTextView.isPointerDriven(NSApp.currentEvent) { editor.centerCaretIfNeeded() }
         }
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? WritingTextView else { return }
             guard parent.text != editor.string else { return }
             parent.text = editor.string
             editor.decorate()
+            editor.centerCaretIfNeeded()
         }
     }
 }
@@ -114,6 +145,9 @@ final class WritingTextView: NSTextView {
     var bodyFontFamily = "Charter"
     var lineSpacingRatio = 0.28
     var focusParagraph = false
+    /// True fades text smoothly with distance from the paragraph being written; false dims it all evenly.
+    var focusGradient = true
+    private var scrollObserver: NSObjectProtocol?
     var bodySize: Double = 19
     var pageWidth: Double = 680
     private var contextRange: NSRange?
@@ -128,6 +162,7 @@ final class WritingTextView: NSTextView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        observeScrollingForFocus()
         window?.titlebarAppearsTransparent = true
         window?.titlebarSeparatorStyle = .none
         window?.backgroundColor = .windowBackgroundColor
@@ -142,6 +177,67 @@ final class WritingTextView: NSTextView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         updatePageMargins()
+        updateScrollRoom()
+    }
+
+    /// "room" leaves half a window of empty scroll space below the last line. "center" leaves it above the
+    /// first line too, so any line, even the first, can be brought to the middle.
+    var typewriterMode = "off"
+
+    func updateScrollRoom() {
+        guard let clip = enclosingScrollView?.contentView as? RoomClipView else { return }
+        let half = max(0, clip.bounds.height / 2 - 24)
+        clip.bottomRoom = typewriterMode == "off" ? 0 : half
+        clip.topRoom = typewriterMode == "center" ? half : 0
+    }
+
+    /// The caret's line, in this view's coordinates.
+    private func caretLineRect() -> NSRect? {
+        guard let layoutManager else { return nil }
+        let length = (string as NSString).length
+        let location = selectedRange().location
+        var rect: NSRect
+        if location >= length {
+            rect = layoutManager.extraLineFragmentRect
+            if rect.isEmpty {
+                guard layoutManager.numberOfGlyphs > 0 else { return nil }
+                rect = layoutManager.lineFragmentRect(forGlyphAt: layoutManager.numberOfGlyphs - 1, effectiveRange: nil)
+            }
+        } else {
+            rect = layoutManager.lineFragmentRect(forGlyphAt: layoutManager.glyphIndexForCharacter(at: location), effectiveRange: nil)
+        }
+        rect.origin.y += textContainerOrigin.y
+        return rect
+    }
+
+    /// Clicks and scrolling with the pointer never re-center the page; only typing and keyboard movement do.
+    static func isPointerDriven(_ event: NSEvent?) -> Bool {
+        switch event?.type {
+        case .leftMouseDown?, .leftMouseUp?, .leftMouseDragged?, .rightMouseDown?, .otherMouseDown?, .scrollWheel?: return true
+        default: return false
+        }
+    }
+
+    /// In "center" mode, glides the page so the line you're writing sits in the middle of the window, wherever
+    /// on the page you started. It moves a line at a time, smoothly, and stays put while you stay on a line.
+    func centerCaretIfNeeded(animated: Bool = true) {
+        guard typewriterMode == "center", window?.firstResponder === self,
+              let scroll = enclosingScrollView, let rect = caretLineRect() else { return }
+        let clip = scroll.contentView
+        // scroll(to:) doesn't clamp, so ask the clip view where that position is allowed to be.
+        let wanted = NSRect(x: clip.bounds.minX, y: rect.midY - clip.bounds.height / 2, width: clip.bounds.width, height: clip.bounds.height)
+        let target = clip.constrainBoundsRect(wanted).origin
+        guard abs(target.y - clip.bounds.origin.y) > rect.height * 0.4 else { return }
+        guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            clip.scroll(to: target)
+            scroll.reflectScrolledClipView(clip)
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            clip.animator().setBoundsOrigin(target)
+        }
     }
 
     func updatePageMargins() {
@@ -270,25 +366,81 @@ final class WritingTextView: NSTextView {
         else { _ = nextResponder?.tryToPerform(#selector(saveDocument(_:)), with: sender) }
     }
 
+    /// The gradient depends on what is on screen, so it has to follow the scroll position.
+    private func observeScrollingForFocus() {
+        guard scrollObserver == nil, let clip = enclosingScrollView?.contentView else { return }
+        clip.postsBoundsChangedNotifications = true
+        scrollObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.focusParagraph, self.focusGradient else { return }
+                self.updateFocus()
+            }
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil, let scrollObserver {
+            NotificationCenter.default.removeObserver(scrollObserver)
+            self.scrollObserver = nil
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     func updateFocus() {
-        guard !styling, let layoutManager else { return }
+        guard !styling, let layoutManager, let container = textContainer else { return }
         let length = (string as NSString).length
         let whole = NSRange(location: 0, length: length)
         layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
-        guard focusParagraph else { return }
+        guard focusParagraph, length > 0 else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
-        // withAlphaComponent bakes labelColor into a concrete RGBA using whatever appearance
-        // happens to be current, rather than staying dynamic — resolve it under this view's
-        // own appearance so the fade is correct in both light and dark windows.
-        var faded = NSColor.labelColor
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            faded = WritingTheme.named(themeName).foreground.withAlphaComponent(0.25)
+        // withAlphaComponent bakes a dynamic color into concrete RGBA using whatever appearance
+        // happens to be current, so resolve under this view's own appearance for correct fades.
+        var base = NSColor.labelColor
+        effectiveAppearance.performAsCurrentDrawingAppearance { base = WritingTheme.named(themeName).foreground }
+        func fade(_ alpha: CGFloat, _ range: NSRange) {
+            guard range.length > 0 else { return }
+            layoutManager.addTemporaryAttribute(.foregroundColor, value: base.withAlphaComponent(alpha), forCharacterRange: range)
         }
-        if active.location > 0 {
-            layoutManager.addTemporaryAttribute(.foregroundColor, value: faded, forCharacterRange: NSRange(location: 0, length: active.location))
+        guard focusGradient else {
+            fade(0.25, NSRange(location: 0, length: active.location))
+            fade(0.25, NSRange(location: NSMaxRange(active), length: max(0, length - NSMaxRange(active))))
+            return
         }
-        if NSMaxRange(active) < length {
-            layoutManager.addTemporaryAttribute(.foregroundColor, value: faded, forCharacterRange: NSRange(location: NSMaxRange(active), length: length - NSMaxRange(active)))
+
+        // Vertical extent of the paragraph being written.
+        let activeTop: CGFloat, activeBottom: CGFloat
+        if active.length > 0 {
+            let glyphs = layoutManager.glyphRange(forCharacterRange: active, actualCharacterRange: nil)
+            let rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: container)
+            (activeTop, activeBottom) = (rect.minY, rect.maxY)
+        } else if active.location >= length {
+            let rect = layoutManager.extraLineFragmentRect
+            (activeTop, activeBottom) = rect.isEmpty ? (0, 0) : (rect.minY, rect.maxY)
+        } else {
+            let rect = layoutManager.lineFragmentRect(forGlyphAt: layoutManager.glyphIndexForCharacter(at: active.location), effectiveRange: nil)
+            (activeTop, activeBottom) = (rect.minY, rect.maxY)
+        }
+
+        // Fade smoothly with distance from that paragraph. Only lines near the screen are computed;
+        // everything farther away sits at the floor.
+        let floorAlpha: CGFloat = 0.07, nearAlpha: CGFloat = 0.62
+        let span = CGFloat(bodySize) * 20
+        func alpha(forDistance d: CGFloat) -> CGFloat {
+            let t = min(1, max(0, d / span))
+            return nearAlpha + (floorAlpha - nearAlpha) * (t * t * (3 - 2 * t))
+        }
+        let origin = textContainerOrigin
+        var area = (enclosingScrollView?.contentView.bounds ?? visibleRect).offsetBy(dx: -origin.x, dy: -origin.y)
+        area = area.insetBy(dx: 0, dy: -area.height)
+        let nearGlyphs = layoutManager.glyphRange(forBoundingRect: area, in: container)
+        let nearChars = layoutManager.characterRange(forGlyphRange: nearGlyphs, actualGlyphRange: nil)
+        fade(floorAlpha, NSRange(location: 0, length: nearChars.location))
+        fade(floorAlpha, NSRange(location: NSMaxRange(nearChars), length: length - NSMaxRange(nearChars)))
+        layoutManager.enumerateLineFragments(forGlyphRange: nearGlyphs) { rect, _, _, glyphRange, _ in
+            let chars = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+            if NSIntersectionRange(chars, active).length > 0 { return }
+            let distance = rect.maxY <= activeTop ? activeTop - rect.maxY : max(0, rect.minY - activeBottom)
+            fade(alpha(forDistance: distance), chars)
         }
     }
 
@@ -394,7 +546,7 @@ extension NSColor {
 final class EditorCommands: ObservableObject {
     weak var editor: WritingTextView?
     /// Replaces the open document's text in place; set by the view that owns the document binding.
-    var loadText: ((String, URL) -> Void)?
+    var loadText: ((String, URL?) -> Void)?
     init() { SingleDocumentCoordinator.shared.register(self) }
     func jump(to range: NSRange) {
         guard let editor, NSMaxRange(range) <= (editor.string as NSString).length else { return }
