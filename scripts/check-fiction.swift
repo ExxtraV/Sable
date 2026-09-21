@@ -201,6 +201,48 @@ import Foundation
         precondition(CardParsing.info(for: mara, text: FrontMatter.setting("color", to: "chartreuse", in: tinted), projectRoot: indexRoot)?.color == nil, "An unknown color is ignored")
         precondition(CardIndex.load(project: indexRoot).first { $0.title == "Old Tam" }?.color == nil)
 
+        // Name highlighting
+        func makeCard(_ title: String, _ kind: CardKind, stem: String? = nil, aliases: [String] = []) -> IndexedCard {
+            IndexedCard(url: URL(fileURLWithPath: "/p/\(title).md"), kind: kind, stem: stem ?? title, title: title, subtitle: "", aliases: aliases, modified: nil)
+        }
+        let namer = NameHighlighter.build(from: [
+            makeCard("Marren Vale", .character, aliases: ["Mara", "The Pilot"]), makeCard("Old Tam", .character), makeCard("Rose", .character),
+            makeCard("Captain Voss", .character), makeCard("The Pier", .location), makeCard("Cold Keep", .location), makeCard("Bell Law", .lore),
+        ])
+        func found(_ text: String) -> [String] {
+            let ns = text as NSString
+            return namer.matches(in: text).map { ns.substring(with: $0.range) }
+        }
+        precondition(found("Marren Vale stood up. Marren looked at Vale, and Vale looked back.") == ["Marren Vale", "Marren", "Vale", "Vale"], "Full name, first name, and last name all match")
+        precondition(found("Mara said nothing. The Pilot said less.") == ["Mara", "The Pilot"], "Aliases match")
+        precondition(found("Marren's coat and Vale’s boots") == ["Marren", "Vale"], "Possessives still match")
+        precondition(found("the pier was cold; the Pier was colder; Pier Road") == ["the pier", "the Pier"], "A place matches as a whole phrase in any capitalization, never by one of its words")
+        precondition(found("A rose is a rose, but Rose was late.") == ["Rose"], "A one-word name only matches when capitalized")
+        precondition(found("Old men and a captain, then Captain Voss and Voss") == ["Captain Voss", "Voss"], "Titles and small words are never names on their own")
+        precondition(found("the keep stood at Cold Keep, near the Keep") == ["Cold Keep"], "A place's single words are never matched on their own")
+        precondition(found("Marrenton and Tamper and Valentine") == [], "Never part of a longer word")
+        precondition(found("Bell rang. Law and order. The bell law.") == ["bell law"], "World notes match the whole phrase only")
+        precondition(found("---\ncharacters: Marren Vale\n---\nMarren") == ["Marren"], "The front matter block is left alone")
+        precondition(found("") == [] && NameHighlighter.empty.matches(in: "Marren Vale").isEmpty && NameHighlighter.empty.isEmpty)
+        let academy = NameHighlighter.build(from: [makeCard("Highlandsburg Academy", .location), makeCard("Ada Highlandsburg Reyes", .character)])
+        let academyText = "The academy was old. Highlandsburg Academy rose over Highlandsburg. Ada and Reyes."
+        precondition(academy.matches(in: academyText).map { (academyText as NSString).substring(with: $0.range) } == ["Highlandsburg Academy", "Ada", "Reyes"], "A location needs its whole phrase; a character's first and last name work alone, but not the middle one")
+        let onlyPlaces = namer.matches(in: "Vale walked to the Pier and read Bell Law", kinds: [.location])
+        precondition(onlyPlaces.count == 1 && onlyPlaces[0].kind == .location, "Each kind can be switched off on its own")
+        precondition(namer.matches(in: "Vale at the Pier", kinds: []).isEmpty)
+        let kinds = namer.matches(in: "Vale walked to the Pier and read Bell Law").map(\.kind)
+        precondition(kinds == [.character, .location, .lore], "Each match knows its kind")
+        let dupe = NameHighlighter.build(from: [makeCard("Ash", .character), makeCard("Ash", .location)])
+        precondition(dupe.matches(in: "Ash").first?.kind == .character, "A character wins over a place with the same name")
+        precondition(namer.signature == NameHighlighter.build(from: [makeCard("Bell Law", .lore), makeCard("Cold Keep", .location), makeCard("The Pier", .location), makeCard("Captain Voss", .character), makeCard("Rose", .character), makeCard("Old Tam", .character), makeCard("Marren Vale", .character, aliases: ["The Pilot", "Mara"])]).signature, "Same names, same signature, whatever the order")
+        precondition(namer != NameHighlighter.empty)
+        var bigCards: [IndexedCard] = []
+        for n in 0..<300 { bigCards.append(makeCard("Person Number\(n) Surname\(n)", .character)) }
+        let bigText = String(repeating: "Person Number5 Surname5 walked and Surname7 waited near the wall. ", count: 4000)
+        let started = Date()
+        let bigMatches = NameHighlighter.build(from: bigCards).matches(in: bigText)
+        precondition(bigMatches.count >= 4000 && Date().timeIntervalSince(started) < 2, "A long chapter with hundreds of names is still quick: \(Date().timeIntervalSince(started))s")
+
         // Adding into a particular folder of the project
         try fm.createDirectory(at: indexRoot.appendingPathComponent("Characters/Villains"), withIntermediateDirectories: true)
         let villain = try FictionProject.createItem(.character, named: "Baron Ash", in: indexRoot, folder: indexRoot.appendingPathComponent("Characters/Villains"))

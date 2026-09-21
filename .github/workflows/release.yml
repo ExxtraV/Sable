@@ -90,7 +90,7 @@ jobs:
         run: sh scripts/prepare-release.sh
       - name: Create draft release for review
         run: |
-          gh release create "v$RELEASE_VERSION" dist/Sable-Markdown-Writer.zip dist/appcast.xml dist/Sable-Markdown-Writer.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "Sable Markdown Writer $RELEASE_VERSION" --notes-file docs/release-notes.md
+          gh release create "v$RELEASE_VERSION" dist/Sable-Markdown-Writer.dmg dist/Sable-Markdown-Writer.zip dist/appcast.xml dist/Sable-Markdown-Writer.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "Sable Markdown Writer $RELEASE_VERSION" --notes-file docs/release-notes.md
       - name: Remove temporary signing materials
         if: always() && inputs.distribution == 'notarized'
         run: |

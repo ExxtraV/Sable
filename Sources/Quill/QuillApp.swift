@@ -103,6 +103,12 @@ struct WritingView: View {
     @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("focusStyle") private var focusStyle = "gradient"
     @AppStorage("typewriterMode") private var typewriterMode = "room"
+    @AppStorage("nameHighlights") private var nameHighlights = true
+    @AppStorage("nameStyle") private var nameStyle = "shimmer"
+    @AppStorage("nameCharacters") private var nameCharacters = true
+    @AppStorage("nameLocations") private var nameLocations = true
+    @AppStorage("nameLore") private var nameLore = true
+    @StateObject private var cardIndex = SceneIndexModel()
     @AppStorage("editorZoom") private var zoom = 1.0
     @StateObject private var saveFeedback = SaveFeedback()
     @State private var needsSetup = false
@@ -127,6 +133,7 @@ struct WritingView: View {
     @State private var activeURL: URL?
     @State private var openCards: [OpenCard] = []
     @State private var tagSceneSignal = 0
+    @State private var exportSource: ExportSource?
     @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
     @State private var errorMessage: String?
 
@@ -197,7 +204,9 @@ struct WritingView: View {
             showParallel: showParallelDocument,
             parallelURL: parallelURL,
             showCard: showCard,
-            releaseCurrentDocument: releaseCurrentDocument
+            releaseCurrentDocument: releaseCurrentDocument,
+            exportManuscript: startManuscriptExport,
+            exportDocument: startDocumentExport
         )
     }
 
@@ -234,7 +243,10 @@ struct WritingView: View {
             focus: { focus.toggle() },
             style: { showStyle = true },
             sentences: { openWindow(id: "sentence-options") },
-            tagScene: { tagSceneSignal += 1 }
+            tagScene: { tagSceneSignal += 1 },
+            exportManuscript: startManuscriptExport,
+            exportDocument: startDocumentExport,
+            canExportManuscript: browser.projectURL != nil
         )
     }
 
@@ -248,7 +260,7 @@ struct WritingView: View {
 
     private var sceneLayer: some View {
         SceneTagsLayer(activeURL: activeURL, liveText: document.text, editSignal: tagSceneSignal, focusDim: focus && !reading,
-                       openCard: showCard, setTags: setSceneTags, createCard: createSceneCard)
+                       openCard: showCard, setTags: setSceneTags, createCard: createSceneCard, index: cardIndex)
     }
 
     /// Cards stack clear of the scene strip when it sits in a corner.
@@ -273,6 +285,19 @@ struct WritingView: View {
         let item: NewProjectItem
         switch kind { case .character: item = .character; case .location: item = .location; case .lore: item = .lore }
         do { try browser.createProjectItem(item, named: name) } catch { errorMessage = error.localizedDescription }
+    }
+
+    /// Opens the export sheet for the whole manuscript. A chapter that's open with unsaved changes is exported as it stands on screen.
+    private func startManuscriptExport() {
+        guard let projectURL = browser.projectURL else { return }
+        var unsaved: [String: String] = [:]
+        if let url = activeURL, browser.isChapter(url) { unsaved[url.lastPathComponent] = document.text }
+        exportSource = .manuscript(project: projectURL, title: browser.project?.title ?? projectURL.lastPathComponent, unsaved: unsaved)
+    }
+
+    private func startDocumentExport() {
+        let name = activeURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        exportSource = .document(title: name, markdown: document.text)
     }
 
     /// Empties the editor so the file it has open can be moved to the Trash.
@@ -445,6 +470,7 @@ struct WritingView: View {
             .padding(.trailing, edge == .right ? reserve : 0)
             .overlay { cardDock }
             .overlay { hoverToolbar }
+            .sheet(item: $exportSource) { source in ExportSheet(source: source, close: { exportSource = nil }) }
             .animation(.smooth(duration: 0.3), value: reserve)
             .animation(.smooth(duration: 0.3), value: edge)
     }
@@ -456,6 +482,8 @@ struct WritingView: View {
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
                              lineSpacing: lineSpacing, focusParagraph: focus, focusGradient: focusStyle == "gradient", readOnly: reading, syntaxClasses: syntaxClasses,
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
+                             nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameShimmer: nameStyle == "shimmer",
+                             nameKinds: Set(CardKind.allCases.filter { ($0 == .character && nameCharacters) || ($0 == .location && nameLocations) || ($0 == .lore && nameLore) }),
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
@@ -504,27 +532,46 @@ struct PreferencesView: View {
     @State private var confirmGuide = false
     @State private var guideMessage: String?
     var body: some View {
-        Form {
-            UpdateSettings(updater: updater)
-            Section("Sable Guide") {
-                Button("Regenerate Guide…") { regenerateGuide() }
-                if let guideMessage { Text(guideMessage).font(.caption).foregroundStyle(.secondary) }
-                else { Text("Adds a fresh copy of the Markdown guide to your writing folder.").font(.caption).foregroundStyle(.secondary) }
+        TabView {
+            Form {
+                UpdateSettings(updater: updater)
+                Section("Writing goal") {
+                    Stepper("Session goal: \(sessionGoal) words", value: $sessionGoal, in: 0...10000, step: 100)
+                    Text("Set the goal to 0 to hide it.").font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Sable Guide") {
+                    Button("Regenerate Guide…") { regenerateGuide() }
+                    if let guideMessage { Text(guideMessage).font(.caption).foregroundStyle(.secondary) }
+                    else { Text("Adds a fresh copy of the Markdown guide to your writing folder.").font(.caption).foregroundStyle(.secondary) }
+                }
+                .confirmationDialog("A guide is already in your writing folder.", isPresented: $confirmGuide) {
+                    Button("Replace It", role: .destructive) { writeGuide(replacing: true) }
+                    Button("Keep Both") { writeGuide(replacing: false) }
+                    Button("Cancel", role: .cancel) {}
+                } message: { Text("Replacing it discards any changes you made to that file. Keep Both saves the new copy with a number.") }
             }
-            .confirmationDialog("A guide is already in your writing folder.", isPresented: $confirmGuide) {
-                Button("Replace It", role: .destructive) { writeGuide(replacing: true) }
-                Button("Keep Both") { writeGuide(replacing: false) }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text("Replacing it discards any changes you made to that file. Keep Both saves the new copy with a number.") }
-            WritingStyleControls()
-            Stepper("Session goal: \(sessionGoal) words", value: $sessionGoal, in: 0...10000, step: 100)
-            Text("Set the goal to 0 to hide it.").font(.caption).foregroundStyle(.secondary)
-            Text("Words and phrases to consider cutting").font(.headline)
-            TextEditor(text: $words).font(.body).frame(height: 110)
-            Text("Separate entries with commas. These are style suggestions; dialogue and narrative voice may need them.")
-                .font(.caption).foregroundStyle(.secondary)
-            Button("Restore default words") { words = Prose.defaultWords }
-        }.padding(24).frame(width: 450)
+            .formStyle(.grouped)
+            .tabItem { Label("General", systemImage: "gearshape") }
+
+            Form { WritingStyleControls() }
+                .formStyle(.grouped)
+                .tabItem { Label("Writing", systemImage: "textformat") }
+
+            ScrollView { SentenceOptions().frame(maxWidth: .infinity) }
+                .tabItem { Label("Highlights", systemImage: "highlighter") }
+
+            Form {
+                Section("Words and phrases to consider cutting") {
+                    TextEditor(text: $words).font(.body).frame(height: 160)
+                    Text("Separate entries with commas. These are style suggestions; dialogue and narrative voice may need them.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Restore default words") { words = Prose.defaultWords }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Review", systemImage: "scissors") }
+        }
+        .frame(width: 560, height: 520)
     }
 
     private var guideFolder: URL {

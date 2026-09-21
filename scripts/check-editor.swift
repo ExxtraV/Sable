@@ -90,6 +90,52 @@ import QuillCore
         secondPane.zoomKey = WritingZoom.parallelKey
         precondition(firstPane.zoomKey == WritingZoom.mainKey && secondPane.zoomKey == WritingZoom.parallelKey)
         WritingZoom.set(1, for: WritingZoom.mainKey); WritingZoom.set(1, for: WritingZoom.parallelKey)
+        // Names and places stand out by color and glow, only where they occur
+        func nameCard(_ title: String, _ kind: CardKind) -> IndexedCard {
+            IndexedCard(url: URL(fileURLWithPath: "/p/\(title).md"), kind: kind, stem: title, title: title, subtitle: "", aliases: [], modified: nil)
+        }
+        let namer = NameHighlighter.build(from: [nameCard("Marren Vale", .character), nameCard("The Pier", .location)])
+        let named = WritingTextView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
+        named.isRichText = false
+        named.nameHighlighter = namer
+        named.nameShimmer = true
+        named.string = "Marren Vale walked to the Pier. marren said nothing.\n\nVale waited."
+        named.decorate()
+        let namedText = named.string as NSString
+        let marrenAt = namedText.range(of: "Marren Vale").location, walkedAt = namedText.range(of: "walked").location
+        let pierAt = namedText.range(of: "Pier").location, lowerAt = namedText.range(of: "marren said").location
+        func attr(_ key: NSAttributedString.Key, _ at: Int) -> Any? { named.textStorage!.attribute(key, at: at, effectiveRange: nil) }
+        // Dynamic colors are new objects each time, so compare what they resolve to.
+        func rgb(_ value: Any?) -> String {
+            var text = "none"
+            NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+                if let color = (value as? NSColor)?.usingColorSpace(.sRGB) { text = String(format: "%.3f,%.3f,%.3f", color.redComponent, color.greenComponent, color.blueComponent) }
+            }
+            return text
+        }
+        precondition((rgb(attr(.foregroundColor, marrenAt)) == rgb(WritingTextView.nameColor(.character))), "A character's name takes the character color")
+        precondition((rgb(attr(.foregroundColor, pierAt)) == rgb(WritingTextView.nameColor(.location))), "A place takes the location color")
+        precondition(rgb(attr(.foregroundColor, walkedAt)) != rgb(WritingTextView.nameColor(.character)), "Ordinary words are untouched")
+        precondition(rgb(attr(.foregroundColor, lowerAt)) != rgb(WritingTextView.nameColor(.character)), "A lowercase single word isn't a name")
+        precondition(named.nameRanges.count == 3, "Marren Vale, the Pier, and Vale: \(named.nameRanges.count)")
+        // Color only: the same colors; a kind can be switched off
+        named.nameShimmer = false
+        named.decorate()
+        precondition(rgb(attr(.foregroundColor, marrenAt)) == rgb(WritingTextView.nameColor(.character)), "Color-only style keeps the colors")
+        named.nameKinds = [.location]
+        named.decorate()
+        precondition(rgb(attr(.foregroundColor, marrenAt)) != rgb(WritingTextView.nameColor(.character)) && rgb(attr(.foregroundColor, pierAt)) == rgb(WritingTextView.nameColor(.location)), "Characters can be turned off while places stay")
+        named.nameKinds = Set(CardKind.allCases)
+        named.decorate()
+        // A change of names restyles even though the text is the same
+        named.nameHighlighter = NameHighlighter.build(from: [nameCard("Walked Far", .character)])
+        named.decorate()
+        precondition((rgb(attr(.foregroundColor, marrenAt)) != rgb(WritingTextView.nameColor(.character))), "Old names stop standing out when the cards change")
+        // Off
+        named.nameHighlighter = nil
+        named.nameShimmer = true
+        named.decorate()
+        precondition(named.nameRanges.isEmpty, "Turned off, nothing is highlighted")
         // Scrolling past the end, and keeping the line you're writing centered
         let scrollHost = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         scrollHost.hasVerticalScroller = true
@@ -132,14 +178,16 @@ import QuillCore
         }
         roomy.typewriterMode = "center"
         roomy.updateScrollRoom()
-        precondition(roomClip.topRoom == 276 && roomClip.bottomRoom == 276, "Center mode makes room above and below")
-        // From the very top of the page: the first line glides down to the middle
+        precondition(roomClip.topRoom == 0 && roomClip.bottomRoom == 276, "Center mode makes room below only")
+        // Near the top of the page nothing slides: typing on the first lines leaves the page where it is
         scrollTo(-1_000_000)
-        precondition(roomClip.bounds.origin.y == -276, "The page can be scrolled down past its first line")
-        scrollTo(0)
-        roomy.setSelectedRange(NSRange(location: 0, length: 0))
-        roomy.centerCaretIfNeeded(animated: false)
-        precondition(abs(roomClip.bounds.midY - caretMid(at: 0)) < 4, "A caret at the top is brought to the middle: \(roomClip.bounds.midY) vs \(caretMid(at: 0))")
+        precondition(roomClip.bounds.origin.y == 0, "The page can't be scrolled down past its first line")
+        for line in [0, 3, 8] {
+            let at = line == 0 ? 0 : (roomy.string as NSString).range(of: "Line \(line) ").location
+            roomy.setSelectedRange(NSRange(location: at, length: 0))
+            roomy.centerCaretIfNeeded(animated: false)
+            precondition(roomClip.bounds.origin.y == 0, "A caret near the top doesn't move the page (line \(line): \(roomClip.bounds.origin.y))")
+        }
         // From the middle of the document
         let midPoint = (roomy.string as NSString).range(of: "Line 60 ").location
         roomy.setSelectedRange(NSRange(location: midPoint, length: 0))
@@ -150,6 +198,13 @@ import QuillCore
         roomy.setSelectedRange(NSRange(location: midPoint + 3, length: 0))
         roomy.centerCaretIfNeeded(animated: false)
         precondition(roomClip.bounds.origin.y == restingY, "No jitter while you stay on a line")
+        // A page that has only been laid out near the top (as after an edit) still centers a line far below it
+        let lazy = "Line 90 "
+        roomy.string = (0..<120).map { "Line \($0) of a long chapter that keeps going." }.joined(separator: "\n\n")
+        roomy.setSelectedRange(NSRange(location: (roomy.string as NSString).range(of: lazy).location, length: 0))
+        roomy.centerCaretIfNeeded(animated: false)
+        let lazyAt = (roomy.string as NSString).range(of: lazy).location
+        precondition(abs(roomClip.bounds.midY - caretMid(at: lazyAt)) < 4, "Centering doesn't clamp to a half-laid-out page: \(roomClip.bounds.midY) vs \(caretMid(at: lazyAt))")
         // And to the very end
         roomy.setSelectedRange(NSRange(location: (roomy.string as NSString).length, length: 0))
         roomy.centerCaretIfNeeded(animated: false)

@@ -14,6 +14,10 @@ enum CardKind: String, CaseIterable, Codable, Sendable {
     var folderName: String {
         switch self { case .character: return "Characters"; case .location: return "Locations"; case .lore: return "World" }
     }
+    /// How this kind is labelled in pickers and settings.
+    var pickerTitle: String {
+        switch self { case .location: return "Locations"; case .character: return "Characters"; case .lore: return "World notes" }
+    }
     var symbol: String {
         switch self { case .character: return "person.crop.rectangle"; case .location: return "map"; case .lore: return "book.closed" }
     }
@@ -600,6 +604,123 @@ enum CardIndex {
         let wanted = normalize(name)
         let named = cards.filter { $0.names.contains { normalize($0) == wanted } }
         return named.first { $0.kind == kind } ?? named.first
+    }
+}
+
+// MARK: - Name highlighting
+
+/// Finds the names of a project's characters, places, and world notes in a chapter, so the editor can make them
+/// stand out. It matches full names, single names taken from them (a first name, a last name), file names, and
+/// aliases, but never everyday words: small words and titles like "Captain" are ignored, and a single word only
+/// matches when it is capitalized, so a character called Rose doesn't light up every "rose".
+final class NameHighlighter: Equatable, @unchecked Sendable {
+    struct Entry: Equatable, Sendable {
+        let text: String
+        let kind: CardKind
+        let exactCase: Bool
+    }
+    let entries: [Entry]
+    /// Changes whenever the set of names does, so callers know when to restyle.
+    let signature: String
+    private let looseKinds: [String: CardKind]   // lowercased text → kind
+    private let exactKinds: [String: CardKind]
+    private let looseExpression: NSRegularExpression?
+    private let exactExpression: NSRegularExpression?
+
+    static let empty = NameHighlighter(entries: [])
+    static func == (lhs: NameHighlighter, rhs: NameHighlighter) -> Bool { lhs.signature == rhs.signature }
+
+    /// Words that are never names on their own.
+    static let ignoredWords: Set<String> = [
+        "the", "and", "for", "with", "from", "into", "onto", "over", "under", "old", "new", "young", "little", "great", "grand", "big", "small",
+        "of", "in", "on", "at", "to", "a", "an", "captain", "commander", "lord", "lady", "sir", "dame", "king", "queen", "prince", "princess",
+        "duke", "duchess", "baron", "baroness", "count", "countess", "mister", "mrs", "miss", "doctor", "professor", "father", "mother",
+        "brother", "sister", "master", "mistress", "saint", "st", "mr", "ms", "dr", "north", "south", "east", "west", "city", "town", "house",
+    ]
+
+    init(entries: [Entry]) {
+        // If two cards claim the same text, a character wins over a place, and a place over a world note.
+        func rank(_ kind: CardKind) -> Int { kind == .character ? 0 : (kind == .location ? 1 : 2) }
+        var loose: [String: CardKind] = [:], exact: [String: CardKind] = [:]
+        for entry in entries.sorted(by: { rank($0.kind) > rank($1.kind) }) {
+            if entry.exactCase { exact[entry.text] = entry.kind } else { loose[entry.text.lowercased()] = entry.kind }
+        }
+        self.entries = entries
+        self.looseKinds = loose
+        self.exactKinds = exact
+        self.signature = entries.map { "\($0.kind.rawValue):\($0.exactCase ? "=" : "~")\($0.text)" }.sorted().joined(separator: "|")
+        func expression(_ names: [String], options: NSRegularExpression.Options) -> NSRegularExpression? {
+            guard !names.isEmpty else { return nil }
+            let alternatives = names.sorted { $0.count > $1.count }.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|")
+            return try? NSRegularExpression(pattern: "(?<![\\p{L}\\p{N}_])(?:\(alternatives))(?![\\p{L}\\p{N}_])", options: options)
+        }
+        self.looseExpression = expression(Array(loose.keys), options: [.caseInsensitive])
+        self.exactExpression = expression(Array(exact.keys), options: [])
+    }
+
+    var isEmpty: Bool { entries.isEmpty }
+
+    /// Every way a card can be named in prose.
+    static func build(from cards: [IndexedCard]) -> NameHighlighter {
+        var entries: [Entry] = []
+        var seen = Set<String>()
+        func add(_ text: String, _ kind: CardKind, exactCase: Bool) {
+            let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard clean.count >= 2, seen.insert("\(kind.rawValue)|\(exactCase)|\(exactCase ? clean : clean.lowercased())").inserted else { return }
+            entries.append(Entry(text: clean, kind: kind, exactCase: exactCase))
+        }
+        for card in cards {
+            for name in card.names {
+                let words = name.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+                guard !words.isEmpty else { continue }
+                // A whole name of several words is specific enough to match in any capitalization ("the pier").
+                add(name, card.kind, exactCase: words.count == 1)
+                guard words.count > 1 else { continue }
+                // Only a character is also known by a first or last name on its own (capitalized, and never a small word or a title).
+                // A place or world note is matched by its whole phrase, so "Academy" alone doesn't light up "Highlandsburg Academy".
+                guard card.kind == .character else { continue }
+                for word in [words.first, words.last].compactMap({ $0 }) {
+                    let trimmed = word.trimmingCharacters(in: .punctuationCharacters)
+                    guard trimmed.count >= 3, trimmed.first?.isUppercase == true, !ignoredWords.contains(trimmed.lowercased()) else { continue }
+                    add(trimmed, card.kind, exactCase: true)
+                }
+            }
+        }
+        return NameHighlighter(entries: Array(entries.prefix(4000)))
+    }
+
+    /// Where names occur in `text`, longest first and never overlapping. A front-matter block is skipped.
+    func matches(in text: String, kinds: Set<CardKind> = Set(CardKind.allCases)) -> [(range: NSRange, kind: CardKind)] {
+        guard !isEmpty, !kinds.isEmpty else { return [] }
+        let ns = text as NSString
+        let start = NameHighlighter.frontMatterLength(in: ns)
+        let area = NSRange(location: start, length: ns.length - start)
+        var found: [(range: NSRange, kind: CardKind)] = []
+        looseExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
+            guard let range = match?.range, let kind = looseKinds[ns.substring(with: range).lowercased()], kinds.contains(kind) else { return }
+            found.append((range, kind))
+        }
+        exactExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
+            guard let range = match?.range, let kind = exactKinds[ns.substring(with: range)], kinds.contains(kind) else { return }
+            found.append((range, kind))
+        }
+        found.sort { $0.range.location != $1.range.location ? $0.range.location < $1.range.location : $0.range.length > $1.range.length }
+        var result: [(range: NSRange, kind: CardKind)] = []
+        var end = 0
+        for item in found where item.range.location >= end {
+            result.append(item)
+            end = NSMaxRange(item.range)
+        }
+        return result
+    }
+
+    /// Length of a leading `---` block (including its closing line), or 0.
+    static func frontMatterLength(in text: NSString) -> Int {
+        guard text.hasPrefix("---\n") else { return 0 }
+        let rest = NSRange(location: 4, length: text.length - 4)
+        let close = text.range(of: "\n---", options: [], range: rest)
+        guard close.location != NSNotFound else { return 0 }
+        return min(text.length, NSMaxRange(close))
     }
 }
 

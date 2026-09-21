@@ -14,7 +14,7 @@ No Apple certificate, Apple account password, notarization credentials, or paid 
 
 Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community**, and supply a version such as `0.6.1` and a positive build number greater than all previously published builds (the current local build is 8).
 
-The workflow builds both Apple Silicon and Intel, runs tests, packages the app, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums. Ordinary code pushes do not publish updates.
+The workflow builds both Apple Silicon and Intel, runs tests, packages the app, builds a drag-to-install disk image, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums. Ordinary code pushes do not publish updates.
 
 Review and test the draft before publishing it. Mark the published release as the latest stable release so the app can reach its feed at:
 
@@ -24,7 +24,7 @@ Every app download in the feed points to a specific version, not a moving latest
 
 ## Installing a community build
 
-Download Sable-Markdown-Writer.zip, unzip it, and move Sable Markdown Writer.app into Applications. Its displayed app name is Sable. The app is not notarized, so macOS may block its first launch. If you trust this download, use System Settings → Privacy & Security → Open Anyway. Managed Macs may prohibit this exception. Do not disable Gatekeeper globally.
+Download Sable-Markdown-Writer.dmg, open it, and drag Sable Markdown Writer onto the Applications shortcut. (The zip, Sable-Markdown-Writer.zip, is also attached; it is what the in-app updater uses.) Its displayed app name is Sable. The app is not notarized, so macOS may block its first launch. If you trust this download, use System Settings → Privacy & Security → Open Anyway. Managed Macs may prohibit this exception. Do not disable Gatekeeper globally.
 
 A first updater-enabled installation must be installed manually. Later versions can be offered in-app. The repository has to contain a published release with an appcast before Check for Updates can succeed; until then it may report a feed/download error.
 

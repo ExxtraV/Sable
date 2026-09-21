@@ -592,9 +592,6 @@ extension CardKind {
     var tagSymbol: String {
         switch self { case .location: return "mappin"; case .character: return "person.fill"; case .lore: return "book.closed.fill" }
     }
-    var pickerTitle: String {
-        switch self { case .location: return "Location"; case .character: return "Characters"; case .lore: return "World" }
-    }
     var folderHint: String {
         switch self { case .location: return "Locations"; case .character: return "Characters"; case .lore: return "World" }
     }
@@ -603,16 +600,25 @@ extension CardKind {
 @MainActor
 final class SceneIndexModel: ObservableObject {
     @Published private(set) var cards: [IndexedCard] = []
+    /// The names in those cards, ready for the editor to highlight.
+    @Published private(set) var highlighter = NameHighlighter.empty
     private var task: Task<Void, Never>?
 
     func reload(project: URL?) {
-        guard let project else { if !cards.isEmpty { cards = [] }; return }
+        guard let project else {
+            if !cards.isEmpty { cards = []; highlighter = .empty }
+            return
+        }
         let previous = cards
         task?.cancel()
         task = Task {
-            let loaded = await Task.detached(priority: .utility) { CardIndex.load(project: project, reusing: previous) }.value
-            guard !Task.isCancelled, loaded != cards else { return }
-            cards = loaded
+            let result = await Task.detached(priority: .utility) { () -> ([IndexedCard], NameHighlighter?) in
+                let loaded = CardIndex.load(project: project, reusing: previous)
+                return (loaded, loaded == previous ? nil : NameHighlighter.build(from: loaded))
+            }.value
+            guard !Task.isCancelled, let built = result.1 else { return }
+            cards = result.0
+            highlighter = built
         }
     }
 }
@@ -632,7 +638,7 @@ struct SceneTagsLayer: View {
     let openCard: (URL) -> Void
     let setTags: (CardKind, [String]) -> Void
     let createCard: (CardKind, String) -> Void
-    @StateObject private var index = SceneIndexModel()
+    @ObservedObject var index: SceneIndexModel
     @State private var quiet = false
     @State private var quietTask: Task<Void, Never>?
     @State private var editing = false
@@ -671,7 +677,7 @@ struct SceneTagsLayer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { index.reload(project: browser.projectURL) }
         .onChange(of: browser.projectURL) { _, project in index.reload(project: project) }
-        .onReceive(poll) { _ in if tags != nil { index.reload(project: browser.projectURL) } }
+        .onReceive(poll) { _ in if browser.projectURL != nil { index.reload(project: browser.projectURL) } }
         .onChange(of: liveText) { _, _ in noteTyping() }
         .onChange(of: editSignal) { _, _ in if tags != nil { editing = true } }
     }

@@ -22,6 +22,10 @@ jobs:
           QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
           swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/ReadingView.swift Sources/Quill/ReferenceDocument.swift Sources/Quill/ReferencePane.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-reading-reference.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-parallel-checks
           /tmp/quill-parallel-checks
+      - name: Export checks
+        run: |
+          swiftc Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift -o /tmp/quill-export-checks
+          /tmp/quill-export-checks
       - name: Folder browser checks
         run: |
           swiftc Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift scripts/check-folder.swift -o /tmp/quill-folder-checks

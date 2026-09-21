@@ -13,6 +13,8 @@ struct WritingSidebar: View {
     var parallelURL: URL? = nil
     var showCard: (URL) -> Void = { _ in }
     var releaseCurrentDocument: () -> Void = {}
+    var exportManuscript: () -> Void = {}
+    var exportDocument: () -> Void = {}
     @EnvironmentObject private var browser: FolderBrowser
     @AppStorage("outlineTitle") private var outlineTitle = "Outline"
     @AppStorage("outlineLevel") private var outlineLevel = 0
@@ -35,6 +37,26 @@ struct WritingSidebar: View {
         return tab == "outline" ? .outline : .files
     }
     private var showingFiles: Bool { section == .files }
+
+    /// Export is always in reach at the bottom of the desk, so it doesn't take a trip to the Manuscript tab or the File menu.
+    private var exportBar: some View {
+        HStack {
+            if browser.projectURL != nil {
+                Menu {
+                    Button("Export Manuscript…", action: exportManuscript)
+                    Button("Export This Document…", action: exportDocument)
+                } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                    .menuStyle(.borderlessButton).fixedSize()
+                    .help("Export the manuscript or this document as PDF, EPUB, Word, or Markdown")
+            } else {
+                Button(action: exportDocument) { Label("Export…", systemImage: "square.and.arrow.up") }
+                    .buttonStyle(.plain).help("Export this document as PDF, EPUB, Word, or Markdown")
+            }
+            Spacer()
+        }
+        .font(.callout).foregroundStyle(.secondary)
+        .padding(.horizontal, 14).padding(.vertical, 9)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -67,12 +89,14 @@ struct WritingSidebar: View {
                                 switchFile: switchFile, showParallel: showParallel, parallelURL: parallelURL, showCard: showCard,
                                 releaseCurrentDocument: releaseCurrentDocument)
                         case .outline: outline
-                        case .manuscript: ManuscriptTab(currentURL: currentURL, liveText: text, search: search, switchFile: switchFile)
+                        case .manuscript: ManuscriptTab(currentURL: currentURL, liveText: text, search: search, switchFile: switchFile, exportManuscript: exportManuscript)
                         }
                     }.padding(.horizontal, 12).padding(.bottom, 16)
                 }
                 .onChange(of: browser.selection) { _, url in if let url { proxy.scrollTo(url) } }
             }
+            Divider()
+            exportBar
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: tab) { _, _ in search = "" }
@@ -185,6 +209,7 @@ private struct ManuscriptTab: View {
     let liveText: String
     let search: String
     let switchFile: (URL) -> Void
+    let exportManuscript: () -> Void
     @StateObject private var model = ManuscriptModel()
     @State private var showGoal = false
     @State private var goalText = ""
@@ -216,8 +241,12 @@ private struct ManuscriptTab: View {
                     chapterRow(chapter, number: index + 1, longest: longest)
                 }
             }
-            Button(action: newChapter) { Label("New Chapter", systemImage: "plus") }
-                .buttonStyle(.bordered).controlSize(.small)
+            HStack(spacing: 8) {
+                Button(action: newChapter) { Label("New Chapter", systemImage: "plus") }
+                Button(action: exportManuscript) { Label("Export…", systemImage: "square.and.arrow.up") }
+                    .help("Export the manuscript as PDF, EPUB, Word, or Markdown")
+                    .disabled(model.chapters.isEmpty)
+            }.buttonStyle(.bordered).controlSize(.small)
             if !model.chapters.isEmpty {
                 Text("Drag chapters to rearrange them. Your files aren’t renamed or changed.").font(.system(size: 10.5)).foregroundStyle(.tertiary)
             }

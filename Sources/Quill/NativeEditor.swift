@@ -39,6 +39,11 @@ struct NativeEditor: NSViewRepresentable {
     var spellCheckEnabled: Bool = true
     /// "off", "room" (scroll past the last line), or "center" (also keep the line you're writing centered).
     var typewriterMode: String = "off"
+    /// Names of the project's characters, places, and world notes to make stand out (nil when off).
+    var nameHighlighter: NameHighlighter? = nil
+    /// Whether highlighted names shimmer (a soft moving light inside the letters) instead of just taking a color.
+    var nameShimmer: Bool = true
+    var nameKinds: Set<CardKind> = Set(CardKind.allCases)
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -105,6 +110,9 @@ struct NativeEditor: NSViewRepresentable {
         editor.themeName = darker ? "midnight" : themeName
         editor.pageWidth = pageWidth * zoom
         editor.typewriterMode = typewriterMode
+        editor.nameHighlighter = nameHighlighter
+        editor.nameShimmer = nameShimmer
+        editor.nameKinds = nameKinds
         editor.updatePageMargins()
         editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
@@ -158,11 +166,26 @@ final class WritingTextView: NSTextView {
     private var lastStyledSpacing: Double = -1
     private var lastSyntaxClasses = -1
     private var lastColorVersion = -1
+    private var lastNameKey = ""
+    var nameHighlighter: NameHighlighter?
+    var nameShimmer = true
+    var nameKinds = Set(CardKind.allCases)
+    /// Where names were found on the last styling pass, so the shimmer knows where to play.
+    private(set) var nameRanges: [NSRange] = []
+    private var nameKey: String {
+        (nameHighlighter?.signature ?? "") + (nameShimmer ? "#shimmer" : "#color") + nameKinds.map(\.rawValue).sorted().joined(separator: ",")
+    }
+    private var nameRangeKinds: [CardKind] = []
+    private var shimmerTimer: Timer?
+    private var shimmerStart = Date()
+    /// The paragraph being written while paragraph focus is on; names elsewhere are dimmed and stay still.
+    private var focusActive: NSRange?
     private var didSetInitialFocus = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         observeScrollingForFocus()
+        updateShimmer()
         window?.titlebarAppearsTransparent = true
         window?.titlebarSeparatorStyle = .none
         window?.backgroundColor = .windowBackgroundColor
@@ -180,15 +203,16 @@ final class WritingTextView: NSTextView {
         updateScrollRoom()
     }
 
-    /// "room" leaves half a window of empty scroll space below the last line. "center" leaves it above the
-    /// first line too, so any line, even the first, can be brought to the middle.
+    /// "room" leaves half a window of empty scroll space below the last line. "center" does too, and also keeps the line
+    /// you're writing in the middle once the text has reached it. The top of the page is never scrolled past: near the
+    /// start of a file the text stays where it is instead of sliding down to the middle of the window.
     var typewriterMode = "off"
 
     func updateScrollRoom() {
         guard let clip = enclosingScrollView?.contentView as? RoomClipView else { return }
         let half = max(0, clip.bounds.height / 2 - 24)
         clip.bottomRoom = typewriterMode == "off" ? 0 : half
-        clip.topRoom = typewriterMode == "center" ? half : 0
+        clip.topRoom = 0
     }
 
     /// The caret's line, in this view's coordinates.
@@ -210,6 +234,13 @@ final class WritingTextView: NSTextView {
         return rect
     }
 
+    /// While the page is being kept centered, typing and arrow keys are the only things that move it, and they do so through
+    /// `centerCaretIfNeeded`. AppKit's own scroll-to-the-caret would pull the page a different way at the same moment.
+    override func scrollRangeToVisible(_ range: NSRange) {
+        if typewriterMode == "center", window?.firstResponder === self, NSApp.currentEvent?.type == .keyDown, enclosingScrollView?.contentView is RoomClipView { return }
+        super.scrollRangeToVisible(range)
+    }
+
     /// Clicks and scrolling with the pointer never re-center the page; only typing and keyboard movement do.
     static func isPointerDriven(_ event: NSEvent?) -> Bool {
         switch event?.type {
@@ -219,13 +250,20 @@ final class WritingTextView: NSTextView {
     }
 
     /// In "center" mode, glides the page so the line you're writing sits in the middle of the window, wherever
-    /// on the page you started. It moves a line at a time, smoothly, and stays put while you stay on a line.
+    /// on the page you started, except that the page never slides down past its first line. It moves a line at a time, smoothly, and stays put while you stay on a line.
     func centerCaretIfNeeded(animated: Bool = true) {
         guard typewriterMode == "center", window?.firstResponder === self,
               let scroll = enclosingScrollView, let rect = caretLineRect() else { return }
         let clip = scroll.contentView
         // scroll(to:) doesn't clamp, so ask the clip view where that position is allowed to be.
         let wanted = NSRect(x: clip.bounds.minX, y: rect.midY - clip.bounds.height / 2, width: clip.bounds.width, height: clip.bounds.height)
+        // Layout is lazy: after an edit only the text near the top may be laid out, which makes the page look short and would
+        // clamp the target to a false "bottom". If the target reaches past what is known, lay out the whole page first.
+        if wanted.maxY > clip.documentRect.maxY, let layoutManager, let container = textContainer {
+            layoutManager.ensureLayout(for: container)
+            sizeToFit()
+            scroll.reflectScrolledClipView(clip)
+        }
         let target = clip.constrainBoundsRect(wanted).origin
         guard abs(target.y - clip.bounds.origin.y) > rect.height * 0.4 else { return }
         guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
@@ -272,7 +310,7 @@ final class WritingTextView: NSTextView {
 
     private func styleMarkdown() {
         guard !styling, !hasMarkedText(), let storage = textStorage else { return }
-        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName else { return }
+        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName || lastNameKey != nameKey else { return }
         styling = true
         defer { styling = false }
         let full = NSRange(location: 0, length: storage.length)
@@ -329,6 +367,16 @@ final class WritingTextView: NSTextView {
         for word in SentenceStructure.words(in: string, enabled: syntaxClasses) {
             storage.addAttribute(.foregroundColor, value: Self.wordColor(word.kind), range: word.range)
         }
+        // Names of characters, places, and world notes stand out on top of everything else, by color and optionally a glow.
+        nameRanges = []
+        nameRangeKinds = []
+        if let namer = nameHighlighter, !namer.isEmpty {
+            for match in namer.matches(in: string, kinds: nameKinds) {
+                storage.addAttribute(.foregroundColor, value: Self.nameColor(match.kind), range: match.range)
+                nameRanges.append(match.range)
+                nameRangeKinds.append(match.kind)
+            }
+        }
         storage.endEditing()
         typingAttributes = attributes
         lastStyledText = string
@@ -338,6 +386,74 @@ final class WritingTextView: NSTextView {
         lastSyntaxClasses = syntaxClasses
         lastColorVersion = colorVersion
         lastThemeName = themeName
+        lastNameKey = nameKey
+        updateShimmer()
+    }
+
+    /// The color for a kind of name: your own choice, or a warm gold for characters, teal for places, violet for world notes.
+    static func nameColor(_ kind: CardKind) -> NSColor {
+        if let hex = UserDefaults.standard.string(forKey: "nameColor.\(kind.rawValue)"), let custom = NSColor(quillHex: hex) { return custom }
+        switch kind {
+        case .character: return pastel(light: NSColor(red: 0.64, green: 0.40, blue: 0.02, alpha: 1), dark: NSColor(red: 1.00, green: 0.83, blue: 0.42, alpha: 1))
+        case .location: return pastel(light: NSColor(red: 0.02, green: 0.47, blue: 0.52, alpha: 1), dark: NSColor(red: 0.45, green: 0.93, blue: 0.96, alpha: 1))
+        case .lore: return pastel(light: NSColor(red: 0.44, green: 0.26, blue: 0.72, alpha: 1), dark: NSColor(red: 0.82, green: 0.70, blue: 1.00, alpha: 1))
+        }
+    }
+
+    // MARK: Name shimmer
+
+    /// A soft light drifting through the letters of each name, then fading back to its color. It runs only while names are
+    /// on screen, never in Reduce Motion, and its strength and speed are set in Writing Style.
+    func updateShimmer() {
+        let strength = UserDefaults.standard.object(forKey: "nameShimmerStrength") as? Double ?? 0.6
+        let wanted = nameShimmer && strength > 0.01 && !nameRanges.isEmpty && window != nil && isEditable
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if wanted {
+            guard shimmerTimer == nil else { return }
+            shimmerStart = Date()
+            let timer = Timer(timeInterval: 1.0 / 24, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.shimmerTick() } }
+            RunLoop.main.add(timer, forMode: .common)
+            shimmerTimer = timer
+        } else if shimmerTimer != nil {
+            shimmerTimer?.invalidate()
+            shimmerTimer = nil
+            restoreNameColors()
+        }
+    }
+
+    private func restoreNameColors() {
+        guard let layoutManager else { return }
+        let length = (string as NSString).length
+        for range in nameRanges where NSMaxRange(range) <= length && focusActive == nil {
+            layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
+        }
+    }
+
+    private func shimmerTick() {
+        guard let layoutManager, let container = textContainer, window != nil, !styling else { return }
+        let defaults = UserDefaults.standard
+        let strength = min(1, max(0, defaults.object(forKey: "nameShimmerStrength") as? Double ?? 0.6))
+        let speed = min(3, max(0.2, defaults.object(forKey: "nameShimmerSpeed") as? Double ?? 1))
+        let length = (string as NSString).length
+        let visibleGlyphs = layoutManager.glyphRange(forBoundingRect: visibleRect.offsetBy(dx: -textContainerOrigin.x, dy: -textContainerOrigin.y), in: container)
+        let visible = layoutManager.characterRange(forGlyphRange: visibleGlyphs, actualGlyphRange: nil)
+        let dark = WritingTheme.named(themeName).dark
+        let time = Date().timeIntervalSince(shimmerStart) * speed
+        for (index, range) in nameRanges.enumerated() where NSMaxRange(range) <= length && NSIntersectionRange(range, visible).length > 0 {
+            if let active = focusActive, NSIntersectionRange(range, active).length == 0 { continue }
+            var base = Self.nameColor(nameRangeKinds[index])
+            effectiveAppearance.performAsCurrentDrawingAppearance { base = base.usingColorSpace(.sRGB) ?? base }
+            let target = dark ? NSColor.white : NSColor.black
+            // A band of light travels along the name, once every couple of seconds, with a rest between passes.
+            for offset in 0..<range.length {
+                let phase = (time * 0.55 - Double(offset) * 0.09).truncatingRemainder(dividingBy: 1.6)
+                let position = phase < 0 ? phase + 1.6 : phase
+                let band = position < 1 ? sin(position * .pi) : 0
+                let mix = CGFloat(band * strength * (dark ? 0.7 : 0.55))
+                let color = base.blended(withFraction: mix, of: target) ?? base
+                layoutManager.addTemporaryAttribute(.foregroundColor, value: color, forCharacterRange: NSRange(location: range.location + offset, length: 1))
+            }
+        }
     }
 
     static func wordColor(_ kind: WordClass) -> NSColor {
@@ -379,6 +495,10 @@ final class WritingTextView: NSTextView {
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            shimmerTimer?.invalidate()
+            shimmerTimer = nil
+        }
         if newWindow == nil, let scrollObserver {
             NotificationCenter.default.removeObserver(scrollObserver)
             self.scrollObserver = nil
@@ -391,8 +511,10 @@ final class WritingTextView: NSTextView {
         let length = (string as NSString).length
         let whole = NSRange(location: 0, length: length)
         layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
+        focusActive = nil
         guard focusParagraph, length > 0 else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
+        focusActive = active
         // withAlphaComponent bakes a dynamic color into concrete RGBA using whatever appearance
         // happens to be current, so resolve under this view's own appearance for correct fades.
         var base = NSColor.labelColor
