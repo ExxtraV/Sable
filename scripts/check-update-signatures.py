@@ -26,9 +26,9 @@ try key.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandL
     rss = ET.Element('rss'); channel = ET.SubElement(rss, 'channel'); item = ET.SubElement(channel, 'item')
     ET.SubElement(item, ns + 'version').text = '5'
     ET.SubElement(item, ns + 'shortVersionString').text = '0.5.0'
-    enclosure = ET.SubElement(item, 'enclosure', {'url': 'https://github.com/test/new-quill/releases/download/v0.5.0/update.zip', 'length': str(archive.stat().st_size), ns + 'edSignature': signature})
+    enclosure = ET.SubElement(item, 'enclosure', {'url': 'https://github.com/test/Sable/releases/download/v0.5.0/update.zip', 'length': str(archive.stat().st_size), ns + 'edSignature': signature})
     ET.ElementTree(rss).write(feed)
-    environment = dict(os.environ, GITHUB_REPOSITORY='test/new-quill')
+    environment = dict(os.environ, GITHUB_REPOSITORY='test/Sable')
     command = ['python3', str(root / 'scripts/check-appcast.py'), str(feed), str(archive)]
     subprocess.run(command, env=environment, check=True)
     ET.SubElement(item, ns + 'unused')

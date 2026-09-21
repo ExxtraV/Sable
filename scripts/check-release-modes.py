@@ -2,7 +2,7 @@
 import base64, contextlib, io, json, os, runpy, subprocess
 from unittest.mock import patch
 
-base = dict(RELEASE_VERSION='0.5.0', RELEASE_BUILD='5', SPARKLE_PUBLIC_KEY=base64.b64encode(bytes(32)).decode(), SPARKLE_PRIVATE_KEY='test-only', GITHUB_REPOSITORY='test/new-quill')
+base = dict(RELEASE_VERSION='0.5.0', RELEASE_BUILD='5', SPARKLE_PUBLIC_KEY=base64.b64encode(bytes(32)).decode(), SPARKLE_PRIVATE_KEY='test-only', GITHUB_REPOSITORY='test/Sable')
 def gh(args):
     return json.dumps([[]] if '--paginate' in args else {'private': False}).encode()
 def check(env, expected_error=None):
