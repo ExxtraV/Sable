@@ -178,14 +178,16 @@ import QuillCore
         }
         roomy.typewriterMode = "center"
         roomy.updateScrollRoom()
-        precondition(roomClip.topRoom == 276 && roomClip.bottomRoom == 276, "Center mode makes room above and below")
-        // From the very top of the page: the first line glides down to the middle
+        precondition(roomClip.topRoom == 0 && roomClip.bottomRoom == 276, "Center mode makes room below only")
+        // Near the top of the page nothing slides: typing on the first lines leaves the page where it is
         scrollTo(-1_000_000)
-        precondition(roomClip.bounds.origin.y == -276, "The page can be scrolled down past its first line")
-        scrollTo(0)
-        roomy.setSelectedRange(NSRange(location: 0, length: 0))
-        roomy.centerCaretIfNeeded(animated: false)
-        precondition(abs(roomClip.bounds.midY - caretMid(at: 0)) < 4, "A caret at the top is brought to the middle: \(roomClip.bounds.midY) vs \(caretMid(at: 0))")
+        precondition(roomClip.bounds.origin.y == 0, "The page can't be scrolled down past its first line")
+        for line in [0, 3, 8] {
+            let at = line == 0 ? 0 : (roomy.string as NSString).range(of: "Line \(line) ").location
+            roomy.setSelectedRange(NSRange(location: at, length: 0))
+            roomy.centerCaretIfNeeded(animated: false)
+            precondition(roomClip.bounds.origin.y == 0, "A caret near the top doesn't move the page (line \(line): \(roomClip.bounds.origin.y))")
+        }
         // From the middle of the document
         let midPoint = (roomy.string as NSString).range(of: "Line 60 ").location
         roomy.setSelectedRange(NSRange(location: midPoint, length: 0))

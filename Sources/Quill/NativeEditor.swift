@@ -203,15 +203,16 @@ final class WritingTextView: NSTextView {
         updateScrollRoom()
     }
 
-    /// "room" leaves half a window of empty scroll space below the last line. "center" leaves it above the
-    /// first line too, so any line, even the first, can be brought to the middle.
+    /// "room" leaves half a window of empty scroll space below the last line. "center" does too, and also keeps the line
+    /// you're writing in the middle once the text has reached it. The top of the page is never scrolled past: near the
+    /// start of a file the text stays where it is instead of sliding down to the middle of the window.
     var typewriterMode = "off"
 
     func updateScrollRoom() {
         guard let clip = enclosingScrollView?.contentView as? RoomClipView else { return }
         let half = max(0, clip.bounds.height / 2 - 24)
         clip.bottomRoom = typewriterMode == "off" ? 0 : half
-        clip.topRoom = typewriterMode == "center" ? half : 0
+        clip.topRoom = 0
     }
 
     /// The caret's line, in this view's coordinates.
@@ -249,7 +250,7 @@ final class WritingTextView: NSTextView {
     }
 
     /// In "center" mode, glides the page so the line you're writing sits in the middle of the window, wherever
-    /// on the page you started. It moves a line at a time, smoothly, and stays put while you stay on a line.
+    /// on the page you started, except that the page never slides down past its first line. It moves a line at a time, smoothly, and stays put while you stay on a line.
     func centerCaretIfNeeded(animated: Bool = true) {
         guard typewriterMode == "center", window?.firstResponder === self,
               let scroll = enclosingScrollView, let rect = caretLineRect() else { return }
