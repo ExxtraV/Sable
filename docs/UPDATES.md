@@ -1,6 +1,6 @@
-# Publishing New Quill updates
+# Publishing Sable Markdown Writer updates
 
-New Quill is MIT licensed at https://github.com/ExxtraV/new-quill. The default **community** release works without paid Apple membership. It is ad-hoc signed, not notarized by Apple. Sparkle separately verifies update downloads with New Quill's Ed25519 signing key.
+Sable Markdown Writer is MIT licensed at https://github.com/ExxtraV/new-quill (the repository keeps its original name until you rename it). The default **community** release works without paid Apple membership. It is ad-hoc signed, not notarized by Apple. Sparkle separately verifies update downloads with Sable's Ed25519 signing key.
 
 ## One-time setup for free-account releases
 
@@ -24,7 +24,7 @@ Every app download in the feed points to a specific version, not a moving latest
 
 ## Installing a community build
 
-Download New-Quill.zip, unzip it, and move Quill.app into Applications. Its displayed app name is New Quill. The app is not notarized, so macOS may block its first launch. If you trust this download, use System Settings → Privacy & Security → Open Anyway. Managed Macs may prohibit this exception. Do not disable Gatekeeper globally.
+Download Sable-Markdown-Writer.zip, unzip it, and move Sable Markdown Writer.app into Applications. Its displayed app name is Sable. The app is not notarized, so macOS may block its first launch. If you trust this download, use System Settings → Privacy & Security → Open Anyway. Managed Macs may prohibit this exception. Do not disable Gatekeeper globally.
 
 A first updater-enabled installation must be installed manually. Later versions can be offered in-app. The repository has to contain a published release with an appcast before Check for Updates can succeed; until then it may report a feed/download error.
 

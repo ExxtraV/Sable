@@ -17,7 +17,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: new-quill-release
+  group: sable-release
   cancel-in-progress: false
 jobs:
   release:
@@ -64,9 +64,9 @@ jobs:
           python3 - <<'PY'
           import base64, os, pathlib, secrets, subprocess
           root = pathlib.Path(os.environ['RUNNER_TEMP'])
-          certificate = root / 'new-quill.p12'
+          certificate = root / 'sable.p12'
           certificate.write_bytes(base64.b64decode(os.environ['CERTIFICATE'], validate=True))
-          keychain = str(root / 'new-quill.keychain-db')
+          keychain = str(root / 'sable.keychain-db')
           password = secrets.token_urlsafe(32)
           def run(*args): subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
           run('security', 'create-keychain', '-p', password, keychain)
@@ -75,7 +75,7 @@ jobs:
           run('security', 'import', str(certificate), '-P', os.environ['CERTIFICATE_PASSWORD'], '-A', '-t', 'cert', '-f', 'pkcs12', '-k', keychain)
           run('security', 'set-key-partition-list', '-S', 'apple-tool:,apple:', '-k', password, keychain)
           run('security', 'list-keychains', '-d', 'user', '-s', keychain)
-          run('xcrun', 'notarytool', 'store-credentials', 'new-quill-notary', '--keychain', keychain, '--apple-id', os.environ['APPLE_ID'], '--team-id', os.environ['APPLE_TEAM_ID'], '--password', os.environ['APPLE_APP_PASSWORD'])
+          run('xcrun', 'notarytool', 'store-credentials', 'sable-notary', '--keychain', keychain, '--apple-id', os.environ['APPLE_ID'], '--team-id', os.environ['APPLE_TEAM_ID'], '--password', os.environ['APPLE_APP_PASSWORD'])
           certificate.unlink()
           PY
       - name: Build universal app and test
@@ -90,9 +90,9 @@ jobs:
         run: sh scripts/prepare-release.sh
       - name: Create draft release for review
         run: |
-          gh release create "v$RELEASE_VERSION" dist/New-Quill.zip dist/appcast.xml dist/New-Quill.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "New Quill $RELEASE_VERSION" --notes-file docs/release-notes.md
+          gh release create "v$RELEASE_VERSION" dist/Sable-Markdown-Writer.zip dist/appcast.xml dist/Sable-Markdown-Writer.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "Sable Markdown Writer $RELEASE_VERSION" --notes-file docs/release-notes.md
       - name: Remove temporary signing materials
         if: always() && inputs.distribution == 'notarized'
         run: |
-          security delete-keychain "$RUNNER_TEMP/new-quill.keychain-db" || true
-          rm -f "$RUNNER_TEMP/new-quill.p12"
+          security delete-keychain "$RUNNER_TEMP/sable.keychain-db" || true
+          rm -f "$RUNNER_TEMP/sable.p12"

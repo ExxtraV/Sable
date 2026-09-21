@@ -6,6 +6,7 @@ struct BrowserEntry: Identifiable, Sendable {
     let url: URL
     let isDirectory: Bool
     var modified: Date? = nil
+    var isProject = false
     var name: String { url.lastPathComponent }
     /// The name as shown in the desk; Markdown and text extensions are noise when every file has one.
     var displayName: String {
@@ -26,7 +27,7 @@ enum FolderListing {
         return try urls.compactMap { url in
             let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .isPackageKey, .contentModificationDateKey])
             guard values.isSymbolicLink != true, values.isPackage != true else { return nil }
-            if values.isDirectory == true { return BrowserEntry(url: url, isDirectory: true, modified: values.contentModificationDate) }
+            if values.isDirectory == true { return BrowserEntry(url: url, isDirectory: true, modified: values.contentModificationDate, isProject: FictionProject.isProject(url)) }
             guard values.isRegularFile == true, ["md", "markdown", "txt"].contains(url.pathExtension.lowercased()) else { return nil }
             return BrowserEntry(url: url, isDirectory: false, modified: values.contentModificationDate)
         }.sorted {
@@ -67,7 +68,7 @@ extension FolderListing {
             }
             let title = isDirectory ? url.lastPathComponent : url.deletingPathExtension().lastPathComponent
             guard title.range(of: needle, options: options) != nil else { continue }
-            found.append(BrowserEntry(url: url, isDirectory: isDirectory, modified: values.contentModificationDate))
+            found.append(BrowserEntry(url: url, isDirectory: isDirectory, modified: values.contentModificationDate, isProject: isDirectory && FictionProject.isProject(url)))
             if found.count >= limit { break }
         }
         func rank(_ entry: BrowserEntry) -> Int {
@@ -228,6 +229,12 @@ struct TrashedItem: Equatable, Sendable {
     let trashed: URL
 }
 
+/// Everything moved to the Trash in one go, so a single Undo brings all of it back.
+struct TrashBatch: Equatable, Sendable {
+    var items: [TrashedItem]
+    var summary: String { items.count == 1 ? "“\(items[0].name)”" : "\(items.count) items" }
+}
+
 /// The words the writer chose for each color ("Draft", "Revised"…), shared by every folder.
 enum ColorLabels {
     private static let key = "colorLabels"
@@ -303,19 +310,20 @@ struct FolderMarks: Codable, Equatable, Sendable {
         guard path.count > base.count, Array(path.prefix(base.count)) == base else { return nil }
         return path.dropFirst(base.count).joined(separator: "/")
     }
+    /// Where a stored path ends up after items move (a moved folder carries everything inside it).
+    static func rewrite(_ key: String, moves: [(from: URL, to: URL)], root: URL) -> String {
+        for move in moves {
+            guard let old = FolderMarks.key(for: move.from, in: root), let new = FolderMarks.key(for: move.to, in: root) else { continue }
+            if key == old { return new }
+            if key.hasPrefix(old + "/") { return new + key.dropFirst(old.count) }
+        }
+        return key
+    }
     /// Carries colors and pins along when items (or whole folders) move.
     func remapped(moves: [(from: URL, to: URL)], root: URL) -> FolderMarks {
-        func rewrite(_ key: String) -> String {
-            for move in moves {
-                guard let old = FolderMarks.key(for: move.from, in: root), let new = FolderMarks.key(for: move.to, in: root) else { continue }
-                if key == old { return new }
-                if key.hasPrefix(old + "/") { return new + key.dropFirst(old.count) }
-            }
-            return key
-        }
         var result = FolderMarks()
-        for (key, color) in colors { result.colors[rewrite(key)] = color }
-        result.pinned = Set(pinned.map(rewrite))
+        for (key, color) in colors { result.colors[FolderMarks.rewrite(key, moves: moves, root: root)] = color }
+        result.pinned = Set(pinned.map { FolderMarks.rewrite($0, moves: moves, root: root) })
         return result
     }
     func keys(matching filter: MarkFilter) -> [String] {
@@ -323,6 +331,90 @@ struct FolderMarks: Codable, Equatable, Sendable {
         case .pinned: return pinned.sorted()
         case let .color(color): return colors.filter { $0.value == color }.map(\.key).sorted()
         }
+    }
+}
+
+/// Named groups (School, Work, Hobbies…) that folders can be dragged into. Assignments are stored by
+/// folder path, so a folder keeps its category when it is renamed or moved inside Sable.
+struct FolderCategory: Codable, Equatable, Identifiable, Sendable {
+    var id: String
+    var name: String
+    var color: MarkColor? = nil
+    var collapsed = false
+}
+
+struct FolderCategories: Codable, Equatable, Sendable {
+    var list: [FolderCategory] = []
+    var assignments: [String: String] = [:]
+    var isEmpty: Bool { list.isEmpty }
+    static let maxNameLength = 40
+
+    static func cleanName(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : String(name.prefix(maxNameLength))
+    }
+    func isNameTaken(_ name: String, excluding id: String? = nil) -> Bool {
+        list.contains { $0.id != id && $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
+    }
+    func category(withID id: String?) -> FolderCategory? { id.flatMap { id in list.first { $0.id == id } } }
+    /// The category a folder belongs to, ignoring assignments to categories that no longer exist.
+    func categoryID(forKey key: String) -> String? { assignments[key].flatMap { id in list.contains { $0.id == id } ? id : nil } }
+    func members(of id: String) -> [String] { assignments.filter { $0.value == id }.map(\.key).sorted() }
+
+    @discardableResult
+    mutating func add(name raw: String) -> FolderCategory? {
+        guard let name = FolderCategories.cleanName(raw), !isNameTaken(name) else { return nil }
+        let category = FolderCategory(id: UUID().uuidString, name: name)
+        list.append(category)
+        return category
+    }
+    @discardableResult
+    mutating func rename(_ id: String, to raw: String) -> Bool {
+        guard let name = FolderCategories.cleanName(raw), !isNameTaken(name, excluding: id), let index = list.firstIndex(where: { $0.id == id }) else { return false }
+        list[index].name = name
+        return true
+    }
+    /// Removing a category never touches the folders; they simply go back to the ordinary list.
+    mutating func delete(_ id: String) {
+        list.removeAll { $0.id == id }
+        assignments = assignments.filter { $0.value != id }
+    }
+    mutating func move(_ id: String, by offset: Int) {
+        guard let index = list.firstIndex(where: { $0.id == id }) else { return }
+        let target = min(max(0, index + offset), list.count - 1)
+        guard target != index else { return }
+        list.insert(list.remove(at: index), at: target)
+    }
+    mutating func assign(key: String, to id: String?) {
+        if let id, list.contains(where: { $0.id == id }) { assignments[key] = id } else { assignments[key] = nil }
+    }
+    mutating func setCollapsed(_ id: String, _ collapsed: Bool) {
+        if let index = list.firstIndex(where: { $0.id == id }) { list[index].collapsed = collapsed }
+    }
+    mutating func setColor(_ id: String, _ color: MarkColor?) {
+        if let index = list.firstIndex(where: { $0.id == id }) { list[index].color = color }
+    }
+    func remapped(moves: [(from: URL, to: URL)], root: URL) -> FolderCategories {
+        var result = self
+        result.assignments = [:]
+        for (key, id) in assignments { result.assignments[FolderMarks.rewrite(key, moves: moves, root: root)] = id }
+        return result
+    }
+}
+
+enum FolderCategoriesStore {
+    private static let defaultsKey = "folderCategories"
+    static func load(for root: URL, defaults: UserDefaults = .standard) -> FolderCategories {
+        all(defaults)[root.standardizedFileURL.path] ?? FolderCategories()
+    }
+    static func save(_ categories: FolderCategories, for root: URL, defaults: UserDefaults = .standard) {
+        var everything = all(defaults)
+        everything[root.standardizedFileURL.path] = categories.isEmpty ? nil : categories
+        defaults.set(try? JSONEncoder().encode(everything), forKey: defaultsKey)
+    }
+    private static func all(_ defaults: UserDefaults) -> [String: FolderCategories] {
+        guard let data = defaults.data(forKey: defaultsKey) else { return [:] }
+        return (try? JSONDecoder().decode([String: FolderCategories].self, from: data)) ?? [:]
     }
 }
 
@@ -345,7 +437,12 @@ enum FolderMarksStore {
 @MainActor
 final class FolderBrowser: ObservableObject {
     @Published private(set) var root: URL?
-    @Published private(set) var current: URL?
+    @Published private(set) var current: URL? { didSet { updateProject() } }
+    /// The Fiction Project being viewed, if any. Inside one, the desk shows only that project.
+    @Published private(set) var projectURL: URL?
+    @Published private(set) var project: FictionProject?
+    /// The project's Manuscript folder: the file writers use most, so it is always pinned and red by default.
+    @Published private(set) var manuscriptURL: URL?
     @Published private(set) var entries: [BrowserEntry] = []
     @Published private(set) var loading = false
     @Published private(set) var error: String?
@@ -354,13 +451,23 @@ final class FolderBrowser: ObservableObject {
     @Published private(set) var loadingFolders: Set<URL> = []
     @Published private(set) var folderErrors: [URL: String] = [:]
     @Published private(set) var marks = FolderMarks()
+    @Published private(set) var categories = FolderCategories()
     @Published var filter: MarkFilter?
-    @Published var selection: URL?
+    /// The keyboard cursor and range anchor. Setting it on its own selects just that item.
+    @Published var selection: URL? {
+        didSet { if !extendingSelection { selectedURLs = selection.map { [$0] } ?? []; rangeCursor = nil } }
+    }
+    /// Everything currently selected: ⌘-click adds or removes, ⇧-click or ⇧-arrows extend a range.
+    @Published private(set) var selectedURLs: Set<URL> = []
+    private var extendingSelection = false
+    private var rangeCursor: URL?
+    /// What the list shows right now, in order. The view records it so ranges know what lies between two rows.
+    private(set) var displayed: [BrowserEntry] = []
     @Published var renaming: URL?
     @Published private(set) var searchResults: [BrowserEntry] = []
     @Published private(set) var searching = false
     @Published private(set) var wordCounts: [URL: FileWords] = [:]
-    @Published private(set) var lastTrashed: TrashedItem?
+    @Published private(set) var lastTrashed: TrashBatch?
     @Published private(set) var colorLabels: [MarkColor: String] = ColorLabels.load()
     @Published var sort = FileSort(rawValue: UserDefaults.standard.string(forKey: "fileSort") ?? "") ?? .name {
         didSet { UserDefaults.standard.set(sort.rawValue, forKey: "fileSort") }
@@ -373,27 +480,66 @@ final class FolderBrowser: ObservableObject {
     private var trashNoticeTask: Task<Void, Never>?
 
     var visibleEntries: [BrowserRow] {
-        func ordered(_ entries: [BrowserEntry]) -> [BrowserEntry] {
+        func ordered(_ entries: [BrowserEntry], parent: URL?) -> [BrowserEntry] {
+            // The Manuscript folder keeps the order the writer gave their chapters, whatever the desk's sort says.
+            if let parent, isManuscript(parent), let order = project?.chapterOrder {
+                let byName = Dictionary(entries.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+                return ManuscriptStats.orderedNames(entries.map(\.name), order: order).compactMap { byName[$0] }
+            }
             let sorted = FolderListing.sorted(entries, by: sort, foldersFirst: foldersFirst)
-            guard !marks.pinned.isEmpty else { return sorted }
-            return sorted.filter(isPinned) + sorted.filter { !isPinned($0.url) }
+            let arranged = (marks.pinned.isEmpty && manuscriptURL == nil) ? sorted : sorted.filter(isPinned) + sorted.filter { !isPinned($0.url) }
+            // Fiction projects are listed on their own, apart from ordinary folders.
+            return arranged.contains(where: \.isProject) ? arranged.filter(\.isProject) + arranged.filter { !$0.isProject } : arranged
         }
-        func flatten(_ entries: [BrowserEntry], depth: Int) -> [BrowserRow] {
-            ordered(entries).flatMap { entry -> [BrowserRow] in
+        func flatten(_ entries: [BrowserEntry], depth: Int, parent: URL?) -> [BrowserRow] {
+            ordered(entries, parent: parent).flatMap { entry -> [BrowserRow] in
                 let row = BrowserRow(entry: entry, depth: depth)
                 guard entry.isDirectory, expanded.contains(entry.url) else { return [row] }
-                return [row] + flatten(children[entry.url] ?? [], depth: depth + 1)
+                return [row] + flatten(children[entry.url] ?? [], depth: depth + 1, parent: entry.url)
             }
         }
-        return flatten(entries, depth: 0)
+        return flatten(entries, depth: 0, parent: current)
     }
     private func isPinned(_ entry: BrowserEntry) -> Bool { isPinned(entry.url) }
 
-    /// Folders from the writing folder down to the one being viewed.
+    /// The topmost folder the desk shows: the project when inside one, otherwise the writing folder.
+    var viewRoot: URL? { projectURL ?? root }
+
+    private func updateProject() {
+        guard let root, let current, let found = FictionProject.projectRoot(containing: current, within: root) else {
+            projectURL = nil; project = nil; manuscriptURL = nil
+            return
+        }
+        projectURL = found
+        project = FictionProject.load(found)
+        refreshManuscript()
+    }
+
+    /// Looked up once per change rather than once per row.
+    private func refreshManuscript() {
+        manuscriptURL = projectURL.map { FictionProject.folder(for: .chapter, in: $0).standardizedFileURL }
+    }
+    /// Saves the chapter order and word goal to the project, then re-reads it.
+    func setChapterOrder(_ names: [String]) throws {
+        guard let projectURL else { throw FictionProjectError.notProject }
+        try FictionProject.setChapterOrder(names, in: projectURL)
+        project = FictionProject.load(projectURL)
+    }
+    func setWordGoal(_ goal: Int?) throws {
+        guard let projectURL else { throw FictionProjectError.notProject }
+        try FictionProject.setWordGoal(goal, in: projectURL)
+        project = FictionProject.load(projectURL)
+    }
+    func isManuscript(_ url: URL) -> Bool {
+        guard let manuscriptURL else { return false }
+        return url.standardizedFileURL.path == manuscriptURL.path
+    }
+
+    /// Folders from the top of the view (the project, or the writing folder) down to the one being viewed.
     var breadcrumbs: [URL] {
-        guard let root, let current else { return [] }
+        guard let top = viewRoot, let current else { return [] }
         var trail = [current]
-        while let last = trail.last, last.standardizedFileURL != root.standardizedFileURL {
+        while let last = trail.last, last.standardizedFileURL != top.standardizedFileURL {
             let parent = last.deletingLastPathComponent()
             if parent.standardizedFileURL == last.standardizedFileURL { break }
             trail.append(parent)
@@ -403,9 +549,10 @@ final class FolderBrowser: ObservableObject {
 
     func color(of url: URL) -> MarkColor? {
         guard let root, let key = FolderMarks.key(for: url, in: root) else { return nil }
-        return marks.colors[key]
+        return marks.colors[key] ?? (isManuscript(url) ? .red : nil)
     }
     func isPinned(_ url: URL) -> Bool {
+        if isManuscript(url) { return true }
         guard let root, let key = FolderMarks.key(for: url, in: root) else { return false }
         return marks.pinned.contains(key)
     }
@@ -431,7 +578,7 @@ final class FolderBrowser: ObservableObject {
             let url = key.split(separator: "/").reduce(root) { $0.appendingPathComponent(String($1)) }
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return nil }
-            return BrowserEntry(url: url, isDirectory: isDirectory.boolValue)
+            return BrowserEntry(url: url, isDirectory: isDirectory.boolValue, isProject: isDirectory.boolValue && FictionProject.isProject(url))
         }.sorted {
             if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
@@ -492,35 +639,137 @@ final class FolderBrowser: ObservableObject {
         let moves = [(from: entry.url, to: target)]
         marks = marks.remapped(moves: moves, root: root)
         FolderMarksStore.save(marks, for: root)
+        categories = categories.remapped(moves: moves, root: root)
+        FolderCategoriesStore.save(categories, for: root)
         expanded = Set(expanded.map { FolderMove.rewrite($0, moves: moves) })
         if selection == entry.url { selection = target }
+        // A renamed chapter keeps its place in the manuscript.
+        if projectURL != nil, isManuscript(entry.url.deletingLastPathComponent()), var order = project?.chapterOrder,
+           let index = order.firstIndex(of: entry.name) {
+            order[index] = target.lastPathComponent
+            try? setChapterOrder(order)
+        }
         reload()
         return target
     }
 
-    // MARK: Trash (with a short-lived undo)
-    func trash(_ entry: BrowserEntry, protecting inUse: [URL]) throws {
-        if inUse.contains(where: { FolderMove.isInside($0, of: entry.url) }) { throw FolderTrashError.inUse(entry.displayName) }
-        var resulting: NSURL?
-        try FileManager.default.trashItem(at: entry.url, resultingItemURL: &resulting)
-        lastTrashed = TrashedItem(name: entry.displayName, original: entry.url, trashed: (resulting as URL?) ?? entry.url)
-        expanded = expanded.filter { !FolderMove.isInside($0, of: entry.url) }
-        if let selection, FolderMove.isInside(selection, of: entry.url) { self.selection = nil }
-        reload()
-        trashNoticeTask?.cancel()
-        trashNoticeTask = Task {
-            try? await Task.sleep(for: .seconds(12))
-            if !Task.isCancelled { lastTrashed = nil }
+    // MARK: Selection
+    func recordDisplayed(_ entries: [BrowserEntry]) { displayed = entries }
+    var selectedEntries: [BrowserEntry] { displayed.filter { selectedURLs.contains($0.url) } }
+
+    /// A click with the modifier keys held: ⌘ toggles one item, ⇧ selects the range from the anchor, plain selects just it.
+    func click(_ url: URL, command: Bool, shift: Bool) {
+        if shift, selection != nil { extendSelection(to: url); return }
+        guard command else { selection = url; return }
+        extendingSelection = true
+        defer { extendingSelection = false }
+        if selectedURLs.contains(url) {
+            selectedURLs.remove(url)
+            if selection == url { selection = selectedURLs.first }
+        } else {
+            selectedURLs.insert(url)
+            selection = url
         }
+        rangeCursor = nil
     }
+    func extendSelection(to url: URL) {
+        guard let end = displayed.firstIndex(where: { $0.url == url }) else { return }
+        extendingSelection = true
+        defer { extendingSelection = false }
+        if selection == nil { selection = url }
+        guard let start = displayed.firstIndex(where: { $0.url == selection }) else { return }
+        selectedURLs = Set(displayed[min(start, end)...max(start, end)].map(\.url))
+        rangeCursor = url
+    }
+    /// ⇧-arrow: grow or shrink the range from its anchor one row at a time.
+    func extendSelection(by offset: Int) {
+        guard !displayed.isEmpty else { return }
+        let from = (rangeCursor ?? selection).flatMap { url in displayed.firstIndex { $0.url == url } } ?? (offset > 0 ? -1 : displayed.count)
+        extendSelection(to: displayed[min(max(0, from + offset), displayed.count - 1)].url)
+    }
+    func selectAllDisplayed() {
+        extendingSelection = true
+        defer { extendingSelection = false }
+        selectedURLs = Set(displayed.map(\.url))
+        if selection == nil { selection = displayed.first?.url }
+    }
+    /// What "Move to Trash" should act on: the whole selection if the item is part of it, otherwise just the item.
+    func trashTargets(for entry: BrowserEntry) -> [BrowserEntry] {
+        selectedURLs.contains(entry.url) && selectedURLs.count > 1 ? selectedEntries : [entry]
+    }
+
+    // MARK: Trash (with a short-lived undo)
+    func trash(_ entry: BrowserEntry, protecting inUse: [URL]) throws { try trash([entry], protecting: inUse) }
+
+    /// Moves everything to the Trash at once. Items already inside another selected folder ride along with it.
+    func trash(_ entries: [BrowserEntry], protecting inUse: [URL]) throws {
+        let top = entries.filter { entry in !entries.contains { $0.url != entry.url && FolderMove.isInside(entry.url, of: $0.url) } }
+        if let blocked = top.first(where: { entry in inUse.contains { FolderMove.isInside($0, of: entry.url) } }) {
+            throw FolderTrashError.inUse(blocked.displayName)
+        }
+        var done: [TrashedItem] = []
+        var failure: Error?
+        for entry in top {
+            do {
+                var resulting: NSURL?
+                try FileManager.default.trashItem(at: entry.url, resultingItemURL: &resulting)
+                done.append(TrashedItem(name: entry.displayName, original: entry.url, trashed: (resulting as URL?) ?? entry.url))
+            } catch { failure = error; break }
+        }
+        if !done.isEmpty {
+            lastTrashed = TrashBatch(items: done)
+            let gone = done.map(\.original)
+            expanded = expanded.filter { open in !gone.contains { FolderMove.isInside(open, of: $0) } }
+            selectedURLs = selectedURLs.filter { url in !gone.contains { FolderMove.isInside(url, of: $0) } }
+            if let selection, gone.contains(where: { FolderMove.isInside(selection, of: $0) }) { self.selection = nil }
+            reload()
+            trashNoticeTask?.cancel()
+            trashNoticeTask = Task {
+                try? await Task.sleep(for: .seconds(12))
+                if !Task.isCancelled { lastTrashed = nil }
+            }
+        }
+        if let failure { throw failure }
+    }
+
+    /// Restores everything from the last batch. Anything whose place has been taken stays in the Trash and is reported.
     func undoTrash() throws {
-        guard let item = lastTrashed else { return }
-        if FileManager.default.fileExists(atPath: item.original.path) { throw FolderTrashError.occupied(item.name) }
-        try FolderMove.coordinatedMove(from: item.trashed, to: item.original)
-        lastTrashed = nil
+        guard let batch = lastTrashed else { return }
+        var remaining: [TrashedItem] = []
+        for item in batch.items {
+            if FileManager.default.fileExists(atPath: item.original.path) { remaining.append(item); continue }
+            do { try FolderMove.coordinatedMove(from: item.trashed, to: item.original) } catch { remaining.append(item) }
+        }
+        lastTrashed = remaining.isEmpty ? nil : TrashBatch(items: remaining)
         reload()
+        if let first = remaining.first { throw FolderTrashError.occupied(remaining.count == 1 ? first.name : "\(remaining.count) items") }
     }
     func dismissTrashNotice() { lastTrashed = nil }
+
+    // MARK: Chapters (reordering from the Files tab uses the same saved order as the Manuscript tab)
+    func isChapter(_ url: URL) -> Bool {
+        guard isManuscript(url.deletingLastPathComponent()) else { return false }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+    }
+    /// The Manuscript folder's entries in the order the writer arranged them.
+    func chapterNames() -> [String] {
+        guard let manuscriptURL else { return [] }
+        let names = ((try? FolderListing.entries(at: manuscriptURL)) ?? []).map(\.name)
+        return ManuscriptStats.orderedNames(names, order: project?.chapterOrder)
+    }
+    func reorderChapter(_ url: URL, onto target: URL) throws {
+        let names = chapterNames()
+        let order = ManuscriptStats.moved(names, url.lastPathComponent, to: target.lastPathComponent)
+        guard order != names else { return }
+        try setChapterOrder(order)
+        reload()
+    }
+    func moveChapter(_ url: URL, to index: Int) throws {
+        let names = chapterNames()
+        guard !names.isEmpty else { return }
+        try reorderChapter(url, onto: manuscriptURL!.appendingPathComponent(names[min(max(0, index), names.count - 1)]))
+    }
 
     /// Creates a file or folder and refreshes whichever list is showing it.
     /// Re-reads the current folder and any open subfolders in place, without blanking the list.
@@ -534,6 +783,7 @@ final class FolderBrowser: ObservableObject {
             switch result {
             case let .success(items):
                 entries = items
+                refreshManuscript()
                 for folder in expanded { loadChildren(folder) }
             case let .failure(failure): error = failure.localizedDescription
             }
@@ -546,6 +796,8 @@ final class FolderBrowser: ObservableObject {
         guard !moved.isEmpty else { return }
         marks = marks.remapped(moves: moved, root: root)
         FolderMarksStore.save(marks, for: root)
+        categories = categories.remapped(moves: moved, root: root)
+        FolderCategoriesStore.save(categories, for: root)
         expanded = Set(expanded.map { FolderMove.rewrite($0, moves: moved) })
         expanded.insert(folder)
         if folder.standardizedFileURL != current?.standardizedFileURL { loadChildren(folder) }
@@ -586,6 +838,7 @@ final class FolderBrowser: ObservableObject {
                 root = url
                 current = url
                 marks = FolderMarksStore.load(for: url)
+                categories = FolderCategoriesStore.load(for: url)
                 if stale, let fresh = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
                     UserDefaults.standard.set(fresh, forKey: "writingFolder")
                 }
@@ -601,6 +854,7 @@ final class FolderBrowser: ObservableObject {
             root = url
             current = url
             marks = FolderMarksStore.load(for: url)
+            categories = FolderCategoriesStore.load(for: url)
             filter = nil
             expanded = []; children = [:]
             UserDefaults.standard.set(bookmark, forKey: "writingFolder")
@@ -610,18 +864,118 @@ final class FolderBrowser: ObservableObject {
             throw error
         }
     }
-    func navigate(_ url: URL) {
-        guard let root else { return }
-        let base = root.standardizedFileURL.path
-        let path = url.standardizedFileURL.path
-        guard path == base || path.hasPrefix(base + "/") else { return }
+    func navigate(_ url: URL, leavingProject: Bool = false) {
+        guard let root, FolderMove.isInside(url, of: root) else { return }
+        // Inside a project the desk shows only that project; leaving is always an explicit choice.
+        if let projectURL, !leavingProject, !FolderMove.isInside(url, of: projectURL) { return }
         current = url
         expanded = []; children = [:]
         refresh()
     }
     func up() {
-        guard let current, current != root else { return }
+        guard let current, current.standardizedFileURL != viewRoot?.standardizedFileURL else { return }
         navigate(current.deletingLastPathComponent())
+    }
+
+    // MARK: Categories
+    /// True while the listing is the writing folder itself, where categories can be created.
+    var canManageCategories: Bool {
+        guard projectURL == nil, let root, let current else { return false }
+        return current.standardizedFileURL.path == root.standardizedFileURL.path
+    }
+    func categoryID(of entry: BrowserEntry) -> String? {
+        guard entry.isDirectory, !entry.isProject, let root, let key = FolderMarks.key(for: entry.url, in: root) else { return nil }
+        return categories.categoryID(forKey: key)
+    }
+    private func commitCategories() {
+        guard let root else { return }
+        FolderCategoriesStore.save(categories, for: root)
+    }
+    @discardableResult
+    func addCategory(named name: String) -> Bool {
+        guard categories.add(name: name) != nil else { return false }
+        commitCategories()
+        return true
+    }
+    @discardableResult
+    func renameCategory(_ id: String, to name: String) -> Bool {
+        guard categories.rename(id, to: name) else { return false }
+        commitCategories()
+        return true
+    }
+    func deleteCategory(_ id: String) { categories.delete(id); commitCategories() }
+    func moveCategory(_ id: String, by offset: Int) { categories.move(id, by: offset); commitCategories() }
+    func setCategoryColor(_ id: String, _ color: MarkColor?) { categories.setColor(id, color); commitCategories() }
+    func toggleCategory(_ id: String) {
+        guard let category = categories.category(withID: id) else { return }
+        categories.setCollapsed(id, !category.collapsed)
+        commitCategories()
+    }
+    /// Files a folder under a category (or back to the ordinary list with nil).
+    func assign(_ url: URL, to id: String?) {
+        guard let root, let key = FolderMarks.key(for: url, in: root) else { return }
+        categories.assign(key: key, to: id)
+        commitCategories()
+    }
+
+    // MARK: Fiction Projects
+    var canLeaveProject: Bool {
+        guard let projectURL, let root else { return false }
+        return projectURL.standardizedFileURL != root.standardizedFileURL
+    }
+    func leaveProject() {
+        guard canLeaveProject, let projectURL else { return }
+        navigate(projectURL.deletingLastPathComponent(), leavingProject: true)
+    }
+    /// Follows the open document: opening a file that belongs to a project brings the desk into that project.
+    func enterProject(containing file: URL) {
+        guard let root, let found = FictionProject.projectRoot(containing: file, within: root),
+              found.standardizedFileURL != projectURL?.standardizedFileURL else { return }
+        navigate(found, leavingProject: true)
+    }
+    @discardableResult
+    func createProject(named name: String, starterFiles: Bool) throws -> URL {
+        guard let current, projectURL == nil else { throw FictionProjectError.alreadyProject }
+        let url = try FictionProject.create(named: name, in: current, starterFiles: starterFiles)
+        navigate(url)
+        return url
+    }
+    func adoptAsProject(_ url: URL, addStandardFolders: Bool) throws {
+        try FictionProject.adopt(url, addStandardFolders: addStandardFolders)
+        updateProject()
+        reload()
+    }
+    func convertToRegularFolder(_ url: URL) throws {
+        try FictionProject.convertToRegularFolder(url)
+        updateProject()
+        reload()
+    }
+    /// What the "+" on a project folder adds: chapters for Manuscript, and characters, locations, or world notes
+    /// for their folders (including folders inside them, like Characters/Villains).
+    func projectItem(forFolder url: URL) -> NewProjectItem? {
+        guard let projectURL, FolderMove.isInside(url, of: projectURL), url.standardizedFileURL.path != projectURL.standardizedFileURL.path else { return nil }
+        if isManuscript(url) { return .chapter }
+        switch CardParsing.kindByLocation(url.appendingPathComponent("x.md"), projectRoot: projectURL) {
+        case .character?: return .character
+        case .location?: return .location
+        case .lore?: return .lore
+        case nil: return nil
+        }
+    }
+
+    @discardableResult
+    func createProjectItem(_ item: NewProjectItem, named name: String, in folder: URL? = nil) throws -> URL {
+        guard let projectURL else { throw FictionProjectError.notProject }
+        let url = try FictionProject.createItem(item, named: name, in: projectURL, folder: folder)
+        let folder = url.deletingLastPathComponent()
+        if folder.standardizedFileURL != current?.standardizedFileURL { expanded.insert(folder); loadChildren(folder) }
+        reload()
+        return url
+    }
+    /// The card type a file would show as, judging by where it lives in the project.
+    func cardKind(of entry: BrowserEntry) -> CardKind? {
+        guard let projectURL, !entry.isDirectory else { return nil }
+        return CardParsing.isCandidate(entry.url, projectRoot: projectURL) ? CardParsing.kindByLocation(entry.url, projectRoot: projectURL) : nil
     }
     func refresh() {
         guard let current else { return }
@@ -640,11 +994,42 @@ final class FolderBrowser: ObservableObject {
             switch result {
             case let .success(items):
                 entries = items
+                refreshManuscript()
                 for folder in expanded { loadChildren(folder) }
             case let .failure(failure): error = failure.localizedDescription
             }
         }
     }
+}
+
+private enum SectionKind {
+    case projects, folders, files, other
+    case category(FolderCategory)
+}
+private struct SectionHeader: Identifiable {
+    let kind: SectionKind
+    let title: String
+    let count: Int
+    var id: String {
+        switch kind {
+        case .projects: return "projects"
+        case .folders: return "folders"
+        case .files: return "files"
+        case .other: return "other"
+        case let .category(category): return "category:\(category.id)"
+        }
+    }
+}
+private enum TreeItem: Identifiable {
+    case header(SectionHeader)
+    case row(BrowserRow)
+    var id: String {
+        switch self {
+        case let .header(header): return "header:" + header.id
+        case let .row(row): return "row:" + row.entry.url.absoluteString
+        }
+    }
+    var row: BrowserRow? { if case let .row(row) = self { return row } else { return nil } }
 }
 
 struct FolderBrowserSection: View {
@@ -655,8 +1040,22 @@ struct FolderBrowserSection: View {
     let switchFile: (URL) -> Void
     let showParallel: (URL) -> Void
     var parallelURL: URL? = nil
+    var showCard: (URL) -> Void = { _ in }
+    /// Called before the open document's file is trashed, so the editor can let go of it first.
+    var releaseCurrentDocument: () -> Void = {}
+    @State private var pendingTrash: [BrowserEntry] = []
     @State private var showNewItem = false
     @State private var newKind = NewItemKind.file
+    @State private var newProjectItem: NewProjectItem?
+    @State private var showNewProject = false
+    @State private var projectName = ""
+    @State private var projectStarter = true
+    @State private var convertTarget: URL?
+    @State private var showCategoryAlert = false
+    @State private var categoryEditing: FolderCategory?
+    @State private var categoryName = ""
+    @State private var targetedHeader: String?
+    @State private var adoptTarget: URL?
     @State private var newFolder: URL?
     @State private var newName = ""
     @State private var problem: String?
@@ -673,17 +1072,29 @@ struct FolderBrowserSection: View {
         return browser.visibleEntries
     }
 
-    var body: some View {
+    var body: some View { projectDialogs(creationDialogs(content)) }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let current = browser.current {
+                if let project = browser.project, let projectURL = browser.projectURL { projectHeader(project, projectURL) }
                 breadcrumbBar(current)
                 if !browser.marks.isEmpty { filterBar }
-                let shown = rows
+                let items = flat ? rows.map { TreeItem.row($0) } : treeItems()
+                let shown = items.compactMap(\.row)
+                let _ = browser.recordDisplayed(shown.map(\.entry))
                 VStack(alignment: .leading, spacing: 1) {
-                    ForEach(shown) { row in
-                        BrowserRowView(entry: row.entry, depth: row.depth, currentURL: currentURL, showPath: flat,
-                                       parallelURL: parallelURL, switchFile: switchFile, showParallel: showParallel,
-                                       promptNew: { promptNew($0, in: $1) }, moveItems: move, rename: rename, trash: trash)
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        switch item {
+                        case let .header(header): headerView(header, first: index == 0)
+                        case let .row(row):
+                            BrowserRowView(entry: row.entry, depth: row.depth, currentURL: currentURL, showPath: flat,
+                                           parallelURL: parallelURL, switchFile: switchFile, showParallel: showParallel,
+                                           promptNew: { promptNew($0, in: $1) }, dropOnRow: dropOnRow, rename: rename, trash: requestTrash,
+                                           showCard: showCard, convertProject: { convertTarget = $0 }, adoptFolder: { adoptTarget = $0 },
+                                           newCategory: { promptCategory(nil) }, addToFolder: addToFolder)
+                                .id(row.entry.url)
+                        }
                     }
                 }
                 .focusable().focused($listFocused).focusEffectDisabled()
@@ -701,17 +1112,218 @@ struct FolderBrowserSection: View {
         .onAppear { if browser.entries.isEmpty { browser.refresh() } }
         .onChange(of: search) { _, value in browser.updateSearch(value) }
         .onChange(of: browser.current) { _, _ in browser.updateSearch(search) }
-        .alert(newKind.title, isPresented: $showNewItem) {
-            TextField(newKind == .file ? "Untitled.md" : "Folder name", text: $newName)
+    }
+
+    private func creationDialogs<V: View>(_ view: V) -> some View {
+        view
+        .alert(newProjectItem?.title ?? newKind.title, isPresented: $showNewItem) {
+            TextField(newProjectItem?.prompt ?? (newKind == .file ? "Untitled.md" : "Folder name"), text: $newName)
             Button("Create") { createItem() }
             Button("Cancel", role: .cancel) {}
         } message: { Text("In “\(newFolder?.lastPathComponent ?? "")”") }
+        .alert(categoryEditing == nil ? "New Category" : "Rename Category", isPresented: $showCategoryAlert) {
+            TextField("School, Work, Hobbies…", text: $categoryName)
+            Button(categoryEditing == nil ? "Create" : "Rename") { saveCategory() }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Categories group your folders. Drag a folder onto a category to file it there.") }
+        .sheet(isPresented: $showNewProject) {
+            NewProjectSheet(name: $projectName, starter: $projectStarter, location: browser.current?.lastPathComponent ?? "your writing folder",
+                            create: createProject, cancel: { showNewProject = false })
+        }
+    }
+
+    private func projectDialogs<V: View>(_ view: V) -> some View {
+        view
+        .confirmationDialog("Convert to a regular folder?", isPresented: Binding(get: { convertTarget != nil }, set: { if !$0 { convertTarget = nil } }), titleVisibility: .visible) {
+            Button("Convert to Regular Folder") { convertProject() }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Every file and folder stays exactly as it is, and other editors keep working. Sable just stops treating it as a Fiction Project, so the project-only view and character cards go away.") }
+        .confirmationDialog("Make this a Fiction Project?", isPresented: Binding(get: { adoptTarget != nil }, set: { if !$0 { adoptTarget = nil } }), titleVisibility: .visible) {
+            Button("Add Standard Folders") { adopt(addFolders: true) }
+            Button("Keep My Folders As They Are") { adopt(addFolders: false) }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Nothing is moved or changed. Standard folders (Manuscript, Characters, Locations, World, Notes, Images) are only added if you choose to, and existing ones are reused. You can convert it back at any time.") }
+        .confirmationDialog(trashTitle, isPresented: Binding(get: { !pendingTrash.isEmpty }, set: { if !$0 { pendingTrash = [] } }), titleVisibility: .visible) {
+            Button("Move to Trash", role: .destructive) { performTrash(pendingTrash) }
+            Button("Cancel", role: .cancel) { pendingTrash = [] }
+        } message: { Text(trashMessage) }
         .alert("That didn’t work", isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } })) {
             Button("OK") { problem = nil }
         } message: { Text(problem ?? "") }
     }
 
     // MARK: Header pieces
+
+    // MARK: Sections: fiction projects, your own categories, then everything else
+
+    private enum RowGroup { case folder, file, other }
+    private func group(of entry: BrowserEntry) -> RowGroup {
+        guard browser.foldersFirst else { return .other }
+        return entry.isDirectory ? .folder : .file
+    }
+
+    /// A top-level entry together with any rows expanded beneath it.
+    private struct Block { var rows: [BrowserRow]; var entry: BrowserEntry { rows[0].entry } }
+
+    /// Builds the list. Headings only appear once a folder holds a project or you have made categories,
+    /// so a plain library stays as quiet as ever.
+    private func treeItems() -> [TreeItem] {
+        let all = browser.visibleEntries
+        var blocks: [Block] = []
+        for row in all {
+            if row.depth == 0 || blocks.isEmpty { blocks.append(Block(rows: [row])) } else { blocks[blocks.count - 1].rows.append(row) }
+        }
+        let hasProjects = blocks.contains { $0.entry.isProject }
+        let categorized = blocks.contains { browser.categoryID(of: $0.entry) != nil }
+        let useCategories = browser.projectURL == nil && (browser.canManageCategories ? !browser.categories.isEmpty : categorized)
+        guard hasProjects || useCategories else { return all.map { .row($0) } }
+
+        var items: [TreeItem] = []
+        func add(_ chosen: [Block]) { for block in chosen { items += block.rows.map { .row($0) } } }
+        let projects = blocks.filter { $0.entry.isProject }
+        if !projects.isEmpty {
+            items.append(.header(SectionHeader(kind: .projects, title: "Fiction Projects", count: projects.count)))
+            add(projects)
+        }
+        if useCategories {
+            for category in browser.categories.list {
+                let members = blocks.filter { !$0.entry.isProject && browser.categoryID(of: $0.entry) == category.id }
+                // Empty categories stay visible in the writing folder so there's somewhere to drop folders.
+                if members.isEmpty && !browser.canManageCategories { continue }
+                items.append(.header(SectionHeader(kind: .category(category), title: category.name, count: members.count)))
+                if !category.collapsed { add(members) }
+            }
+        }
+        let rest = blocks.filter { !$0.entry.isProject && (!useCategories || browser.categoryID(of: $0.entry) == nil) }
+        var previous: RowGroup?
+        for block in rest {
+            let current = group(of: block.entry)
+            if current != previous {
+                let count = rest.filter { group(of: $0.entry) == current }.count
+                switch current {
+                case .folder: items.append(.header(SectionHeader(kind: .folders, title: "Folders", count: count)))
+                case .file: items.append(.header(SectionHeader(kind: .files, title: "Files", count: count)))
+                case .other: items.append(.header(SectionHeader(kind: .other, title: "Folders & Files", count: count)))
+                }
+                previous = current
+            }
+            items += block.rows.map { .row($0) }
+        }
+        return items
+    }
+
+    @ViewBuilder
+    private func headerView(_ header: SectionHeader, first: Bool) -> some View {
+        switch header.kind {
+        case let .category(category): categoryHeader(category, count: header.count, first: first)
+        case .folders, .other:
+            plainHeader(header, first: first)
+                // Dropping a folder here takes it out of its category.
+                .dropDestination(for: URL.self) { urls, _ in dropOnHeader(urls, category: nil) } isTargeted: { setTargeted(header.id, $0) }
+                .background(targetedHeader == header.id ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        case .projects, .files: plainHeader(header, first: first)
+        }
+    }
+
+    private func plainHeader(_ header: SectionHeader, first: Bool) -> some View {
+        Text(header.title.uppercased()).font(.system(size: 9.5, weight: .semibold)).tracking(1.1).foregroundStyle(.secondary)
+            .padding(.horizontal, 8).padding(.top, first ? 2 : 12).padding(.bottom, 3)
+            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+    }
+
+    private func categoryHeader(_ category: FolderCategory, count: Int, first: Bool) -> some View {
+        Button { withAnimation(.smooth(duration: 0.2)) { browser.toggleCategory(category.id) } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: category.collapsed ? "chevron.right" : "chevron.down").font(.system(size: 8, weight: .bold)).frame(width: 10)
+                if let color = category.color { Circle().fill(color.color).frame(width: 7, height: 7) }
+                Text(category.name.uppercased()).lineLimit(1)
+                Text("\(count)").foregroundStyle(.tertiary)
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 9.5, weight: .semibold)).tracking(1.1).foregroundStyle(.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 5).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, first ? 2 : 10)
+        .background(targetedHeader == "category:\(category.id)" ? Color.accentColor.opacity(0.2) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .dropDestination(for: URL.self) { urls, _ in dropOnHeader(urls, category: category.id) } isTargeted: { setTargeted("category:\(category.id)", $0) }
+        .help("Drag folders here to file them under \(category.name)")
+        .contextMenu {
+            Button("Rename…") { promptCategory(category) }
+            Menu("Color") {
+                ForEach(MarkColor.allCases, id: \.self) { color in
+                    Button { browser.setCategoryColor(category.id, color) } label: {
+                        Label { Text(browser.label(for: color) + (category.color == color ? " ✓" : "")) } icon: { Image(nsImage: color.swatch) }
+                    }
+                }
+                if category.color != nil { Divider(); Button("No Color") { browser.setCategoryColor(category.id, nil) } }
+            }
+            Divider()
+            Button("Move Up") { browser.moveCategory(category.id, by: -1) }.disabled(browser.categories.list.first?.id == category.id)
+            Button("Move Down") { browser.moveCategory(category.id, by: 1) }.disabled(browser.categories.list.last?.id == category.id)
+            Divider()
+            Button("Delete Category", role: .destructive) { browser.deleteCategory(category.id) }
+        }
+    }
+
+    private func setTargeted(_ id: String, _ on: Bool) {
+        if on { targetedHeader = id } else if targetedHeader == id { targetedHeader = nil }
+    }
+
+    /// Only folders shown in this very list can be filed; anything else is refused with a hint.
+    private func dropOnHeader(_ urls: [URL], category: String?) -> Bool {
+        guard let current = browser.current else { return false }
+        var filed = false
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            guard url.deletingLastPathComponent().standardizedFileURL.path == current.standardizedFileURL.path,
+                  FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
+                  !FictionProject.isProject(url) else { continue }
+            browser.assign(url, to: category)
+            filed = true
+        }
+        if !filed { problem = "Drag folders from this list onto a category to file them there." }
+        return filed
+    }
+
+    private func promptCategory(_ editing: FolderCategory?) {
+        categoryEditing = editing
+        categoryName = editing?.name ?? ""
+        showCategoryAlert = true
+    }
+
+    private func saveCategory() {
+        let ok = categoryEditing.map { browser.renameCategory($0.id, to: categoryName) } ?? browser.addCategory(named: categoryName)
+        if !ok { problem = "A category needs a name that isn’t already in use." }
+    }
+
+    private func projectHeader(_ project: FictionProject, _ url: URL) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "books.vertical.fill").font(.system(size: 15)).foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(project.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text("FICTION PROJECT").font(.system(size: 9, weight: .medium)).tracking(1.2).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if browser.canLeaveProject {
+                Button { browser.leaveProject() } label: {
+                    Label("Leave", systemImage: "rectangle.portrait.and.arrow.right").font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .help("Leave this project and see all your files").accessibilityLabel("Leave project")
+            }
+            Menu {
+                if browser.canLeaveProject { Button("Leave Project") { browser.leaveProject() } }
+                Button("Start Here Guide") { openGuide(in: url) }
+                Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                Divider()
+                Button("Convert to Regular Folder…") { convertTarget = url }
+            } label: { Image(systemName: "ellipsis").frame(width: 22, height: 22) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("Project options")
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(Color.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+    }
 
     /// Focusing a folder narrows the desk to it; the trail shows the way back out.
     private func breadcrumbBar(_ current: URL) -> some View {
@@ -729,8 +1341,17 @@ struct FolderBrowserSection: View {
             Spacer(minLength: 0)
             if browser.loading || browser.searching { ProgressView().controlSize(.small) }
             Menu {
+                if browser.projectURL != nil {
+                    ForEach(NewProjectItem.allCases, id: \.self) { item in Button(item.title + "…") { promptItem(item) } }
+                    Divider()
+                }
                 Button("New File…") { promptNew(.file, in: browser.current) }
                 Button("New Folder…") { promptNew(.folder, in: browser.current) }
+                if browser.projectURL == nil {
+                    Divider()
+                    Button("New Fiction Project…") { projectName = ""; showNewProject = true }
+                    if browser.canManageCategories { Button("New Category…") { promptCategory(nil) } }
+                }
             } label: { Image(systemName: "plus") }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .help("Create a file or folder in \(current.lastPathComponent)").accessibilityLabel("New file or folder")
@@ -738,7 +1359,8 @@ struct FolderBrowserSection: View {
                 Button("Choose Writing Folder…", action: chooseFolder)
                 Button("Refresh") { browser.refresh() }
                 Button("Collapse All Folders") { browser.collapseAll() }.disabled(browser.expanded.isEmpty)
-                if let root = browser.root { Button("Back to \(root.lastPathComponent)") { browser.navigate(root) } }
+                if browser.projectURL == nil, let root = browser.root { Button("Back to \(root.lastPathComponent)") { browser.navigate(root) } }
+                if browser.canLeaveProject { Button("Leave Project") { browser.leaveProject() } }
             } label: { Image(systemName: "ellipsis.circle") }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().accessibilityLabel("File browser menu")
         }.buttonStyle(.plain).padding(.vertical, 4)
@@ -778,10 +1400,10 @@ struct FolderBrowserSection: View {
         }
     }
 
-    private func trashNotice(_ item: TrashedItem) -> some View {
+    private func trashNotice(_ batch: TrashBatch) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "trash").foregroundStyle(.secondary)
-            Text("Moved “\(item.name)” to the Trash").lineLimit(1)
+            Text("Moved \(batch.summary) to the Trash").lineLimit(1)
             Spacer(minLength: 0)
             Button("Undo") { do { try browser.undoTrash() } catch { problem = error.localizedDescription } }.buttonStyle(.plain).foregroundStyle(Color.accentColor)
             Button { browser.dismissTrashNotice() } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(.secondary)
@@ -792,8 +1414,57 @@ struct FolderBrowserSection: View {
 
     // MARK: Actions
 
+    private func promptItem(_ item: NewProjectItem, in folder: URL? = nil) {
+        guard let projectURL = browser.projectURL else { return }
+        newProjectItem = item
+        newFolder = folder ?? FictionProject.folder(for: item, in: projectURL)
+        newName = item == .chapter ? FictionProject.nextChapterName(in: projectURL) : ""
+        showNewItem = true
+    }
+
+    /// The "+" on a project folder. A chapter is added straight away (numbered for you) and opened;
+    /// the others ask for a name first.
+    private func addToFolder(_ folder: URL, _ item: NewProjectItem) {
+        guard item == .chapter, let projectURL = browser.projectURL else { promptItem(item, in: folder); return }
+        do {
+            let url = try browser.createProjectItem(.chapter, named: FictionProject.nextChapterName(in: projectURL), in: folder)
+            switchFile(url)
+        } catch { problem = error.localizedDescription }
+    }
+
+    /// Opens the project's Start Here note, writing it first if it was deleted.
+    private func openGuide(in project: URL) {
+        do {
+            let guide = try FictionProject.ensureGuide(in: project)
+            browser.reload()
+            switchFile(guide)
+        } catch { problem = error.localizedDescription }
+    }
+
+    private func createProject() {
+        do {
+            let url = try browser.createProject(named: projectName, starterFiles: projectStarter)
+            showNewProject = false
+            // A new project opens on its Start Here note, which explains how everything works.
+            switchFile(FictionProject.guideURL(in: url))
+        } catch { showNewProject = false; problem = error.localizedDescription }
+    }
+
+    private func convertProject() {
+        guard let url = convertTarget else { return }
+        do { try browser.convertToRegularFolder(url) } catch { problem = error.localizedDescription }
+        convertTarget = nil
+    }
+
+    private func adopt(addFolders: Bool) {
+        guard let url = adoptTarget else { return }
+        do { try browser.adoptAsProject(url, addStandardFolders: addFolders); browser.navigate(url) } catch { problem = error.localizedDescription }
+        adoptTarget = nil
+    }
+
     private func promptNew(_ kind: NewItemKind, in folder: URL?) {
         guard let folder else { return }
+        newProjectItem = nil
         newKind = kind
         newFolder = folder
         newName = ""
@@ -803,8 +1474,13 @@ struct FolderBrowserSection: View {
     private func createItem() {
         guard let folder = newFolder else { return }
         do {
-            let url = try browser.create(newKind, named: newName, in: folder)
-            if newKind == .file { switchFile(url) }
+            if let item = newProjectItem {
+                let url = try browser.createProjectItem(item, named: newName, in: newFolder)
+                switchFile(url)
+            } else {
+                let url = try browser.create(newKind, named: newName, in: folder)
+                if newKind == .file { switchFile(url) }
+            }
         } catch { problem = error.localizedDescription }
     }
 
@@ -826,9 +1502,44 @@ struct FolderBrowserSection: View {
         do { try browser.rename(entry, to: name) } catch { problem = error.localizedDescription }
     }
 
-    private func trash(_ entry: BrowserEntry) {
-        guard parallelGuard([entry.url], action: "trashing") else { return }
-        do { try browser.trash(entry, protecting: [currentURL].compactMap { $0 }) } catch { problem = error.localizedDescription }
+    private func includesOpenFile(_ entries: [BrowserEntry]) -> Bool {
+        guard let currentURL else { return false }
+        return entries.contains { FolderMove.isInside(currentURL, of: $0.url) }
+    }
+
+    /// One file goes straight to the Trash (with Undo). Several items, a folder, or the file you have open ask first.
+    private func requestTrash(_ entries: [BrowserEntry]) {
+        guard !entries.isEmpty, parallelGuard(entries.map(\.url), action: "trashing") else { return }
+        if entries.count > 1 || entries.contains(where: \.isDirectory) || includesOpenFile(entries) { pendingTrash = entries }
+        else { performTrash(entries) }
+    }
+
+    private func performTrash(_ entries: [BrowserEntry]) {
+        pendingTrash = []
+        // The open file can't be trashed out from under the editor, so the page becomes blank first.
+        if includesOpenFile(entries) { releaseCurrentDocument() }
+        do { try browser.trash(entries, protecting: [parallelURL].compactMap { $0 }) } catch { problem = error.localizedDescription }
+    }
+
+    private var trashTitle: String {
+        pendingTrash.count == 1 ? "Move “\(pendingTrash[0].displayName)” to the Trash?" : "Move \(pendingTrash.count) items to the Trash?"
+    }
+    private var trashMessage: String {
+        var parts: [String] = []
+        if includesOpenFile(pendingTrash) { parts.append("The file you have open is included, so Sable will switch to a blank page. Unsaved changes to it won’t be kept.") }
+        if pendingTrash.contains(where: \.isDirectory) { parts.append("Folders go with everything inside them.") }
+        parts.append("You can undo right afterward, or restore them from the Trash later.")
+        return parts.joined(separator: " ")
+    }
+
+    /// Dropping a chapter onto another in the Manuscript folder reorders them; anything else moves as before.
+    private func dropOnRow(_ urls: [URL], _ entry: BrowserEntry) {
+        if let dragged = urls.first, urls.count == 1, browser.isChapter(entry.url), browser.isChapter(dragged),
+           dragged.deletingLastPathComponent().standardizedFileURL.path == entry.url.deletingLastPathComponent().standardizedFileURL.path {
+            do { try browser.reorderChapter(dragged, onto: entry.url) } catch { problem = error.localizedDescription }
+            return
+        }
+        move(urls, into: entry.isDirectory ? entry.url : entry.url.deletingLastPathComponent())
     }
 
     // MARK: Keyboard
@@ -839,11 +1550,13 @@ struct FolderBrowserSection: View {
         let selected = index.map { rows[$0].entry }
         switch press.key {
         case .downArrow:
-            browser.selection = rows[min((index ?? -1) + 1, rows.count - 1)].entry.url
+            if press.modifiers.contains(.shift) { browser.extendSelection(by: 1) }
+            else { browser.selection = rows[min((index ?? -1) + 1, rows.count - 1)].entry.url }
         case .upArrow:
-            browser.selection = rows[max((index ?? rows.count) - 1, 0)].entry.url
+            if press.modifiers.contains(.shift) { browser.extendSelection(by: -1) }
+            else { browser.selection = rows[max((index ?? rows.count) - 1, 0)].entry.url }
         case .rightArrow:
-            guard let selected, selected.isDirectory, !flat, !browser.expanded.contains(selected.url) else { return .ignored }
+            guard let selected, selected.isDirectory, !selected.isProject, !flat, !browser.expanded.contains(selected.url) else { return .ignored }
             browser.toggle(selected.url)
         case .leftArrow:
             guard let selected, !flat else { return .ignored }
@@ -854,17 +1567,45 @@ struct FolderBrowserSection: View {
             guard let selected else { return .ignored }
             if press.modifiers.contains(.shift) { browser.renaming = selected.url }
             else if !selected.isDirectory { switchFile(selected.url) }
-            else if flat { browser.navigate(selected.url) }
+            else if flat || selected.isProject { browser.navigate(selected.url) }
             else { browser.toggle(selected.url) }
         case .delete:
-            guard press.modifiers.contains(.command), let selected else { return .ignored }
-            trash(selected)
+            guard press.modifiers.contains(.command) else { return .ignored }
+            let chosen = browser.selectedEntries.isEmpty ? [selected].compactMap { $0 } : browser.selectedEntries
+            guard !chosen.isEmpty else { return .ignored }
+            requestTrash(chosen)
         case .escape:
-            guard browser.selection != nil else { return .ignored }
+            guard browser.selection != nil || !browser.selectedURLs.isEmpty else { return .ignored }
             browser.selection = nil
-        default: return .ignored
+        default:
+            guard press.modifiers.contains(.command), press.characters == "a" else { return .ignored }
+            browser.selectAllDisplayed()
         }
         return .handled
+    }
+}
+
+private struct NewProjectSheet: View {
+    @Binding var name: String
+    @Binding var starter: Bool
+    let location: String
+    let create: () -> Void
+    let cancel: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Image(systemName: "books.vertical").font(.largeTitle).foregroundStyle(.secondary)
+            Text("New Fiction Project").font(.title3.weight(.semibold))
+            Text("Creates a folder in “\(location)” with Manuscript, Characters, Locations, World, Notes, and Images inside. It’s all ordinary Markdown files, so any editor can open it.")
+                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            TextField("Project name", text: $name).textFieldStyle(.roundedBorder).onSubmit(create)
+            Toggle("Add a sample chapter, character, and location", isOn: $starter)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel, action: cancel).keyboardShortcut(.cancelAction)
+                Button("Create Project", action: create).keyboardShortcut(.defaultAction)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }.padding(24).frame(width: 400)
     }
 }
 
@@ -910,9 +1651,14 @@ private struct BrowserRowView: View {
     let switchFile: (URL) -> Void
     let showParallel: (URL) -> Void
     let promptNew: (NewItemKind, URL?) -> Void
-    let moveItems: ([URL], URL) -> Void
+    let dropOnRow: ([URL], BrowserEntry) -> Void
     let rename: (BrowserEntry, String) -> Void
-    let trash: (BrowserEntry) -> Void
+    let trash: ([BrowserEntry]) -> Void
+    let showCard: (URL) -> Void
+    let convertProject: (URL) -> Void
+    let adoptFolder: (URL) -> Void
+    let newCategory: () -> Void
+    let addToFolder: (URL, NewProjectItem) -> Void
     @AppStorage("sidebarCompact") private var compact = false
     @AppStorage("sidebarShowIcons") private var showIcons = true
     @AppStorage("sidebarShowExtensions") private var showExtensions = false
@@ -927,7 +1673,12 @@ private struct BrowserRowView: View {
     private var expanded: Bool { browser.expanded.contains(entry.url) && !showPath }
     private var isParallel: Bool { parallelURL?.standardizedFileURL == entry.url.standardizedFileURL }
     private var isCurrent: Bool { currentURL?.standardizedFileURL == entry.url.standardizedFileURL }
-    private var isSelected: Bool { browser.selection == entry.url }
+    private var isSelected: Bool { browser.selectedURLs.contains(entry.url) }
+    private var cardKind: CardKind? { browser.cardKind(of: entry) }
+    /// The kind of thing a "+" on this folder would add (chapter, character, location, world note).
+    private var addItem: NewProjectItem? { entry.isDirectory && inProject ? browser.projectItem(forFolder: entry.url) : nil }
+    private var inProject: Bool { browser.projectURL != nil }
+    private var isMarkdown: Bool { ["md", "markdown"].contains(entry.url.pathExtension.lowercased()) }
     private var isRenaming: Bool { browser.renaming == entry.url }
     /// Dropping on a folder moves into it; dropping on a file moves next to it.
     private var dropFolder: URL { entry.isDirectory ? entry.url : entry.url.deletingLastPathComponent() }
@@ -949,6 +1700,18 @@ private struct BrowserRowView: View {
     var body: some View {
         HStack(spacing: 4) {
             if isRenaming { renameField } else { mainButton }
+            if let addItem, !isRenaming, hovering {
+                Button { addToFolder(entry.url, addItem) } label: {
+                    Image(systemName: "plus.circle").font(.system(size: 12)).foregroundStyle(Color.accentColor).frame(width: 22, height: 20)
+                }.buttonStyle(.plain)
+                .help(addItem.addHelp).accessibilityLabel(addItem.title)
+            }
+            if let cardKind, !isRenaming, hovering {
+                Button { showCard(entry.url) } label: {
+                    Image(systemName: "rectangle.stack.person.crop").font(.system(size: 11)).foregroundStyle(Color.secondary).frame(width: 22, height: 20)
+                }.buttonStyle(.plain)
+                .help("Show this \(cardKind.title.lowercased()) as a card").accessibilityLabel("Show as card")
+            }
             if !entry.isDirectory && !isCurrent && !isRenaming && (hovering || isParallel) {
                 Button { showParallel(entry.url) } label: {
                     Image(systemName: isParallel ? "rectangle.split.2x1.fill" : "rectangle.split.2x1")
@@ -964,30 +1727,37 @@ private struct BrowserRowView: View {
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(dropTargeted ? Color.accentColor : .clear, lineWidth: 1.5))
         .onHover { hovering = $0 }
         .draggable(entry.url)
-        .dropDestination(for: URL.self) { urls, _ in moveItems(urls, dropFolder); return true } isTargeted: { dropTargeted = $0 }
+        .dropDestination(for: URL.self) { urls, _ in dropOnRow(urls, entry); return true } isTargeted: { dropTargeted = $0 }
         .task(id: showWords) { if showWords { browser.loadWordCount(for: entry) } }
         .contextMenu { menu }
     }
 
     private var mainButton: some View {
         Button {
-            browser.selection = entry.url
+            // ⌘-click and ⇧-click build a selection; a plain click selects the row and opens it.
+            let flags = NSApp.currentEvent?.modifierFlags ?? []
+            browser.click(entry.url, command: flags.contains(.command), shift: flags.contains(.shift))
+            if flags.contains(.command) || flags.contains(.shift) { return }
             if !entry.isDirectory { switchFile(entry.url) }
-            else if showPath { browser.navigate(entry.url) }
+            else if showPath || entry.isProject { browser.navigate(entry.url) }
             else { browser.toggle(entry.url) }
         } label: {
             HStack(spacing: 8) {
-                if entry.isDirectory {
+                if entry.isProject {
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary).frame(width: 10)
+                    Image(systemName: "books.vertical.fill").foregroundStyle(Color.accentColor)
+                } else if entry.isDirectory {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary).frame(width: 10)
                     if showIcons { Image(systemName: "folder.fill").foregroundStyle(mark?.color ?? Color.secondary.opacity(0.7)) }
                 } else if showIcons {
-                    Image(systemName: "doc.text").foregroundStyle(.secondary).padding(.leading, 18)
+                    Image(systemName: cardKind?.symbol ?? "doc.text").foregroundStyle(.secondary).padding(.leading, 18)
                 } else {
                     Color.clear.frame(width: 10, height: 1)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).lineLimit(1).fontWeight(isCurrent ? .medium : .regular)
+                    if entry.isProject && detail == nil { Text("Fiction Project").font(.system(size: 10)).foregroundStyle(.tertiary) }
                     if let detail { Text(detail).font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1) }
                 }
                 Spacer(minLength: 0)
@@ -1014,14 +1784,25 @@ private struct BrowserRowView: View {
 
     @ViewBuilder
     private var menu: some View {
-        if entry.isDirectory {
+        if entry.isProject {
+            Button("Open Project") { browser.navigate(entry.url) }
+            Button("Convert to Regular Folder…") { convertProject(entry.url) }
+            Divider()
+        } else if entry.isDirectory {
             Button("Focus on This Folder") { browser.navigate(entry.url) }
+            if let addItem { Button(addItem.title + " Here" + (addItem == .chapter ? "" : "…")) { addToFolder(entry.url, addItem) } }
             Button("New File in This Folder…") { promptNew(.file, entry.url) }
             Button("New Folder in This Folder…") { promptNew(.folder, entry.url) }
+            if !inProject { Button("Make Fiction Project…") { adoptFolder(entry.url) } }
+            if !inProject { categoryMenu }
         } else {
             Button("Switch to This File") { switchFile(entry.url) }
             Button("Open Beside Current Document") { showParallel(entry.url) }.disabled(isCurrent)
+            if inProject && isMarkdown {
+                Button("Show as Card") { showCard(entry.url) }
+            }
         }
+        if browser.isChapter(entry.url) { chapterMenu }
         Divider()
         Button("Rename") { browser.selection = entry.url; browser.renaming = entry.url }
         Menu("Color") {
@@ -1032,10 +1813,40 @@ private struct BrowserRowView: View {
             }
             if mark != nil { Divider(); Button("Remove Color") { browser.setColor(nil, for: entry.url) } }
         }
-        Button(browser.isPinned(entry.url) ? "Unpin" : "Pin to Top") { browser.togglePin(entry.url) }
+        if browser.isManuscript(entry.url) {
+            Button("Always Pinned (Manuscript)") {}.disabled(true)
+        } else {
+            Button(browser.isPinned(entry.url) ? "Unpin" : "Pin to Top") { browser.togglePin(entry.url) }
+        }
         Divider()
         Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([entry.url]) }
-        Button("Move to Trash", role: .destructive) { trash(entry) }.disabled(isCurrent)
+        let targets = browser.trashTargets(for: entry)
+        Button(targets.count > 1 ? "Move \(targets.count) Items to Trash" : "Move to Trash", role: .destructive) { trash(targets) }
+    }
+
+    /// Reordering without dragging, for chapters in the Manuscript folder.
+    @ViewBuilder
+    private var chapterMenu: some View {
+        let names = browser.chapterNames()
+        let index = names.firstIndex(of: entry.name) ?? 0
+        Divider()
+        Button("Move Chapter Up") { try? browser.moveChapter(entry.url, to: index - 1) }.disabled(index == 0)
+        Button("Move Chapter Down") { try? browser.moveChapter(entry.url, to: index + 1) }.disabled(index >= names.count - 1)
+        Button("Move Chapter to Top") { try? browser.moveChapter(entry.url, to: 0) }.disabled(index == 0)
+        Button("Move Chapter to End") { try? browser.moveChapter(entry.url, to: names.count - 1) }.disabled(index >= names.count - 1)
+    }
+
+    /// The same filing that dragging onto a category header does, for anyone who prefers a menu.
+    private var categoryMenu: some View {
+        let assigned = browser.categoryID(of: entry)
+        return Menu("Category") {
+            ForEach(browser.categories.list) { category in
+                Button(category.name + (assigned == category.id ? " ✓" : "")) { browser.assign(entry.url, to: category.id) }
+            }
+            if !browser.categories.list.isEmpty { Divider() }
+            if assigned != nil { Button("Remove from Category") { browser.assign(entry.url, to: nil) } }
+            Button("New Category…", action: newCategory)
+        }
     }
 
     private var rowBackground: Color {

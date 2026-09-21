@@ -1,16 +1,16 @@
-# New Quill Markdown Editor
+# Sable Markdown Writer
 
 A small, native Markdown editor for fiction, for macOS 14 or later. Source is included so the editor can evolve with your writing habits.
 
 ## Use
 
-Open `build/Quill.app` after building. Use File → New or File → Open. Choose an existing UTF-8 `.md`, `.markdown`, or `.txt` file from your Mac or iCloud Drive. File → Save writes plain Markdown; prose overlays are never serialized. File coordination and document saving use Apple's SwiftUI `DocumentGroup` and `FileDocument`.
+Open `build/Sable Markdown Writer.app` after building. Use File → New or File → Open. Choose an existing UTF-8 `.md`, `.markdown`, or `.txt` file from your Mac or iCloud Drive. File → Save writes plain Markdown; prose overlays are never serialized. File coordination and document saving use Apple's SwiftUI `DocumentGroup` and `FileDocument`.
 
 The writing surface now displays bold, italic, combined emphasis, headings, links, quotes, lists, inline code, fenced code, and strikethrough. Markdown markers remain visible in a subdued color. Fonts and visual attributes never become part of the saved text. Supported web/mail links have native link attributes.
 
 Text is centered in a 680-point column by default, including in a maximized window. Settings lets you change the width and text size. A two-finger horizontal swipe or the sidebar button (⌃⌘S) toggles the writing desk. Its outline options let you choose Chapters, Episodes, Scenes, Outline, or any custom label and filter to one heading level. Labels and filters are shared across documents and do not rename your actual headings.
 
-The Files section's menu → Choose Writing Folder opens a persistent folder browser for Markdown and text files. Click folders to expand or collapse nested contents inline. Use the up arrow to return, and click a file to switch the active document. New Quill asks macOS to save, discard, or cancel when the active document has unsaved edits, then opens the selected file in the same writing window. Automatic window tabs are disabled. The menu also refreshes the listing or returns to the root folder. Search filters loaded, visible file rows and outline headings. Folder listings refresh manually; recursive full-text search is not implemented. Hidden files, symlinks, and packages are excluded.
+The Files section's menu → Choose Writing Folder opens a persistent folder browser for Markdown and text files. Click folders to expand or collapse nested contents inline. Use the up arrow to return, and click a file to switch the active document. Sable asks macOS to save, discard, or cancel when the active document has unsaved edits, then opens the selected file in the same writing window. Automatic window tabs are disabled. The menu also refreshes the listing or returns to the root folder. Search filters loaded, visible file rows and outline headings. Folder listings refresh manually; recursive full-text search is not implemented. Hidden files, symlinks, and packages are excluded.
 
 Any Markdown file in the writing folder can be opened beside the active document from its context menu. The split pane begins in a clean formatted reading view. Edit enables in-place Markdown editing beside the draft; Read returns to the formatted view. The secondary document saves separately and closes with the split pane. It is general-purpose for now; fiction-specific world-document pinning is deferred to the Fiction Projects milestone.
 
@@ -93,7 +93,7 @@ After building, the standalone Markdown and native editor checks can run without
 ```sh
 swiftc Sources/QuillCore/MarkdownSyntax.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
 /tmp/quill-markdown-checks
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
+swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
 /tmp/quill-editor-checks
 ```
 
@@ -102,11 +102,13 @@ The last command uses the Apple Silicon build path; substitute `x86_64-apple-mac
 For folder-listing checks:
 
 ```sh
-swiftc Sources/Quill/FolderBrowser.swift scripts/check-folder.swift -o /tmp/quill-folder-checks
+swiftc Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift scripts/check-folder.swift -o /tmp/quill-folder-checks
 /tmp/quill-folder-checks
+swiftc Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift scripts/check-fiction.swift -o /tmp/quill-fiction-checks
+/tmp/quill-fiction-checks
 ```
 
-`sh scripts/build-preview.sh` builds a separate **New Quill Preview.app** with its own preferences and copied sample documents. Its `QUILL_PREVIEW` fixture setup is excluded from the normal app, allowing UI checks without closing an existing draft. Normal app updates take effect after saving work and restarting Quill.
+`sh scripts/build-preview.sh` builds a separate **Sable Markdown Writer Preview.app** with its own preferences and copied sample documents. Its `QUILL_PREVIEW` fixture setup is excluded from the normal app, allowing UI checks without closing an existing draft. Normal app updates take effect after saving work and restarting Quill.
 
 ## New in 0.4
 
@@ -129,7 +131,7 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 ## Minimalist editor update (in development)
 
 - First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
-- Setup can include an editable **New Quill Guide.md**. Open it again from Help; existing guide edits are never overwritten.
+- Setup can include an editable **Sable Guide.md**. Open it again from Help; existing guide edits are never overwritten.
 - Writing Style includes Graphite, Midnight, Forest, Parchment, and Paper themes.
 - Zoom with Command-Plus/Minus, reset with Command-0, or pinch the trackpad. Pinch zoom can be disabled in Writing Style.
 - Move the pointer to the top edge to reveal the toolbar. Reading mode, focus, sidebar, styling, and sentence colors remain available from the View menu.

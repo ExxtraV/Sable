@@ -11,6 +11,11 @@ struct WritingStyleControls: View {
     @AppStorage("writingTheme") private var theme = "graphite"
     @AppStorage("pinchToZoom") private var pinch = true
     @AppStorage("customFont") private var customFont = false
+    @AppStorage("focusStyle") private var focusStyle = "gradient"
+    @AppStorage("typewriterMode") private var typewriterMode = "room"
+    @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
+    @AppStorage("sceneTagsFade") private var sceneTagsFade = true
+    @AppStorage("sceneTagsColor") private var sceneTagsColor = true
     private let presets = [("Everyday", "Georgia"), ("Literary", "Charter"), ("Classic", "Baskerville"), ("Science fiction", "Menlo"), ("Manuscript", "Courier New")]
     private let families = NSFontManager.shared.availableFontFamilies.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
 
@@ -36,6 +41,25 @@ struct WritingStyleControls: View {
             Picker("Theme", selection: $theme) {
                 ForEach(WritingTheme.all) { item in Text(item.name).tag(item.id) }
             }
+            Picker("Scrolling", selection: $typewriterMode) {
+                Text("Standard").tag("off")
+                Text("Room to scroll past the end").tag("room")
+                Text("Keep the line I’m writing centered").tag("center")
+            }
+            Picker("Paragraph focus", selection: $focusStyle) {
+                Text("Fade gradually").tag("gradient")
+                Text("Dim evenly").tag("uniform")
+            }
+            Picker("Scene tags", selection: $sceneTagsPlacement) {
+                Text("Bottom").tag("bottom")
+                Text("Top left").tag("topLeading")
+                Text("Top right").tag("topTrailing")
+                Text("Bottom left").tag("bottomLeading")
+                Text("Bottom right").tag("bottomTrailing")
+                Text("Off").tag("off")
+            }
+            Toggle("Fade scene tags while typing", isOn: $sceneTagsFade).disabled(sceneTagsPlacement == "off")
+            Toggle("Color-code scene tags", isOn: $sceneTagsColor).disabled(sceneTagsPlacement == "off")
             Toggle("Pinch to zoom", isOn: $pinch)
             Text("Zoom: ⌘+ / ⌘− · Reset: ⌘0 · Move the pointer to the top edge for controls.")
                 .font(.caption).foregroundStyle(.secondary)

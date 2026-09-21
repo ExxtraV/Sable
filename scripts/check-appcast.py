@@ -9,7 +9,7 @@ assert enclosure is not None
 assert int(enclosure.get('length')) == archive.stat().st_size
 assert len(base64.b64decode(enclosure.get(ns + 'edSignature'), validate=True)) == 64
 with zipfile.ZipFile(archive) as z:
-    info = plistlib.loads(z.read('Quill.app/Contents/Info.plist'))
+    info = plistlib.loads(z.read('Sable Markdown Writer.app/Contents/Info.plist'))
 assert (items[0].findtext(ns + 'version') or enclosure.get(ns + 'version')) == info['CFBundleVersion']
 assert (items[0].findtext(ns + 'shortVersionString') or enclosure.get(ns + 'shortVersionString')) == info['CFBundleShortVersionString']
 expected = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/v{info['CFBundleShortVersionString']}/{archive.name}"

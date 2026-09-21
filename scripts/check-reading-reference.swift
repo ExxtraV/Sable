@@ -12,7 +12,7 @@ import QuillCore
         precondition(rendered.string.contains("•  A bell"))
         let bold = rendered.attribute(.font, at: (rendered.string as NSString).range(of: "bright").location, effectiveRange: nil) as! NSFont
         precondition(NSFontManager.shared.traits(of: bold).contains(.boldFontMask))
-        precondition(NSImage(contentsOfFile: "Assets/NewQuill.icns") != nil)
+        precondition(NSImage(contentsOfFile: "Assets/Sable.icns") != nil)
         let sentence = "The clever fox runs quickly."
         let classes = SentenceStructure.words(in: sentence, enabled: 31)
         precondition(classes.contains { $0.kind == .noun })

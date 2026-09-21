@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sable Guide — Keyboard Shortcuts and Writing Tips</title>
+<meta name="description" content="Set up Sable and learn the writing desk, paragraph focus, reading mode, themes, prose suggestions, and every keyboard shortcut.">
+<link rel="canonical" href="https://sable.jtsjaden.com/guide">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161514">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F6F2EA">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Sable Markdown Writer">
+<meta property="og:url" content="https://sable.jtsjaden.com/guide">
+<meta property="og:title" content="Sable Guide — Keyboard Shortcuts and Writing Tips">
+<meta property="og:description" content="Set up your writing folder, use the writing desk and paragraph focus, and learn every keyboard shortcut.">
+<meta property="og:image" content="https://sable.jtsjaden.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Sable Markdown Writer", "item": "https://sable.jtsjaden.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Guide", "item": "https://sable.jtsjaden.com/guide" }
+      ]
+    },
+    {
+      "@type": "TechArticle",
+      "headline": "Sable Guide — Keyboard Shortcuts and Writing Tips",
+      "description": "How to set up and use Sable, a free Markdown editor for Mac made for fiction writers.",
+      "url": "https://sable.jtsjaden.com/guide",
+      "image": "https://sable.jtsjaden.com/og.png",
+      "inLanguage": "en",
+      "author": { "@type": "Person", "name": "Jaden", "url": "https://jtsjaden.com" },
+      "about": { "@id": "https://sable.jtsjaden.com/#app" }
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap nav">
+    <a class="brand" href="/"><img src="/logo.png" alt="" width="30" height="30"> Sable</a>
+    <nav aria-label="Main">
+      <a href="/#features">Features</a>
+      <a href="/#files">Your files</a>
+      <a href="/guide" aria-current="page">Guide</a>
+      <a href="/#faq">FAQ</a>
+      <a class="btn primary small" href="/#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<div class="wrap">
+  <article class="article">
+    <p class="crumbs"><a href="/">Sable</a> / Guide</p>
+    <h1>The Sable guide</h1>
+    <p class="lede">Everything you need to set up Sable and keep your hands on the story. The same guide is included in the app as an editable Markdown file.</p>
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#folder">Your writing folder</a></li>
+      <li><a href="#desk">The writing desk</a></li>
+      <li><a href="#markdown">A little Markdown</a></li>
+      <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+      <li><a href="#space">A quiet writing space</a></li>
+      <li><a href="#beside">A file beside your draft</a></li>
+    </ul>
+
+    <h2 id="folder">Your writing folder</h2>
+    <p>Your words live in ordinary Markdown files. They are plain text, so you can open them in other editors and keep them in a folder you control.</p>
+    <p>Choose a writing folder during setup. iCloud Drive, Dropbox, or OneDrive work well if you want your writing on other devices; your cloud service handles synchronization, so let it finish before editing the same file elsewhere. New documents can be saved anywhere with <kbd>⌘S</kbd>. The status at the bottom confirms when a save completes; that confirms the local file, not cloud syncing.</p>
+
+    <h2 id="desk">The writing desk</h2>
+    <p>The desk on the left has two tabs: <strong>Files</strong> and your <strong>Outline</strong>. Click a file to open it in the same window. Sable asks you to save or discard unsaved changes first.</p>
+    <ul>
+      <li><strong>Create.</strong> The <b>+</b> button makes a new file or folder. Control-click a folder to create inside it.</li>
+      <li><strong>Rearrange.</strong> Drag files and folders onto folders to nest them. Drop on the path above the list to move things back up.</li>
+      <li><strong>Rename and trash.</strong> Control-click for Rename and Move to Trash. An Undo appears right after trashing.</li>
+      <li><strong>Colors and pins.</strong> Give any file or folder a color or pin it to the top. Name your colors (Draft, Revised, Final) in the list options. Chips above the list filter by color or pin.</li>
+      <li><strong>Focus.</strong> Control-click a folder and choose Focus on This Folder to see only that folder. The path above the list takes you back out.</li>
+      <li><strong>Search.</strong> The search box looks through every folder beneath the one you’re viewing, not only the ones that are open. It matches names, not the text inside files.</li>
+      <li><strong>Keyboard.</strong> Arrow keys move through the list, → and ← open and close folders, Return opens, ⇧Return renames, ⌘Delete moves to the Trash.</li>
+      <li><strong>Make it yours.</strong> The sliders button sets sorting, icons, file extensions, last-modified dates, word counts, and compact rows. Drag the desk’s right edge to resize it.</li>
+    </ul>
+    <p>The Outline tab turns your <code>#</code> headings into a list you can name Chapters, Scenes, Episodes, or anything else, and filter to one heading level. This changes the sidebar only, never your headings.</p>
+
+    <h2 id="markdown">A little Markdown</h2>
+    <p>Use <code>**two asterisks**</code> for bold and <code>*one*</code> for italics. Start a line with <code>#</code> for a heading, or <code>##</code> for a smaller one. A dash starts a list item, a blank line starts a new paragraph, and a greater-than sign starts a quotation. Use backticks for <code>inline code</code> and two tildes for <code>~~strikethrough~~</code>.</p>
+
+    <h2 id="shortcuts">Keyboard shortcuts</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th scope="col">Shortcut</th><th scope="col">What it does</th></tr></thead>
+        <tbody>
+          <tr><td>⌘N</td><td>New document</td></tr>
+          <tr><td>⌘O</td><td>Open a file</td></tr>
+          <tr><td>⌘S</td><td>Save</td></tr>
+          <tr><td>⌘B</td><td>Bold</td></tr>
+          <tr><td>⌘I</td><td>Italic</td></tr>
+          <tr><td>⌘K</td><td>Insert a link</td></tr>
+          <tr><td>⇧⌘H</td><td>Heading</td></tr>
+          <tr><td>Tab or Esc</td><td>Move past closing formatting marks</td></tr>
+          <tr><td>⌘\</td><td>Leave formatting</td></tr>
+          <tr><td>Return</td><td>Leave formatting and start a new line</td></tr>
+          <tr><td>⌘F</td><td>Find in the manuscript</td></tr>
+          <tr><td>⇧⌘F</td><td>Paragraph focus</td></tr>
+          <tr><td>⇧⌘R</td><td>Switch between writing and reading mode</td></tr>
+          <tr><td>⌃⌘S</td><td>Show or hide the writing desk</td></tr>
+          <tr><td>⌥⌘T</td><td>Show or hide the toolbar</td></tr>
+          <tr><td>⌥⌘,</td><td>Fonts, themes, and writing style</td></tr>
+          <tr><td>⌥⌘J</td><td>Sentence-structure colors</td></tr>
+          <tr><td>⌘ + / ⌘ −</td><td>Zoom in or out</td></tr>
+          <tr><td>⌘0</td><td>Reset zoom to 100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Pinch the trackpad to zoom; you can turn that off in Writing Style. A two-finger horizontal swipe shows or hides the writing desk. Zoom changes the display, never your Markdown.</p>
+
+    <h2 id="space">A quiet writing space</h2>
+    <p>Try Graphite, Midnight, Forest, Parchment, or Paper in Writing Style, pick one of five writing fonts, or choose your own. The toolbar slides in when you move the pointer near its edge and never shifts your page. Put it on the top, left, or right, keep it visible, or turn it off entirely with <kbd>⌥⌘T</kbd>.</p>
+    <p><strong>Paragraph focus</strong> dims surrounding paragraphs. <strong>Reading mode</strong> hides Markdown marks. <strong>Prose suggestions</strong> cross out possible cuts only on screen, and you control the word list in Settings. <strong>Sentence structure</strong> colors nouns, verbs, and other word classes on your Mac; invented names can be misclassified. None of these display features changes your saved text.</p>
+
+    <h2 id="beside">A file beside your draft</h2>
+    <p>Control-click any Markdown file in the writing desk and choose <b>Open Beside Current Document</b>, or click the small split-pane icon that appears when you hover a file. It opens as a formatted reading view next to your draft. Choose Edit to work on it in place, then Read to return to the clean view. It’s handy for a character sheet or a map of the world while you write a chapter.</p>
+
+    <p style="margin-top:44px">Missing something? <a href="https://github.com/ExxtraV/new-quill/issues">Tell us on GitHub</a>, or <a href="/#download">download Sable</a>.</p>
+  </article>
+</div>
+</main>
+
+<footer class="site">
+  <div class="wrap foot">
+    <span>Sable Markdown Writer — made by <a href="https://jtsjaden.com"><u>Jaden</u></a>. MIT licensed.</span>
+    <nav aria-label="Footer">
+      <a href="/guide">Guide</a>
+      <a href="/privacy">Privacy</a>
+      <a href="https://github.com/ExxtraV/new-quill">GitHub</a>
+      <a href="https://github.com/ExxtraV/new-quill/releases">Releases</a>
+      <a href="https://github.com/ExxtraV/new-quill/issues">Report a bug</a>
+      <a href="https://jtsjaden.com">Portfolio</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

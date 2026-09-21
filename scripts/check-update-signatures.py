@@ -18,7 +18,7 @@ try key.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandL
     private.chmod(0o600)
     archive = folder / 'update.zip'
     with zipfile.ZipFile(archive, 'w') as z:
-        z.writestr('Quill.app/Contents/Info.plist', plistlib.dumps(dict(CFBundleVersion='5', CFBundleShortVersionString='0.5.0', SUPublicEDKey=public.read_text())))
+        z.writestr('Sable Markdown Writer.app/Contents/Info.plist', plistlib.dumps(dict(CFBundleVersion='5', CFBundleShortVersionString='0.5.0', SUPublicEDKey=public.read_text())))
     signature = subprocess.check_output([str(signer), '--ed-key-file', str(private), '-p', str(archive)], text=True).strip()
     subprocess.run([str(signer), '--ed-key-file', str(private), '--verify', str(archive), signature], check=True, stdout=subprocess.DEVNULL)
     feed = folder / 'appcast.xml'
