@@ -150,6 +150,31 @@ section { padding: 92px 0 0; }
 .step p { margin-top: 8px; color: var(--muted); font-size: 15px; }
 .note { margin-top: 24px; padding: 16px 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 15px; max-width: 760px; }
 .note b { color: var(--text); }
+.first-open { margin-top: 40px; max-width: 900px; }
+.first-open h3 { font-size: 20px; margin: 0 0 8px; }
+.first-open > p { color: var(--muted); margin: 0 0 16px; max-width: 720px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.first-open table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
+.first-open th, .first-open td { padding: 14px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.first-open tbody tr:last-child th, .first-open tbody tr:last-child td { border-bottom: 0; }
+.first-open thead th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.first-open tbody th { width: 52px; color: var(--muted); font-weight: 600; }
+.first-open td:nth-child(2) { color: var(--muted); }
+.first-open td b { color: var(--text); }
+.first-open tbody th { background: transparent; }
+@media (max-width: 720px) {
+  .first-open table { min-width: 0; }
+  .first-open thead { display: none; }
+  .first-open tbody, .first-open tr, .first-open th, .first-open td { display: block; width: auto; }
+  .first-open tbody tr { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .first-open tbody tr:last-child { border-bottom: 0; }
+  .first-open tbody th, .first-open td { padding: 0; border: 0; }
+  .first-open tbody th { margin-bottom: 6px; }
+  .first-open tbody th::before { content: "Step "; }
+  .first-open td { margin-top: 8px; }
+  .first-open td::before { content: attr(data-label); display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+}
+.first-open code { font-size: 13px; word-break: break-all; }
 
 /* FAQ */
 .faq { margin-top: 32px; max-width: 760px; }

@@ -65,7 +65,7 @@
         { "@type": "Question", "name": "Does Sable use AI?", "acceptedAnswer": { "@type": "Answer", "text": "No. Prose suggestions come from a word list you control, and sentence coloring uses Apple's Natural Language tools on your Mac. Nothing you write is sent anywhere." } },
         { "@type": "Question", "name": "What files can it open?", "acceptedAnswer": { "@type": "Answer", "text": "Markdown and text files: .md, .markdown, and .txt. Files stay exactly as you wrote them." } },
         { "@type": "Question", "name": "Can I keep using other apps on the same files?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Sable saves plain Markdown in ordinary folders, so any other editor can open the same files. Themes, focus, colors, and suggestions are display only and never change what is saved." } },
-        { "@type": "Question", "name": "Is there a Windows, iPad, or iPhone version?", "acceptedAnswer": { "@type": "Answer", "text": "Sable is Mac-only for now. An iPad edition and PDF and ebook export are on the roadmap." } },
+        { "@type": "Question", "name": "Is there a Windows, iPad, or iPhone version?", "acceptedAnswer": { "@type": "Answer", "text": "Sable is Mac-only for now. An iPad edition is on the roadmap. PDF, EPUB, and Word export are already in the app." } },
         { "@type": "Question", "name": "Why does macOS say I have to choose Open Anyway?", "acceptedAnswer": { "@type": "Answer", "text": "The app is signed for updates but not notarized by Apple, which needs a paid developer membership. It is a one-time approval in System Settings, Privacy and Security, and you can read every line of the source." } }
       ]
     }
@@ -268,7 +268,7 @@
     </div>
     <div class="road">
       <article class="card"><span class="tag">Available now</span><h3>Fiction Projects</h3><p>Create a story folder with a manuscript, characters, locations, world notes, images, and cards you can keep beside the page.</p></article>
-      <article class="card"><span class="tag">Planned</span><h3>PDF and ebook export</h3><p>Export a manuscript with a preview and explicit settings.</p></article>
+      <article class="card"><span class="tag">Available now</span><h3>Export and revisions</h3><p>Export a whole manuscript as PDF, EPUB, Word, or Markdown, and keep snapshots of your drafts so a big rewrite can always be undone.</p></article>
       <article class="card"><span class="tag">Exploring</span><h3>iPad</h3><p>The core is written to be reused, so an iPad edition is possible later.</p></article>
     </div>
   </section>
@@ -291,7 +291,22 @@
       <div class="step"><h3>Drag to Applications</h3><p>Drag <b>Sable Markdown Writer</b> onto the Applications shortcut, or into your Applications folder.</p></div>
       <div class="step"><h3>Open it</h3><p>Choose a writing folder when asked, or create a new one. Then start on page one. The <a href="/guide">guide</a> covers shortcuts and tips.</p></div>
     </div>
-    <div class="note"><b>A note on first launch.</b> Sable isn’t notarized by Apple yet, so macOS may block it the first time. If you trust the download, open System Settings → Privacy &amp; Security and choose <b>Open Anyway</b>. Updates later arrive inside the app, verified with the project’s signing key.</div>
+    <div class="first-open" id="first-open">
+      <h3>Opening Sable for the first time</h3>
+      <p>Sable is signed for updates but isn’t notarized by Apple (that needs a paid developer membership), so macOS asks you to approve it once. It takes about a minute, and you only do it the first time.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Step</th><th scope="col">What you’ll see</th><th scope="col">What to do</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">1</th><td data-label="What you’ll see">Open Sable from your Applications folder. macOS says it “can’t be opened” or that Apple couldn’t check it for malware.</td><td data-label="What to do">Click <b>Done</b>. Don’t choose “Move to Bin”.</td></tr>
+            <tr><th scope="row">2</th><td data-label="What you’ll see">Open <b>System Settings → Privacy &amp; Security</b> and scroll down to the Security section. It says “Sable Markdown Writer” was blocked.</td><td data-label="What to do">Click <b>Open Anyway</b>.</td></tr>
+            <tr><th scope="row">3</th><td data-label="What you’ll see">macOS asks once more and may want your password or Touch ID.</td><td data-label="What to do">Confirm, then click <b>Open</b>.</td></tr>
+            <tr><th scope="row">4</th><td data-label="What you’ll see">Sable opens and asks you to choose or create a writing folder.</td><td data-label="What to do">From now on it opens like any other app. Updates arrive inside Sable, verified with the project’s signing key.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fine">On macOS 14 you can also Control-click the app and choose <b>Open</b>, then <b>Open</b> again. Prefer Terminal? <code>xattr -dr com.apple.quarantine "/Applications/Sable Markdown Writer.app"</code> does the same thing. Only do this for a download you got from this page or the <a href="https://github.com/ExxtraV/Sable/releases">GitHub releases</a>.</p>
+    </div>
   </div>
 </div>
 
@@ -305,7 +320,7 @@
       <details><summary>Does Sable use AI?</summary><p>No. Prose suggestions come from a word list you control, and sentence coloring uses Apple’s Natural Language tools on your Mac. Nothing you write is sent anywhere.</p></details>
       <details><summary>What files can it open?</summary><p>Markdown and text files: <code>.md</code>, <code>.markdown</code>, and <code>.txt</code>. Files stay exactly as you wrote them.</p></details>
       <details><summary>Can I keep using other apps on the same files?</summary><p>Yes. Sable saves plain Markdown in ordinary folders, so any other editor can open the same files. Themes, focus, colors, and suggestions are display only and never change what is saved.</p></details>
-      <details><summary>Is there a Windows, iPad, or iPhone version?</summary><p>Sable is Mac-only for now. An iPad edition and PDF and ebook export are on the roadmap.</p></details>
+      <details><summary>Is there a Windows, iPad, or iPhone version?</summary><p>Sable is Mac-only for now. An iPad edition is on the roadmap. PDF, EPUB, and Word export are already in the app.</p></details>
       <details><summary>Why does macOS say I have to choose Open Anyway?</summary><p>The app is signed for updates but not notarized by Apple, which needs a paid developer membership. It is a one-time approval in System Settings, Privacy &amp; Security, and you can read every line of the source.</p></details>
     </div>
   </section>
