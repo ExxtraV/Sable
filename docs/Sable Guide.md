@@ -61,6 +61,10 @@ Use `backticks` for inline code and ~~two tildes~~ for a strikethrough.
 
 Before a big rewrite, save a snapshot: **File → Save Snapshot** (⌥⌘S), or the Revisions button at the bottom of the writing desk. A snapshot keeps a copy of every chapter as it is right now. **Revision History** (⌥⌘R) lists your snapshots and shows, for any of them, which chapters changed and how: words you have added are underlined green and words you have removed are struck through red. From there you can restore one chapter or the whole draft. Sable saves a safety snapshot before every restore, so a restore can be undone too. In a Fiction Project it also keeps a daily snapshot when something changed (turn that off in Settings). Snapshots live in a hidden `.sable-revisions` folder as ordinary Markdown files.
 
+## Your toolbar
+
+The toolbar starts with only the essentials. Click **⋯ → Customize Tools** to add the tools you use (headings, bold, italic, lists, quotes, scene breaks, revisions, and more) and drag them into the order you like. Dark themes shade toward the page edges to keep your eye on the text; Writing Style lets you turn that off or change how deep it is.
+
 ## Keep your hands on the story
 
 - Command-N: new document.

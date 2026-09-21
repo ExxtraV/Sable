@@ -17,10 +17,10 @@ struct WritingTheme: Identifiable {
     var chromeColor: Color { chrome.flatMap { NSColor(quillHex: $0) }.map(Color.init(nsColor:)) ?? Color(nsColor: .windowBackgroundColor) }
     var edgeColor: Color? { edge.flatMap { NSColor(quillHex: $0) }.map(Color.init(nsColor:)) }
     static let all = [
-        WritingTheme(id: "graphite", name: "Graphite", paper: "242424", ink: "E0DDD7", dark: true, chrome: "191919"),
-        WritingTheme(id: "midnight", name: "Midnight", paper: "131820", ink: "D6DEE8", dark: true, chrome: "0C1015"),
+        WritingTheme(id: "graphite", name: "Graphite", paper: "242424", ink: "E0DDD7", dark: true, chrome: "191919", edge: "121212"),
+        WritingTheme(id: "midnight", name: "Midnight", paper: "131820", ink: "D6DEE8", dark: true, chrome: "0C1015", edge: "05070A"),
         WritingTheme(id: "chalk", name: "Chalk", paper: "2D3034", ink: "EEECE4", dark: true, chrome: "1A1C1F", edge: "121416"),
-        WritingTheme(id: "forest", name: "Forest", paper: "1D2925", ink: "DCE4D9", dark: true),
+        WritingTheme(id: "forest", name: "Forest", paper: "1D2925", ink: "DCE4D9", dark: true, edge: "0A100E"),
         WritingTheme(id: "parchment", name: "Parchment", paper: "F3EBDD", ink: "40382E", dark: false),
         WritingTheme(id: "paper", name: "Paper", paper: "FAFAF8", ink: "30302E", dark: false)
     ]
@@ -30,16 +30,20 @@ struct WritingTheme: Identifiable {
 /// Soft shading toward the top, bottom, and sides of the page, so the eye settles on the middle.
 struct VignetteOverlay: View {
     let color: Color
+    /// 1 is the standard shading; less is gentler, more is deeper.
+    var strength: Double = 1
     var body: some View {
-        ZStack {
+        let color = self.color
+        let k = strength
+        return ZStack {
             LinearGradient(stops: [
-                .init(color: color.opacity(0.66), location: 0), .init(color: color.opacity(0.24), location: 0.12),
+                .init(color: color.opacity(min(1, 0.66 * k)), location: 0), .init(color: color.opacity(min(1, 0.24 * k)), location: 0.12),
                 .init(color: .clear, location: 0.30), .init(color: .clear, location: 0.70),
-                .init(color: color.opacity(0.24), location: 0.88), .init(color: color.opacity(0.66), location: 1)
+                .init(color: color.opacity(min(1, 0.24 * k)), location: 0.88), .init(color: color.opacity(min(1, 0.66 * k)), location: 1)
             ], startPoint: .top, endPoint: .bottom)
             LinearGradient(stops: [
-                .init(color: color.opacity(0.55), location: 0), .init(color: .clear, location: 0.18),
-                .init(color: .clear, location: 0.82), .init(color: color.opacity(0.55), location: 1)
+                .init(color: color.opacity(min(1, 0.55 * k)), location: 0), .init(color: .clear, location: 0.18),
+                .init(color: .clear, location: 0.82), .init(color: color.opacity(min(1, 0.55 * k)), location: 1)
             ], startPoint: .leading, endPoint: .trailing)
         }
         .allowsHitTesting(false).accessibilityHidden(true)
@@ -553,6 +557,7 @@ struct WritingActions {
     var importDocument: () -> Void = {}
     var revisions: () -> Void = {}
     var saveSnapshot: () -> Void = {}
+    var customizeToolbar: () -> Void = {}
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
 extension FocusedValues {
@@ -591,6 +596,8 @@ struct WritingCommands: Commands {
                     ForEach(ToolbarEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
                 }.pickerStyle(.inline)
                 Toggle("Auto-Hide", isOn: $toolbarAutoHide)
+                Divider()
+                Button("Customize Tools…") { actions?.customizeToolbar() }.disabled(actions == nil)
             }
             Divider()
             Button("Reading Mode") { actions?.reading() }.keyboardShortcut("r", modifiers: [.command, .shift]).disabled(actions == nil)

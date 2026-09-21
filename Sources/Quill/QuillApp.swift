@@ -110,6 +110,10 @@ struct WritingView: View {
     @State private var sidebarDragStart: Double?
     @State private var resizeCursorActive = false
     @State private var showToolbarOptions = false
+    @State private var showToolbarCustomizer = false
+    @AppStorage("edgeShading") private var edgeShading = true
+    @AppStorage("edgeStrength") private var edgeStrength = 0.65
+    @AppStorage("toolbarTools") private var toolbarTools = ToolbarLayout.defaultToken
     @StateObject private var commands = EditorCommands()
     @AppStorage("writingTheme") private var themeName = "graphite"
     @AppStorage("focusStyle") private var focusStyle = "gradient"
@@ -166,6 +170,7 @@ struct WritingView: View {
             .onAppear(perform: prepareWorkspace)
             .sheet(isPresented: $needsSetup) { folderSetup }
             .sheet(isPresented: $showStyle) { writingStyleSheet }
+            .sheet(isPresented: $showToolbarCustomizer) { ToolbarCustomizer(stored: $toolbarTools, close: { showToolbarCustomizer = false }) }
             .focusedSceneValue(\.writingActions, writingActions)
             .background(WindowConfigurator())
             .onChange(of: document.text) { _, _ in saveFeedback.message = ""; edited = true }
@@ -247,12 +252,16 @@ struct WritingView: View {
     }
 
     private var writingStyleSheet: some View {
-        VStack {
-            Form { WritingStyleControls() }
-            Button("Done") { showStyle = false }
+        VStack(spacing: 0) {
+            HStack {
+                Text("Writing Style").font(.title3.weight(.semibold))
+                Spacer()
+                Button("Done") { showStyle = false }.keyboardShortcut(.defaultAction)
+            }.padding(.horizontal, 20).padding(.vertical, 14)
+            Divider()
+            Form { WritingStyleControls() }.formStyle(.grouped)
         }
-        .padding(24)
-        .frame(width: 440)
+        .frame(width: 540, height: 660)
     }
 
     private var writingActions: WritingActions {
@@ -268,7 +277,8 @@ struct WritingView: View {
             findInProject: startFindInProject,
             importDocument: startImport,
             revisions: { startRevisions(saving: false) },
-            saveSnapshot: { startRevisions(saving: true) }
+            saveSnapshot: { startRevisions(saving: true) },
+            customizeToolbar: { showToolbarCustomizer = true }
         )
     }
 
@@ -420,30 +430,75 @@ struct WritingView: View {
         }
     }
 
+    /// Dark themes shade toward the edges of the page when that is on.
+    private var shadedPage: Bool { edgeShading && WritingTheme.named(themeName).edgeColor != nil }
+
     private var toolbarEdge: ToolbarEdge { ToolbarEdge(rawValue: toolbarEdgeName) ?? .top }
 
     private var hoverToolbar: some View {
         let edge = toolbarEdge
         return HoverToolbar(edge: edge, enabled: toolbarEnabled, autoHide: toolbarAutoHide, keepOpen: showToolbarOptions) {
             AnyLayout(edge.vertical ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 2))) {
-                BarButton(icon: "sidebar.left", label: "Writing desk", detail: "Show or hide your files and outline.", shortcut: "⌃⌘S", active: sidebar) { sidebar.toggle() }
-                barDivider
-                BarButton(icon: reading ? "pencil" : "play", label: reading ? "Edit" : "Reading mode",
-                          detail: reading ? "Go back to writing." : "Read your work with the Markdown marks hidden.", shortcut: "⇧⌘R") { reading.toggle() }
-                BarButton(icon: "bold", label: "Bold", detail: "Make the selected words bold.", shortcut: "⌘B") { commands.format(#selector(WritingTextView.markBold(_:))) }.disabled(reading)
-                BarButton(icon: "italic", label: "Italic", detail: "Italicize the selected words.", shortcut: "⌘I") { commands.format(#selector(WritingTextView.markItalic(_:))) }.disabled(reading)
-                BarButton(icon: "link", label: "Link", detail: "Turn the selection into a link.", shortcut: "⌘K") { commands.format(#selector(WritingTextView.markLink(_:))) }.disabled(reading)
-                BarButton(icon: "textformat", label: "Writing style", detail: "Change the font, size, theme, and page width.", shortcut: "⌥⌘,") { showStyle.toggle() }
-                barDivider
-                BarButton(icon: "scope", label: "Paragraph focus", detail: "Fade everything except the paragraph you’re writing.", shortcut: "⇧⌘F", active: focus) { focus.toggle() }.disabled(reading)
-                BarButton(icon: "text.magnifyingglass", label: "Sentence colors", detail: "Color nouns, verbs, and other parts of speech.", shortcut: "⌥⌘J") { openWindow(id: "sentence-options") }
-                barDivider
-                BarButton(icon: "text.badge.checkmark", label: "Prose suggestions", detail: "Strike through words you might cut. Your text never changes.", active: review) { review.toggle() }
-                BarButton(icon: "textformat.abc", label: "Spelling & grammar", detail: "Check spelling and grammar as you type.", active: spellCheckEnabled) { spellCheckEnabled.toggle() }.disabled(reading)
-                barDivider
+                let tools = ToolbarLayout.tools(from: toolbarTools)
+                ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
+                    if index > 0, tools[index - 1].group != tool.group { barDivider }
+                    toolButton(tool)
+                }
+                if !tools.isEmpty { barDivider }
                 BarButton(icon: "ellipsis", label: "Toolbar options", detail: "Move, hide, or turn off this toolbar.", shortcut: "⌥⌘T", active: showToolbarOptions) { showToolbarOptions.toggle() }
                     .popover(isPresented: $showToolbarOptions) { toolbarOptions }
             }
+        }
+    }
+
+    /// One toolbar button, wired to what it does.
+    @ViewBuilder private func toolButton(_ tool: ToolbarTool) -> some View {
+        let format: (Selector) -> () -> Void = { selector in { commands.format(selector) } }
+        BarButton(icon: toolIcon(tool), label: toolLabel(tool), detail: tool.detail, shortcut: tool.shortcut, active: toolActive(tool), action: toolAction(tool.id, format))
+            .disabled(tool.editsText && reading)
+    }
+
+    private func toolIcon(_ tool: ToolbarTool) -> String { tool.id == "reading" && reading ? "pencil" : tool.icon }
+    private func toolLabel(_ tool: ToolbarTool) -> String { tool.id == "reading" && reading ? "Edit" : tool.title }
+    private func toolActive(_ tool: ToolbarTool) -> Bool {
+        switch tool.id {
+        case "desk": return sidebar
+        case "focus": return focus
+        case "prose": return review
+        case "spelling": return spellCheckEnabled
+        case "names": return nameHighlights
+        default: return false
+        }
+    }
+
+    private func toolAction(_ id: String, _ format: (Selector) -> () -> Void) -> () -> Void {
+        switch id {
+        case "desk": return { sidebar.toggle() }
+        case "reading": return { reading.toggle() }
+        case "style": return { showStyle.toggle() }
+        case "focus": return { focus.toggle() }
+        case "bold": return format(#selector(WritingTextView.markBold(_:)))
+        case "italic": return format(#selector(WritingTextView.markItalic(_:)))
+        case "strike": return format(#selector(WritingTextView.markStrikethrough(_:)))
+        case "code": return format(#selector(WritingTextView.markCode(_:)))
+        case "link": return format(#selector(WritingTextView.markLink(_:)))
+        case "heading": return format(#selector(WritingTextView.markHeading(_:)))
+        case "quote": return format(#selector(WritingTextView.markQuote(_:)))
+        case "bullets": return format(#selector(WritingTextView.markBulletList(_:)))
+        case "numbers": return format(#selector(WritingTextView.markNumberedList(_:)))
+        case "tasks": return format(#selector(WritingTextView.markTaskList(_:)))
+        case "scenebreak": return format(#selector(WritingTextView.markSceneBreak(_:)))
+        case "sentences": return { openWindow(id: "sentence-options") }
+        case "names": return { nameHighlights.toggle() }
+        case "prose": return { review.toggle() }
+        case "spelling": return { spellCheckEnabled.toggle() }
+        case "find": return { startFindInProject() }
+        case "tag": return { tagSceneSignal += 1 }
+        case "export": return { if browser.projectURL != nil { startManuscriptExport() } else { startDocumentExport() } }
+        case "snapshot": return { startRevisions(saving: true) }
+        case "revisions": return { startRevisions(saving: false) }
+        case "import": return { startImport() }
+        default: return {}
         }
     }
 
@@ -455,6 +510,7 @@ struct WritingView: View {
                 ForEach(ToolbarEdge.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
             }.pickerStyle(.segmented).labelsHidden().disabled(!toolbarEnabled)
             Toggle("Hide when not in use", isOn: $toolbarAutoHide).disabled(!toolbarEnabled)
+            Button("Customize Tools…") { showToolbarOptions = false; showToolbarCustomizer = true }.disabled(!toolbarEnabled)
             Text(!toolbarEnabled ? "The toolbar is off. Every action is still in the menus. Bring it back with ⌥⌘T."
                  : toolbarAutoHide ? "Move the pointer near the \(toolbarEdge.rawValue) edge to bring it back."
                  : "The toolbar stays put and the page makes room for it.")
@@ -586,18 +642,22 @@ struct WritingView: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
+                // The page and its edge shading sit behind the text, so the words are never darkened.
+                if shadedPage, let edge = WritingTheme.named(themeName).edgeColor {
+                    Color(nsColor: WritingTheme.named(themeName).background)
+                    VignetteOverlay(color: edge, strength: edgeStrength)
+                }
                 NativeEditor(text: $document.text, review: review, words: words, fontSize: fontSize,
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
                              lineSpacing: lineSpacing, focusParagraph: focus, focusGradient: focusStyle == "gradient", readOnly: reading, syntaxClasses: syntaxClasses,
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
                              nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameShimmer: nameStyle == "shimmer",
                              nameKinds: Set(CardKind.allCases.filter { ($0 == .character && nameCharacters) || ($0 == .location && nameLocations) || ($0 == .lore && nameLore) }),
-                             dimMarkers: dimMarkers, smartTypography: smartTypography,
+                             dimMarkers: dimMarkers, smartTypography: smartTypography, transparentBackground: shadedPage,
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
-                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth) }
-                if let edge = WritingTheme.named(themeName).edgeColor { VignetteOverlay(color: edge) }
+                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth, transparent: shadedPage) }
                 sceneLayer
             }
             .onChange(of: reading) { _, value in
