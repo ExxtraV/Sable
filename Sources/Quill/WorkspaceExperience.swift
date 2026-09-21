@@ -551,6 +551,8 @@ struct WritingActions {
     var canExportManuscript = false
     var findInProject: () -> Void = {}
     var importDocument: () -> Void = {}
+    var revisions: () -> Void = {}
+    var saveSnapshot: () -> Void = {}
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
 extension FocusedValues {
@@ -574,6 +576,9 @@ struct WritingCommands: Commands {
             Button("Export Manuscript…") { actions?.exportManuscript() }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(actions?.canExportManuscript != true)
             Button("Export This Document…") { actions?.exportDocument() }.disabled(actions == nil)
             Button("Import Document…") { actions?.importDocument() }.disabled(actions == nil)
+            Divider()
+            Button("Save Snapshot…") { actions?.saveSnapshot() }.keyboardShortcut("s", modifiers: [.command, .option]).disabled(actions == nil)
+            Button("Revision History…") { actions?.revisions() }.keyboardShortcut("r", modifiers: [.command, .option]).disabled(actions == nil)
         }
         CommandGroup(after: .textEditing) {
             Button("Find & Replace in Project…") { actions?.findInProject() }.keyboardShortcut("f", modifiers: [.command, .option, .shift]).disabled(actions == nil)

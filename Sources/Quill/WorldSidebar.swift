@@ -15,6 +15,7 @@ struct WritingSidebar: View {
     var releaseCurrentDocument: () -> Void = {}
     var exportManuscript: () -> Void = {}
     var exportDocument: () -> Void = {}
+    var showRevisions: () -> Void = {}
     @EnvironmentObject private var browser: FolderBrowser
     @AppStorage("outlineTitle") private var outlineTitle = "Outline"
     @AppStorage("outlineLevel") private var outlineLevel = 0
@@ -53,6 +54,8 @@ struct WritingSidebar: View {
                     .buttonStyle(.plain).help("Export this document as PDF, EPUB, Word, or Markdown")
             }
             Spacer()
+            Button(action: showRevisions) { Label("Revisions", systemImage: "clock.arrow.circlepath") }
+                .buttonStyle(.plain).help("Save a snapshot of your draft, see what has changed since, and restore an earlier version")
         }
         .font(.callout).foregroundStyle(.secondary)
         .padding(.horizontal, 14).padding(.vertical, 9)

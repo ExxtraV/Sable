@@ -1,4 +1,5 @@
 import Foundation
+import QuillCore
 import PDFKit
 
 @main enum ExportChecks {
@@ -52,11 +53,29 @@ import PDFKit
         } else { preconditionFailure("first block is a paragraph") }
         precondition(blocks[1] == .heading(2, [ExportRun(text: "A Heading")]))
         if case let .quote(runs) = blocks[2] { precondition(MarkdownBlocks.plain(runs) == "Counting was how the harbor kept its dead.") } else { preconditionFailure("quote") }
-        if case .bullet = blocks[3], case .bullet = blocks[4], case .numbered(1, _) = blocks[5] {} else { preconditionFailure("lists") }
+        if case .bullet = blocks[3], case .bullet = blocks[4], case .numbered(1, _, _) = blocks[5] {} else { preconditionFailure("lists") }
         precondition(blocks[6] == .sceneBreak && blocks[7] == .code("code line"))
         if case let .paragraph(runs) = blocks[8] { precondition(MarkdownBlocks.plain(runs) == "Last paragraph with code and a link and  gone.", "Links keep words, images and comments vanish: \(MarkdownBlocks.plain(runs))") }
-        for breakLine in ["---", "***", "___", "* * *", "- - -", "  ***  "] { precondition(MarkdownBlocks.isSceneBreak(breakLine.trimmingCharacters(in: .whitespaces)), breakLine) }
-        for notBreak in ["--", "**bold**", "- item", "abc"] { precondition(!MarkdownBlocks.isSceneBreak(notBreak), notBreak) }
+        for breakLine in ["---", "***", "___", "* * *", "- - -", "  ***  "] { precondition(MarkdownLines.isSceneBreak(breakLine.trimmingCharacters(in: .whitespaces)), breakLine) }
+        for notBreak in ["--", "**bold**", "- item", "abc"] { precondition(!MarkdownLines.isSceneBreak(notBreak), notBreak) }
+
+        // The shared reader: tasks, tables, nesting, images, links, front matter
+        let rich = MarkdownBlocks.parse("---\ntype: chapter\n---\n- one\n  - nested\n- [ ] open\n- [x] done\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![Map](maps/a.png)\n\nSee [the map](https://example.com/m).\n\n> quoted\n> on\n\n1. first\n2. second")
+        precondition(rich.count == 10, "Ten blocks: \(rich)")
+        precondition(rich[0] == .bullet([ExportRun(text: "one")], depth: 0) && rich[1] == .bullet([ExportRun(text: "nested")], depth: 1), "List depth: \(rich[0..<2])")
+        precondition(rich[2] == .task(done: false, [ExportRun(text: "open")], depth: 0) && rich[3] == .task(done: true, [ExportRun(text: "done")], depth: 0), "Tasks")
+        precondition(rich[4] == .table([["a", "b"], ["1", "2"]], header: true), "Tables: \(rich[4])")
+        precondition(rich[5] == .image(alt: "Map", source: "maps/a.png"), "A picture on its own line")
+        if case let .paragraph(runs) = rich[6] { precondition(runs.contains { $0.text == "the map" && $0.link == "https://example.com/m" }, "Links keep their address for Reading Mode") } else { preconditionFailure("paragraph") }
+        if case let .quote(runs) = rich[7] { precondition(MarkdownBlocks.plain(runs) == "quoted on", "Quoted lines join") } else { preconditionFailure("quote") }
+        if case .numbered(1, _, _) = rich[8] {} else { preconditionFailure("Numbers") }
+        // Every exporter copes with all of it
+        let richChapter = ManuscriptExport.chapter(named: "Rich.md", markdown: "# Rich\n\n- one\n  - nested\n- [x] done\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![Map](maps/a.png)\n\nText.")
+        for format in [ExportFormat.epub, .docx, .pdf, .markdown] {
+            var richOptions = ExportOptions(); richOptions.title = "Rich"; richOptions.format = format
+            let data = try ManuscriptExport.export([richChapter], options: richOptions)
+            precondition(data.count > 100, "\(format) exports lists, tasks, tables, and pictures")
+        }
 
         // ---- Chapters from files
         let chapter = ManuscriptExport.chapter(named: "Chapter 3.md", markdown: "---\ncharacters: Marren\nlocation: The Pier\n---\n\n# The Crossing\n\nText here.\n")

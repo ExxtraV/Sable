@@ -151,7 +151,14 @@ struct FindReplaceSheet: View {
         Task {
             do {
                 var count = 0, files = 0
-                let outcome = try await Task.detached { try ProjectSearch.replace(in: diskFiles, options: current, with: text) }.value
+                let root = request.root
+                // A snapshot first, so a replacement that turns out to be a mistake can be taken back after this window closes.
+                let outcome = try await Task.detached { () -> ReplaceReceipt in
+                    if !diskFiles.isEmpty {
+                        _ = try? Revisions.create(name: "Before replacing “\(current.query)” with “\(text)”", kind: .safety, root: root, files: diskFiles)
+                    }
+                    return try ProjectSearch.replace(in: diskFiles, options: current, with: text)
+                }.value
                 count += outcome.replacements
                 files += outcome.files
                 receipt = outcome.files > 0 ? outcome : nil

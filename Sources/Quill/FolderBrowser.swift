@@ -672,6 +672,13 @@ final class FolderBrowser: ObservableObject {
         }
         rangeCursor = nil
     }
+    /// Dragging any item of a multi-item selection moves the whole selection, not just the one under the pointer.
+    func dragSet(for urls: [URL]) -> [URL] {
+        guard urls.count == 1, selectedURLs.count > 1, selectedURLs.contains(urls[0]) else { return urls }
+        let chosen = displayed.map(\.url).filter { selectedURLs.contains($0) }
+        // An item inside a selected folder travels with the folder.
+        return chosen.filter { url in !chosen.contains { $0 != url && FolderMove.isInside(url, of: $0) } }
+    }
     func extendSelection(to url: URL) {
         guard let end = displayed.firstIndex(where: { $0.url == url }) else { return }
         extendingSelection = true
@@ -1491,7 +1498,8 @@ struct FolderBrowserSection: View {
         return false
     }
 
-    private func move(_ urls: [URL], into folder: URL) {
+    private func move(_ dropped: [URL], into folder: URL) {
+        let urls = browser.dragSet(for: dropped)
         guard parallelGuard(urls, action: "moving") else { return }
         do { try browser.move(urls, into: folder) } catch { problem = error.localizedDescription }
     }
@@ -1534,7 +1542,7 @@ struct FolderBrowserSection: View {
 
     /// Dropping a chapter onto another in the Manuscript folder reorders them; anything else moves as before.
     private func dropOnRow(_ urls: [URL], _ entry: BrowserEntry) {
-        if let dragged = urls.first, urls.count == 1, browser.isChapter(entry.url), browser.isChapter(dragged),
+        if let dragged = urls.first, urls.count == 1, browser.selectedURLs.count <= 1, browser.isChapter(entry.url), browser.isChapter(dragged),
            dragged.deletingLastPathComponent().standardizedFileURL.path == entry.url.deletingLastPathComponent().standardizedFileURL.path {
             do { try browser.reorderChapter(dragged, onto: entry.url) } catch { problem = error.localizedDescription }
             return

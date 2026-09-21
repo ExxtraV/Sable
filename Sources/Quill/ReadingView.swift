@@ -1,85 +1,64 @@
 import SwiftUI
 import AppKit
+import QuillCore
 
 @MainActor
 enum MarkdownReading {
+    /// Reading Mode draws exactly what the shared Markdown reader finds, the same blocks the exports use.
     static func render(_ source: String, family: String, size: Double, spacing: Double) -> NSAttributedString {
         let base = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: size) ?? .systemFont(ofSize: size)
+        let mono = NSFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular)
         let output = NSMutableAttributedString()
-        var fence: String?
-        var paragraph: [String] = []
-        func append(_ text: String, font: NSFont, color: NSColor = .labelColor, indent: CGFloat = 0, literal: Bool = false, centered: Bool = false) {
+        func paragraphStyle(indent: CGFloat, centered: Bool) -> NSMutableParagraphStyle {
             let style = NSMutableParagraphStyle()
-            if centered { style.alignment = .center }
             style.lineSpacing = size * spacing
             style.paragraphSpacing = size * 0.8
             style.headIndent = indent
             style.firstLineHeadIndent = indent
-            let defaults: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: style]
-            if literal { output.append(NSAttributedString(string: text + "\n", attributes: defaults)); return }
-            let parsed = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
-            for run in parsed.runs {
-                var attributes = defaults
+            if centered { style.alignment = .center }
+            return style
+        }
+        func append(_ runs: [MarkdownRun], font: NSFont, color: NSColor = .labelColor, indent: CGFloat = 0, centered: Bool = false, prefix: String = "") {
+            let style = paragraphStyle(indent: indent, centered: centered)
+            if !prefix.isEmpty {
+                output.append(NSAttributedString(string: prefix, attributes: [.font: font, .foregroundColor: color, .paragraphStyle: style]))
+            }
+            for run in runs {
+                var attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color, .paragraphStyle: style]
                 var traits: NSFontTraitMask = []
-                if run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true { traits.insert(.boldFontMask) }
-                if run.inlinePresentationIntent?.contains(.emphasized) == true { traits.insert(.italicFontMask) }
+                if run.bold { traits.insert(.boldFontMask) }
+                if run.italic { traits.insert(.italicFontMask) }
                 attributes[.font] = NSFontManager.shared.convert(font, toHaveTrait: traits)
-                if run.inlinePresentationIntent?.contains(.code) == true { attributes[.font] = NSFont.monospacedSystemFont(ofSize: size * 0.88, weight: .regular) }
-                if run.inlinePresentationIntent?.contains(.strikethrough) == true { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
-                if let link = run.link, ["https", "http", "mailto"].contains(link.scheme?.lowercased() ?? "") {
-                    attributes[.link] = link; attributes[.foregroundColor] = NSColor.linkColor
+                if run.code { attributes[.font] = mono }
+                if run.strike { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+                if let address = run.link, let link = URL(string: address), ["https", "http", "mailto"].contains(link.scheme?.lowercased() ?? "") {
+                    attributes[.link] = link
+                    attributes[.foregroundColor] = NSColor.linkColor
                 }
-                output.append(NSAttributedString(string: String(parsed[run.range].characters), attributes: attributes))
+                output.append(NSAttributedString(string: run.text, attributes: attributes))
             }
-            output.append(NSAttributedString(string: "\n", attributes: defaults))
+            output.append(NSAttributedString(string: "\n", attributes: [.font: font, .paragraphStyle: style]))
         }
-        func isSceneBreak(_ line: String) -> Bool {
-            let compact = line.filter { !$0.isWhitespace }
-            guard compact.count >= 3, let first = compact.first, "-*_".contains(first) else { return false }
-            return compact.allSatisfy { $0 == first }
-        }
-        func flush() {
-            if !paragraph.isEmpty { append(paragraph.joined(separator: " "), font: base); paragraph = [] }
-        }
-        // Notes to yourself (<!-- … -->) stay out of the reading view, as they do in an export.
-        let visible = source.replacingOccurrences(of: "<!--[\\s\\S]*?(?:-->|\\z)", with: "", options: .regularExpression)
-        for line in visible.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
-                flush()
-                let marker = String(trimmed.prefix(3))
-                if fence == nil { fence = marker } else if fence == marker { fence = nil }
-                continue
-            }
-            if fence != nil { append(line, font: .monospacedSystemFont(ofSize: size * 0.88, weight: .regular), literal: true); continue }
-            if trimmed.isEmpty { flush(); continue }
-            if let match = trimmed.range(of: "^#{1,6}\\s+", options: .regularExpression) {
-                flush()
-                let level = trimmed[match].filter { $0 == "#" }.count
+        for block in MarkdownBlocks.parse(source) {
+            switch block {
+            case let .paragraph(runs): append(runs, font: base)
+            case let .heading(level, runs):
                 let headingSize = size + Double(max(1, 5 - level)) * 3
                 let font = NSFontManager.shared.font(withFamily: family, traits: .boldFontMask, weight: 9, size: headingSize) ?? .systemFont(ofSize: headingSize, weight: .semibold)
-                let title = String(trimmed[match.upperBound...]).replacingOccurrences(of: "\\s+#+\\s*$", with: "", options: .regularExpression)
-                append(title, font: font)
-            } else if isSceneBreak(trimmed) {
-                flush(); append("*  *  *", font: base, color: .tertiaryLabelColor, centered: true)
-            } else if trimmed.hasPrefix(">") {
-                flush(); append(trimmed.replacingOccurrences(of: "^(>\\s*)+", with: "", options: .regularExpression), font: base, color: .secondaryLabelColor, indent: 18)
-            } else if let match = trimmed.range(of: "^(?:[-+*]|[0-9]+[.)])\\s+", options: .regularExpression) {
-                flush()
-                let prefix = String(trimmed[match]).trimmingCharacters(in: .whitespaces)
-                let bullet = prefix.first?.isNumber == true ? prefix : "•"
-                let indent = CGFloat(line.prefix { $0 == " " || $0 == "\t" }.count) * 5
-                var item = String(trimmed[match.upperBound...])
-                var mark = bullet
-                if bullet == "•" {
-                    if item.hasPrefix("[ ] ") { mark = "☐"; item = String(item.dropFirst(4)) }
-                    else if item.lowercased().hasPrefix("[x] ") { mark = "☑"; item = String(item.dropFirst(4)) }
-                }
-                append(mark + "  " + item, font: base, indent: indent)
+                append(runs.map { var run = $0; run.bold = false; return run }, font: font)
+            case let .quote(runs): append(runs, font: base, color: .secondaryLabelColor, indent: 18)
+            case let .bullet(runs, depth): append(runs, font: base, indent: CGFloat(depth) * 18, prefix: "•  ")
+            case let .numbered(number, runs, depth): append(runs, font: base, indent: CGFloat(depth) * 18, prefix: "\(number).  ")
+            case let .task(done, runs, depth): append(runs, font: base, indent: CGFloat(depth) * 18, prefix: (done ? "☑" : "☐") + "  ")
+            case .sceneBreak: append([MarkdownRun(text: "*  *  *")], font: base, color: .tertiaryLabelColor, centered: true)
+            case let .code(text):
+                for line in text.components(separatedBy: "\n") { append([MarkdownRun(text: line)], font: mono) }
+            case let .table(rows, _):
+                for row in rows { append([MarkdownRun(text: row.joined(separator: "   "))], font: mono, color: .secondaryLabelColor) }
+            case let .image(alt, _):
+                append([MarkdownRun(text: alt.isEmpty ? "[Image]" : "[Image: \(alt)]", italic: true)], font: base, color: .tertiaryLabelColor)
             }
-            else { paragraph.append(trimmed) }
         }
-        flush()
         return output
     }
 }

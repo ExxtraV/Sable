@@ -146,6 +146,8 @@ struct WritingView: View {
     @State private var tagSceneSignal = 0
     @State private var exportSource: ExportSource?
     @State private var findRequest: FindRequest?
+    @State private var revisionsRequest: RevisionsRequest?
+    @AppStorage("autoSnapshots") private var autoSnapshots = true
     @State private var importMessage: String?
     @AppStorage("dimMarkers") private var dimMarkers = true
     @AppStorage("smartTypography") private var smartTypography = false
@@ -221,7 +223,8 @@ struct WritingView: View {
             showCard: showCard,
             releaseCurrentDocument: releaseCurrentDocument,
             exportManuscript: startManuscriptExport,
-            exportDocument: startDocumentExport
+            exportDocument: startDocumentExport,
+            showRevisions: { startRevisions(saving: false) }
         )
     }
 
@@ -263,7 +266,9 @@ struct WritingView: View {
             exportDocument: startDocumentExport,
             canExportManuscript: browser.projectURL != nil,
             findInProject: startFindInProject,
-            importDocument: startImport
+            importDocument: startImport,
+            revisions: { startRevisions(saving: false) },
+            saveSnapshot: { startRevisions(saving: true) }
         )
     }
 
@@ -310,6 +315,33 @@ struct WritingView: View {
         var unsaved: [String: String] = [:]
         if let url = activeURL, browser.isChapter(url) { unsaved[url.lastPathComponent] = document.text }
         exportSource = .manuscript(project: projectURL, title: browser.project?.title ?? projectURL.lastPathComponent, unsaved: unsaved)
+    }
+
+    /// What revisions look at: every chapter of a Fiction Project, or the document that is open.
+    private func revisionScope() -> RevisionScope? {
+        if let project = browser.projectURL {
+            let files = ProjectSearch.markdownFiles(in: FictionProject.folder(for: .chapter, in: project))
+            return RevisionScope(root: project, files: files, chapterOrder: browser.project?.chapterOrder, isProject: true, openURL: activeURL, openText: document.text)
+        }
+        guard let url = activeURL else { return nil }
+        let rootPath = browser.root?.standardizedFileURL.path
+        let root = rootPath.flatMap { url.standardizedFileURL.path.hasPrefix($0 + "/") ? browser.root : nil } ?? url.deletingLastPathComponent()
+        return RevisionScope(root: root, files: [url], chapterOrder: nil, isProject: false, openURL: url, openText: document.text)
+    }
+
+    private func startRevisions(saving: Bool) {
+        guard let scope = revisionScope() else {
+            importMessage = "Save this document first; revisions keep copies of files, and this one isn't a file yet."
+            return
+        }
+        revisionsRequest = RevisionsRequest(scope: scope, saving: saving)
+    }
+
+    /// Once a day, when the manuscript has changed, keeps a snapshot without being asked.
+    private func takeDailySnapshot() async {
+        guard autoSnapshots, browser.projectURL != nil, let scope = revisionScope() else { return }
+        let root = scope.root, files = scope.files, order = scope.chapterOrder
+        _ = await Task.detached(priority: .utility) { Revisions.automaticIfDue(root: root, files: files, chapterOrder: order) }.value
     }
 
     /// Opens Find & Replace across the Fiction Project, or the writing folder outside one.
@@ -536,6 +568,14 @@ struct WritingView: View {
                                  replaceOpenText: { commands.editor?.replaceEntireText($0) },
                                  open: openSearchHit, filesChanged: { browser.reload() }, close: { findRequest = nil })
             }
+            .sheet(item: $revisionsRequest) { request in
+                RevisionsSheet(request: request,
+                               replaceOpenText: { commands.editor?.replaceEntireText($0) },
+                               filesChanged: { browser.reload() },
+                               restoreOrder: { order in if let project = browser.projectURL { try? FictionProject.setChapterOrder(order, in: project); browser.reload() } },
+                               close: { revisionsRequest = nil })
+            }
+            .task(id: browser.projectURL) { await takeDailySnapshot() }
             .alert("Import", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: { Text(importMessage ?? "") }
@@ -597,6 +637,7 @@ struct PreferencesView: View {
     @AppStorage("fontSize") private var fontSize = 19.0
     @AppStorage("pageWidth") private var pageWidth = 680.0
     @AppStorage("sessionGoal") private var sessionGoal = 500
+    @AppStorage("autoSnapshots") private var autoSnapshots = true
     @EnvironmentObject private var browser: FolderBrowser
     @State private var confirmGuide = false
     @State private var guideMessage: String?
@@ -604,6 +645,11 @@ struct PreferencesView: View {
         TabView {
             Form {
                 UpdateSettings(updater: updater)
+                Section("Revisions") {
+                    Toggle("Keep a daily snapshot of my manuscript", isOn: $autoSnapshots)
+                    Text("In a Fiction Project, Sable saves a copy of your chapters once a day if anything changed, and keeps the newest 20. Snapshots you save yourself are never removed. Find them under File → Revision History.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Section("Writing goal") {
                     Stepper("Session goal: \(sessionGoal) words", value: $sessionGoal, in: 0...10000, step: 100)
                     Text("Set the goal to 0 to hide it.").font(.caption).foregroundStyle(.secondary)

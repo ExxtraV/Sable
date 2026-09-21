@@ -43,7 +43,7 @@ public enum MarkdownSyntax {
         func available(_ range: NSRange) -> Bool {
             !protected.contains { NSIntersectionRange($0, range).length > 0 }
         }
-        for match in matches("(?s)<!--.*?(?:-->|\\z)") where available(match.range) {
+        for match in matches(MarkdownLines.commentPattern) where available(match.range) {
             protected.append(match.range)
             result.append(MarkdownSpan(kind: .comment, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
         }
@@ -51,12 +51,17 @@ public enum MarkdownSyntax {
             protected.append(match.range)
             result.append(MarkdownSpan(kind: .code, range: match.range, content: match.range(at: 2), markers: [match.range(at: 1), NSRange(location: NSMaxRange(match.range) - match.range(at: 1).length, length: match.range(at: 1).length)], closing: NSRange(location: NSMaxRange(match.range) - match.range(at: 1).length, length: match.range(at: 1).length), destination: nil))
         }
-        // A scene break is protected before emphasis is looked for, or "* * *" would read as italics. A bare "****" is left
-        // to bold: it is what pressing ⌘B on nothing types.
-        let frontMatter = frontMatterRange(in: text)
-        for match in matches("(?m)^ {0,3}(?!\\*{4}[ \\t]*$)([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$") where available(match.range) && NSIntersectionRange(frontMatter, match.range).length == 0 {
-            protected.append(match.range)
-            result.append(MarkdownSpan(kind: .rule, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        // A scene break is protected before emphasis is looked for, or "* * *" would read as italics. What counts as one
+        // is decided in MarkdownLines, the same place Reading Mode and the exports ask.
+        let frontMatter = MarkdownLines.frontMatterRange(in: text)
+        var lines: [(line: String, range: NSRange)] = []
+        source.enumerateSubstrings(in: whole, options: [.byLines, .substringNotRequired]) { _, range, _, _ in
+            lines.append((source.substring(with: range), range))
+        }
+        for (line, range) in lines where MarkdownLines.isRule(line) && line.prefix(while: { $0 == " " }).count <= 3
+            && available(range) && NSIntersectionRange(frontMatter, range).length == 0 {
+            protected.append(range)
+            result.append(MarkdownSpan(kind: .rule, range: range, content: range, markers: [], closing: nil, destination: nil))
         }
         for match in matches("!\\[([^]\\n]*)\\]\\(([^)\\n]*)\\)") where available(match.range) {
             let alt = match.range(at: 1)
@@ -91,33 +96,28 @@ public enum MarkdownSyntax {
         for match in matches("(?m)^ {0,3}(#{1,6})[ \\t]+([^\\n]+)") where available(match.range) {
             result.append(MarkdownSpan(kind: .heading(match.range(at: 1).length), range: match.range, content: match.range(at: 2), markers: [match.range(at: 1)], closing: nil, destination: nil))
         }
-        for match in matches("(?m)^ {0,3}(>)[ \\t]?(.*)$") where available(match.range) {
-            result.append(MarkdownSpan(kind: .quote, range: match.range, content: match.range(at: 2), markers: [match.range(at: 1)], closing: nil, destination: nil))
-        }
-        for match in matches("(?m)^([ \\t]*(?:[-+*]|[0-9]+\\.)[ \\t]+)(.*)$") where available(match.range) {
-            result.append(MarkdownSpan(kind: .list, range: match.range, content: match.range(at: 2), markers: [match.range(at: 1)], closing: nil, destination: nil))
-        }
-        for match in matches("(?m)^[ \\t]*[-+*][ \\t]+(\\[[ xX]\\])[ \\t].*$") where available(match.range) {
-            let box = match.range(at: 1)
-            let done = (text as NSString).substring(with: box).lowercased() == "[x]"
-            result.append(MarkdownSpan(kind: .task(done: done), range: match.range, content: box, markers: [], closing: nil, destination: nil))
-        }
-        for match in matches("(?m)^ {0,3}\\|.*\\|[ \\t]*$") where available(match.range) {
-            result.append(MarkdownSpan(kind: .table, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
+        // Quotes, lists, and tasks are read by the same line classifier the editor's Return key and the exports use.
+        for (line, range) in lines where available(range) {
+            if let prefix = MarkdownEditing.prefix(of: line) {
+                if case .quote = prefix.marker {
+                    let marker = NSRange(location: range.location + prefix.indent.utf16.count, length: prefix.length - prefix.indent.utf16.count)
+                    result.append(MarkdownSpan(kind: .quote, range: range, content: NSRange(location: range.location + prefix.length, length: range.length - prefix.length), markers: [marker], closing: nil, destination: nil))
+                } else {
+                    let content = NSRange(location: range.location + prefix.markerLength, length: range.length - prefix.markerLength)
+                    result.append(MarkdownSpan(kind: .list, range: range, content: content, markers: [NSRange(location: range.location, length: prefix.markerLength)], closing: nil, destination: nil))
+                    if let box = prefix.task {
+                        let done = box.lowercased() == "[x]"
+                        result.append(MarkdownSpan(kind: .task(done: done), range: range, content: NSRange(location: range.location + prefix.markerLength, length: 3), markers: [], closing: nil, destination: nil))
+                    }
+                }
+            } else if MarkdownLines.isTableRow(line) {
+                result.append(MarkdownSpan(kind: .table, range: range, content: range, markers: [], closing: nil, destination: nil))
+            }
         }
         for match in matches("\\[\\^[^\\]\\s]+\\]:?") where available(match.range) {
             result.append(MarkdownSpan(kind: .footnote, range: match.range, content: match.range, markers: [], closing: nil, destination: nil))
         }
         return result
-    }
-
-    /// The `---` metadata block at the very top of a file, if there is one.
-    static func frontMatterRange(in text: String) -> NSRange {
-        let ns = text as NSString
-        guard ns.hasPrefix("---\n") else { return NSRange(location: 0, length: 0) }
-        let close = ns.range(of: "\n---", options: [], range: NSRange(location: 3, length: ns.length - 3))
-        guard close.location != NSNotFound else { return NSRange(location: 0, length: 0) }
-        return NSRange(location: 0, length: NSMaxRange(close))
     }
 
     public static func headings(in text: String) -> [ChapterHeading] {

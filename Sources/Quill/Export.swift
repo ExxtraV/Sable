@@ -1,4 +1,5 @@
 import Foundation
+import QuillCore
 import AppKit
 import CoreText
 import PDFKit
@@ -108,109 +109,11 @@ enum ManuscriptExport {
     }
 }
 
-// MARK: - A small Markdown reader
+// MARK: - Markdown reading
 
-struct ExportRun: Equatable, Sendable {
-    var text: String
-    var bold = false
-    var italic = false
-    var code = false
-    var strike = false
-}
-
-enum ExportBlock: Equatable, Sendable {
-    case heading(Int, [ExportRun])
-    case paragraph([ExportRun])
-    case quote([ExportRun])
-    case bullet([ExportRun])
-    case numbered(Int, [ExportRun])
-    case sceneBreak
-    case code(String)
-}
-
-enum MarkdownBlocks {
-    /// Turns Markdown into paragraphs, headings, quotes, lists, scene breaks, and code, joining soft line breaks.
-    static func parse(_ markdown: String) -> [ExportBlock] {
-        let cleaned = markdown.replacingOccurrences(of: "<!--[\\s\\S]*?-->", with: "", options: .regularExpression)
-        var blocks: [ExportBlock] = []
-        var paragraph: [String] = []
-        var quote: [String] = []
-        var fence: String?
-        var code: [String] = []
-        func flushParagraph() {
-            if !paragraph.isEmpty { blocks.append(.paragraph(runs(paragraph.joined(separator: " ")))); paragraph = [] }
-        }
-        func flushQuote() {
-            if !quote.isEmpty { blocks.append(.quote(runs(quote.joined(separator: " ")))); quote = [] }
-        }
-        for raw in cleaned.components(separatedBy: "\n") {
-            let line = raw.replacingOccurrences(of: "\r", with: "")
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if let marker = fence {
-                if trimmed.hasPrefix(marker) { blocks.append(.code(code.joined(separator: "\n"))); code = []; fence = nil } else { code.append(line) }
-                continue
-            }
-            if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") { flushParagraph(); flushQuote(); fence = String(trimmed.prefix(3)); continue }
-            if trimmed.isEmpty { flushParagraph(); flushQuote(); continue }
-            if isSceneBreak(trimmed) { flushParagraph(); flushQuote(); blocks.append(.sceneBreak); continue }
-            if let match = trimmed.range(of: "^#{1,6}\\s+", options: .regularExpression) {
-                flushParagraph(); flushQuote()
-                let level = trimmed[match].filter { $0 == "#" }.count
-                let title = String(trimmed[match.upperBound...]).replacingOccurrences(of: "\\s+#+\\s*$", with: "", options: .regularExpression)
-                blocks.append(.heading(level, runs(title)))
-                continue
-            }
-            if trimmed.hasPrefix(">") {
-                flushParagraph()
-                quote.append(trimmed.replacingOccurrences(of: "^(>\\s?)+", with: "", options: .regularExpression))
-                continue
-            }
-            if let match = trimmed.range(of: "^[-+*]\\s+", options: .regularExpression) {
-                flushParagraph(); flushQuote()
-                blocks.append(.bullet(runs(String(trimmed[match.upperBound...]))))
-                continue
-            }
-            if let match = trimmed.range(of: "^[0-9]+[.)]\\s+", options: .regularExpression) {
-                flushParagraph(); flushQuote()
-                let number = Int(trimmed[..<match.upperBound].filter(\.isNumber)) ?? 1
-                blocks.append(.numbered(number, runs(String(trimmed[match.upperBound...]))))
-                continue
-            }
-            flushQuote()
-            paragraph.append(trimmed)
-        }
-        if fence != nil, !code.isEmpty { blocks.append(.code(code.joined(separator: "\n"))) }
-        flushParagraph(); flushQuote()
-        return blocks
-    }
-
-    /// `---`, `***`, `___`, or `* * *` on a line of its own.
-    static func isSceneBreak(_ line: String) -> Bool {
-        let compact = line.filter { !$0.isWhitespace }
-        guard compact.count >= 3, let first = compact.first, "-*_".contains(first) else { return false }
-        return compact.allSatisfy { $0 == first }
-    }
-
-    /// Bold, italic, code, and strikethrough runs. Links keep their words; images are dropped.
-    static func runs(_ inline: String) -> [ExportRun] {
-        let withoutImages = inline.replacingOccurrences(of: "!\\[[^\\]]*\\]\\([^)]*\\)", with: "", options: .regularExpression)
-        guard let parsed = try? AttributedString(markdown: withoutImages, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
-            return [ExportRun(text: withoutImages)]
-        }
-        var result: [ExportRun] = []
-        for run in parsed.runs {
-            let intent = run.inlinePresentationIntent ?? []
-            let piece = ExportRun(text: String(parsed[run.range].characters), bold: intent.contains(.stronglyEmphasized),
-                                  italic: intent.contains(.emphasized), code: intent.contains(.code), strike: intent.contains(.strikethrough))
-            if let last = result.last, last.bold == piece.bold, last.italic == piece.italic, last.code == piece.code, last.strike == piece.strike {
-                result[result.count - 1].text += piece.text
-            } else { result.append(piece) }
-        }
-        return result
-    }
-
-    static func plain(_ runs: [ExportRun]) -> String { runs.map(\.text).joined() }
-}
+// One Markdown reader serves the editor, Reading Mode, and every export: see MarkdownDocument.swift in QuillCore.
+typealias ExportRun = MarkdownRun
+typealias ExportBlock = MarkdownBlock
 
 // MARK: - Zip
 
@@ -412,12 +315,15 @@ enum EPUBExporter {
         func closeList() { if let tag = openList { html += "</\(tag)>\n"; openList = nil } }
         for block in MarkdownBlocks.parse(chapter.body) {
             switch block {
-            case let .bullet(runs):
+            case let .bullet(runs, depth):
                 if openList != "ul" { closeList(); html += "<ul>\n"; openList = "ul" }
-                html += "<li>\(inline(runs))</li>\n"
-            case let .numbered(_, runs):
+                html += "<li\(depth > 0 ? " style=\"margin-left:\(Double(depth) * 1.5)em\"" : "")>\(inline(runs))</li>\n"
+            case let .numbered(_, runs, depth):
                 if openList != "ol" { closeList(); html += "<ol>\n"; openList = "ol" }
-                html += "<li>\(inline(runs))</li>\n"
+                html += "<li\(depth > 0 ? " style=\"margin-left:\(Double(depth) * 1.5)em\"" : "")>\(inline(runs))</li>\n"
+            case let .task(done, runs, depth):
+                if openList != "ul" { closeList(); html += "<ul style=\"list-style:none\">\n"; openList = "ul" }
+                html += "<li\(depth > 0 ? " style=\"margin-left:\(Double(depth) * 1.5)em\"" : "")>\(done ? "☑" : "☐") \(inline(runs))</li>\n"
             default:
                 closeList()
                 switch block {
@@ -426,7 +332,15 @@ enum EPUBExporter {
                 case let .quote(runs): html += "<blockquote><p>\(inline(runs))</p></blockquote>\n"
                 case .sceneBreak: html += "<p class=\"scenebreak\">\(xmlEscape(options.sceneBreak))</p>\n"
                 case let .code(text): html += "<pre>\(xmlEscape(text))</pre>\n"
-                case .bullet, .numbered: break
+                case let .table(rows, header):
+                    html += "<table>\n"
+                    for (index, row) in rows.enumerated() {
+                        let tag = header && index == 0 ? "th" : "td"
+                        html += "<tr>" + row.map { "<\(tag)>\(xmlEscape($0))</\(tag)>" }.joined() + "</tr>\n"
+                    }
+                    html += "</table>\n"
+                case .image: break   // A picture has no place in the words of a manuscript.
+                case .bullet, .numbered, .task: break
                 }
             }
         }
@@ -510,8 +424,13 @@ enum DOCXExporter {
                     body += "<w:p><w:pPr><w:pStyle w:val=\"Heading\(min(3, level + 1))\"/></w:pPr>\(runsXML(runs))</w:p>"
                     afterOpening = true
                 case let .quote(runs): body += "<w:p><w:pPr><w:pStyle w:val=\"Quote\"/></w:pPr>\(runsXML(runs))</w:p>"; afterOpening = true
-                case let .bullet(runs): body += "<w:p><w:pPr><w:pStyle w:val=\"ListItem\"/></w:pPr><w:r><w:t xml:space=\"preserve\">•\t</w:t></w:r>\(runsXML(runs))</w:p>"; afterOpening = false
-                case let .numbered(number, runs): body += "<w:p><w:pPr><w:pStyle w:val=\"ListItem\"/></w:pPr><w:r><w:t xml:space=\"preserve\">\(number).\t</w:t></w:r>\(runsXML(runs))</w:p>"; afterOpening = false
+                case let .bullet(runs, depth): body += listItem("•", runs, depth); afterOpening = false
+                case let .numbered(number, runs, depth): body += listItem("\(number).", runs, depth); afterOpening = false
+                case let .task(done, runs, depth): body += listItem(done ? "☑" : "☐", runs, depth); afterOpening = false
+                case let .table(rows, _):
+                    for row in rows { body += "<w:p><w:pPr><w:pStyle w:val=\"BodyText\"/></w:pPr><w:r><w:t xml:space=\"preserve\">\(xmlEscape(row.joined(separator: "  |  ")))</w:t></w:r></w:p>" }
+                    afterOpening = false
+                case .image: break
                 case .sceneBreak: body += paragraph(options.sceneBreak, style: "SceneBreak", align: "center"); afterOpening = true
                 case let .code(text):
                     for line in text.components(separatedBy: "\n") { body += "<w:p><w:pPr><w:pStyle w:val=\"Code\"/></w:pPr><w:r><w:t xml:space=\"preserve\">\(xmlEscape(line))</w:t></w:r></w:p>" }
@@ -529,6 +448,11 @@ enum DOCXExporter {
     private static func roundedWords(_ count: Int) -> String {
         let step = count >= 10_000 ? 1_000 : (count >= 1_000 ? 100 : 10)
         return ((count + step / 2) / step * step).formatted()
+    }
+
+    private static func listItem(_ marker: String, _ runs: [ExportRun], _ depth: Int) -> String {
+        let indent = depth > 0 ? "<w:ind w:left=\"\(720 + depth * 360)\" w:hanging=\"360\"/>" : ""
+        return "<w:p><w:pPr><w:pStyle w:val=\"ListItem\"/>\(indent)</w:pPr><w:r><w:t xml:space=\"preserve\">\(marker)\t</w:t></w:r>\(runsXML(runs))</w:p>"
     }
 
     private static func paragraph(_ text: String, style: String, align: String) -> String {
@@ -651,12 +575,20 @@ enum PDFExporter {
             case let .quote(runs):
                 add(attributed(runs, m, baseSize: m.size, style: paragraphStyle(m, head: 36, tail: -36, align: .natural, multiple: max(1.2, m.lineMultiple * 0.85), before: 4, after: 4), forceItalic: true))
                 afterOpening = true
-            case let .bullet(runs):
-                add(attributed([ExportRun(text: "•\t")] + runs, m, baseSize: m.size, style: paragraphStyle(m, first: 0, head: 36, multiple: m.lineMultiple)))
+            case let .bullet(runs, depth):
+                add(attributed([ExportRun(text: "•\t")] + runs, m, baseSize: m.size, style: paragraphStyle(m, first: CGFloat(depth) * 18, head: 36 + CGFloat(depth) * 18, multiple: m.lineMultiple)))
                 afterOpening = false
-            case let .numbered(number, runs):
-                add(attributed([ExportRun(text: "\(number).\t")] + runs, m, baseSize: m.size, style: paragraphStyle(m, first: 0, head: 36, multiple: m.lineMultiple)))
+            case let .numbered(number, runs, depth):
+                add(attributed([ExportRun(text: "\(number).\t")] + runs, m, baseSize: m.size, style: paragraphStyle(m, first: CGFloat(depth) * 18, head: 36 + CGFloat(depth) * 18, multiple: m.lineMultiple)))
                 afterOpening = false
+            case let .task(done, runs, depth):
+                add(attributed([ExportRun(text: (done ? "☑" : "☐") + "\t")] + runs, m, baseSize: m.size, style: paragraphStyle(m, first: CGFloat(depth) * 18, head: 36 + CGFloat(depth) * 18, multiple: m.lineMultiple)))
+                afterOpening = false
+            case let .table(rows, _):
+                for row in rows { add(attributed([ExportRun(text: row.joined(separator: "  |  "))], m, baseSize: m.size, style: paragraphStyle(m, multiple: m.lineMultiple))) }
+                afterOpening = false
+            case .image:
+                break
             case .sceneBreak:
                 add(attributed([ExportRun(text: options.sceneBreak)], m, baseSize: m.size, style: paragraphStyle(m, align: .center, before: m.size * 0.6, after: m.size * 0.6)))
                 afterOpening = true

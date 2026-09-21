@@ -21,21 +21,19 @@ public enum MarkdownEditing {
     // MARK: Line prefixes
 
     struct Prefix {
+        var indentWidth: Int { indent.reduce(0) { $0 + ($1 == "\t" ? 4 : 1) } }
         enum Marker { case bullet(String), number(Int, String), quote }
         var indent: String
         var marker: Marker
         var task: String?          // "[ ]" or "[x]"
         var length: Int            // UTF-16 length of everything up to the content
+        var markerLength: Int      // …and up to the task box, if there is one
         var isList: Bool { if case .quote = marker { return false }; return true }
     }
 
     private static let prefixExpression = try! NSRegularExpression(pattern: "^([ \\t]*)(?:((?:>[ \\t]?)+)|([-+*]|[0-9]{1,3}[.)])[ \\t]+(\\[[ xX]\\][ \\t]+)?)")
 
-    static func isRule(_ line: String) -> Bool {
-        let compact = line.filter { !$0.isWhitespace }
-        guard compact.count >= 3, let first = compact.first, "-*_".contains(first) else { return false }
-        return compact.allSatisfy { $0 == first }
-    }
+    static func isRule(_ line: String) -> Bool { MarkdownLines.isSceneBreak(line) }
 
     static func prefix(of line: String) -> Prefix? {
         guard !isRule(line) else { return nil }
@@ -43,15 +41,19 @@ public enum MarkdownEditing {
         guard let match = prefixExpression.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else { return nil }
         let indent = ns.substring(with: match.range(at: 1))
         if match.range(at: 2).location != NSNotFound {
-            return Prefix(indent: indent, marker: .quote, task: nil, length: match.range.length)
+            return Prefix(indent: indent, marker: .quote, task: nil, length: match.range.length, markerLength: match.range.length)
         }
         let token = ns.substring(with: match.range(at: 3))
         var task: String?
-        if match.range(at: 4).location != NSNotFound { task = String(ns.substring(with: match.range(at: 4)).prefix(3)) }
-        if let last = token.last, last == "." || last == ")", let number = Int(token.dropLast()) {
-            return Prefix(indent: indent, marker: .number(number, String(last)), task: task, length: match.range.length)
+        var markerLength = match.range.length
+        if match.range(at: 4).location != NSNotFound {
+            task = String(ns.substring(with: match.range(at: 4)).prefix(3))
+            markerLength = match.range(at: 4).location - match.range.location
         }
-        return Prefix(indent: indent, marker: .bullet(token), task: task, length: match.range.length)
+        if let last = token.last, last == "." || last == ")", let number = Int(token.dropLast()) {
+            return Prefix(indent: indent, marker: .number(number, String(last)), task: task, length: match.range.length, markerLength: markerLength)
+        }
+        return Prefix(indent: indent, marker: .bullet(token), task: task, length: match.range.length, markerLength: markerLength)
     }
 
     /// Start, end (without the line break), and full end of the line holding `location`.

@@ -57,6 +57,10 @@ Use `backticks` for inline code and ~~two tildes~~ for a strikethrough.
 - **Import Document…** in the File menu converts a Word, RTF, or HTML file into Markdown, and **Paste as Markdown** (⌃⌘V) does the same for whatever you copied.
 - Settings → Writing can turn on curly quotes and dashes as you type. The Help menu has a Markdown cheat sheet.
 
+## Revisions
+
+Before a big rewrite, save a snapshot: **File → Save Snapshot** (⌥⌘S), or the Revisions button at the bottom of the writing desk. A snapshot keeps a copy of every chapter as it is right now. **Revision History** (⌥⌘R) lists your snapshots and shows, for any of them, which chapters changed and how: words you have added are underlined green and words you have removed are struck through red. From there you can restore one chapter or the whole draft. Sable saves a safety snapshot before every restore, so a restore can be undone too. In a Fiction Project it also keeps a daily snapshot when something changed (turn that off in Settings). Snapshots live in a hidden `.sable-revisions` folder as ordinary Markdown files.
+
 ## Keep your hands on the story
 
 - Command-N: new document.

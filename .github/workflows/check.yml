@@ -24,19 +24,24 @@ jobs:
           /tmp/quill-parallel-checks
       - name: Markdown editing checks
         run: |
-          swiftc Sources/QuillCore/MarkdownEditing.swift scripts/check-markdown-editing.swift -o /tmp/quill-markdown-editing-checks
+          swiftc Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown-editing.swift -o /tmp/quill-markdown-editing-checks
           /tmp/quill-markdown-editing-checks
       - name: Import checks
         run: |
           swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-import-checks
           /tmp/quill-import-checks
+      - name: Revision checks
+        run: |
+          swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks
+          /tmp/quill-revision-checks
       - name: Project search checks
         run: |
           swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks
           /tmp/quill-search-checks
       - name: Export checks
         run: |
-          swiftc Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift -o /tmp/quill-export-checks
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-export-checks
           /tmp/quill-export-checks
       - name: Folder browser checks
         run: |
