@@ -549,6 +549,10 @@ struct WritingActions {
     var exportDocument: () -> Void = {}
     /// True inside a Fiction Project, where the whole manuscript can be exported.
     var canExportManuscript = false
+    var findInProject: () -> Void = {}
+    var importDocument: () -> Void = {}
+    var revisions: () -> Void = {}
+    var saveSnapshot: () -> Void = {}
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
 extension FocusedValues {
@@ -565,11 +569,19 @@ struct WritingCommands: Commands {
     @AppStorage("toolbarAutoHide") private var toolbarAutoHide = true
     @AppStorage("toolbarEnabled") private var toolbarEnabled = true
     @AppStorage("nameHighlights") private var nameHighlights = true
+    @Environment(\.openWindow) private var openWindow
     var body: some Commands {
         CommandGroup(after: .saveItem) {
             Divider()
             Button("Export Manuscript…") { actions?.exportManuscript() }.keyboardShortcut("e", modifiers: [.command, .shift]).disabled(actions?.canExportManuscript != true)
             Button("Export This Document…") { actions?.exportDocument() }.disabled(actions == nil)
+            Button("Import Document…") { actions?.importDocument() }.disabled(actions == nil)
+            Divider()
+            Button("Save Snapshot…") { actions?.saveSnapshot() }.keyboardShortcut("s", modifiers: [.command, .option]).disabled(actions == nil)
+            Button("Revision History…") { actions?.revisions() }.keyboardShortcut("r", modifiers: [.command, .option]).disabled(actions == nil)
+        }
+        CommandGroup(after: .textEditing) {
+            Button("Find & Replace in Project…") { actions?.findInProject() }.keyboardShortcut("f", modifiers: [.command, .option, .shift]).disabled(actions == nil)
         }
         CommandGroup(after: .toolbar) {
             Toggle("Show Writing Desk", isOn: $sidebar).keyboardShortcut("s", modifiers: [.command, .control])
@@ -594,6 +606,7 @@ struct WritingCommands: Commands {
         }
         CommandGroup(replacing: .help) {
             Button("Sable Guide") { Tutorial.open() }
+            Button("Markdown Cheat Sheet") { openWindow(id: "markdown-cheat-sheet") }
         }
     }
 }

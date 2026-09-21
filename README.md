@@ -91,18 +91,27 @@ Apple references: [document-based apps](https://developer.apple.com/documentatio
 After building, the standalone Markdown and native editor checks can run without XCTest:
 
 ```sh
-swiftc Sources/QuillCore/MarkdownSyntax.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
+swiftc Sources/QuillCore/MarkdownSyntax.swift Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
 /tmp/quill-markdown-checks
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
+swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
 /tmp/quill-editor-checks
 ```
 
 The last command uses the Apple Silicon build path; substitute `x86_64-apple-macosx` on Intel. Sample manuscript and world-note files are in `Examples/`.
 
+For the list, heading, and smart-typography rules, document import, and project-wide find and replace:
+
+```sh
+swiftc Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown-editing.swift -o /tmp/quill-markdown-editing-checks && /tmp/quill-markdown-editing-checks
+swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-import-checks && /tmp/quill-import-checks
+swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks && /tmp/quill-search-checks
+swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks && /tmp/quill-revision-checks
+```
+
 For manuscript export checks (PDF, EPUB, Word, Markdown):
 
 ```sh
-swiftc Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift -o /tmp/quill-export-checks
+swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-export-checks
 /tmp/quill-export-checks
 ```
 

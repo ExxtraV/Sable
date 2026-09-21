@@ -136,6 +136,68 @@ import QuillCore
         named.nameShimmer = true
         named.decorate()
         precondition(named.nameRanges.isEmpty, "Turned off, nothing is highlighted")
+        // Lists, quotes, headings, and smart typography in the editor itself
+        let writer = WritingTextView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
+        writer.isRichText = false
+        writer.string = "- one"
+        writer.setSelectedRange(NSRange(location: 5, length: 0))
+        writer.insertNewline(nil)
+        precondition(writer.string == "- one\n- " && writer.selectedRange().location == 8, "Return continues a bullet: \(writer.string.debugDescription)")
+        writer.insertNewline(nil)
+        precondition(writer.string == "- one\n" && writer.selectedRange().location == 6, "Return on an empty bullet ends the list: \(writer.string.debugDescription)")
+        writer.string = "1. a\n2. b"
+        writer.setSelectedRange(NSRange(location: 9, length: 0))
+        writer.insertTab(nil)
+        precondition(writer.string == "1. a\n   2. b", "Tab indents a numbered item: \(writer.string.debugDescription)")
+        writer.insertBacktab(nil)
+        precondition(writer.string == "1. a\n2. b", "Shift-Tab brings it back")
+        writer.string = "A line"
+        writer.setSelectedRange(NSRange(location: 3, length: 0))
+        writer.markHeading(nil)
+        precondition(writer.string == "# A line", "Heading cycles on")
+        writer.markBulletList(nil)
+        precondition(writer.string == "- # A line" || writer.string.hasPrefix("- "), "Bulleted list command")
+        writer.string = "Plain"
+        writer.setSelectedRange(NSRange(location: 0, length: 5))
+        writer.markStrikethrough(nil)
+        precondition(writer.string == "~~Plain~~", "Strikethrough wraps")
+        writer.string = "word"
+        writer.setSelectedRange(NSRange(location: 0, length: 4))
+        writer.markCode(nil)
+        precondition(writer.string == "`word`", "Inline code wraps")
+        writer.string = ""
+        writer.setSelectedRange(NSRange(location: 0, length: 0))
+        writer.markSceneBreak(nil)
+        precondition(writer.string == "* * *\n\n", "Scene break: \(writer.string.debugDescription)")
+        // Smart typography only when it is on
+        writer.string = ""
+        writer.insertText("\"", replacementRange: NSRange(location: NSNotFound, length: 0))
+        precondition(writer.string == "\"", "Off by default")
+        writer.smartTypography = true
+        writer.string = ""
+        writer.insertText("\"", replacementRange: NSRange(location: NSNotFound, length: 0))
+        writer.insertText("H", replacementRange: NSRange(location: NSNotFound, length: 0))
+        writer.insertText("\"", replacementRange: NSRange(location: NSNotFound, length: 0))
+        precondition(writer.string == "“H”", "Curly quotes: \(writer.string)")
+        writer.insertText("-", replacementRange: NSRange(location: NSNotFound, length: 0))
+        writer.insertText("-", replacementRange: NSRange(location: NSNotFound, length: 0))
+        precondition(writer.string == "“H”—", "Two hyphens make a dash: \(writer.string)")
+        // Styling of scene breaks, notes, and marker dimming
+        let styled = WritingTextView(frame: NSRect(x: 0, y: 0, width: 900, height: 600))
+        styled.isRichText = false
+        styled.string = "Some **bold** words\n\n* * *\n\n<!-- note -->\n\n- [ ] task"
+        styled.decorate()
+        let styledText = styled.string as NSString
+        func color(_ needle: String, offset: Int = 0) -> NSColor? { styled.textStorage!.attribute(.foregroundColor, at: styledText.range(of: needle).location + offset, effectiveRange: nil) as? NSColor }
+        precondition(color("* * *") == NSColor.tertiaryLabelColor, "A scene break is quiet")
+        precondition(color("<!-- note -->") == NSColor.tertiaryLabelColor, "A comment is quiet")
+        precondition(color("**bold", offset: 0) == NSColor.tertiaryLabelColor, "Markers are dimmed by default")
+        styled.dimMarkers = false
+        styled.decorate()
+        precondition(color("**bold", offset: 0) != NSColor.tertiaryLabelColor, "…and stay normal when dimming is off")
+        let taskFont = styled.textStorage!.attribute(.font, at: styledText.range(of: "[ ]").location, effectiveRange: nil) as? NSFont
+        precondition(taskFont?.isFixedPitch == true, "A task checkbox is set in a fixed-width font")
+
         // Scrolling past the end, and keeping the line you're writing centered
         let scrollHost = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         scrollHost.hasVerticalScroller = true

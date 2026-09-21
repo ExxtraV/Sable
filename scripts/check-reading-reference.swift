@@ -12,6 +12,10 @@ import QuillCore
         precondition(rendered.string.contains("•  A bell"))
         let bold = rendered.attribute(.font, at: (rendered.string as NSString).range(of: "bright").location, effectiveRange: nil) as! NSFont
         precondition(NSFontManager.shared.traits(of: bold).contains(.boldFontMask))
+        let extras = MarkdownReading.render("One.\n\n* * *\n\n<!-- private\nnote -->\nTwo.\n\n- [ ] open\n- [x] done", family: "Charter", size: 19, spacing: 0.28)
+        precondition(extras.string.contains("*  *  *") && !extras.string.contains("•  * *"), "A scene break is drawn as one: \(extras.string.debugDescription)")
+        precondition(!extras.string.contains("private") && !extras.string.contains("<!--"), "Notes to yourself are hidden")
+        precondition(extras.string.contains("☐  open") && extras.string.contains("☑  done"), "Tasks show their boxes")
         precondition(NSImage(contentsOfFile: "Assets/Sable.icns") != nil)
         let sentence = "The clever fox runs quickly."
         let classes = SentenceStructure.words(in: sentence, enabled: 31)

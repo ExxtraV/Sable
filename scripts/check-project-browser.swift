@@ -95,6 +95,8 @@ import Foundation
         precondition(browser.selectedURLs == Set(u[1...3]), "Extends upward from the anchor")
         precondition(browser.trashTargets(for: shownEntries[2]).map(\.url) == Array(u[1...3]), "Trashing an item in the selection trashes them all")
         precondition(browser.trashTargets(for: shownEntries[0]).map(\.url) == [u[0]], "Trashing an item outside it trashes just that item")
+        precondition(browser.dragSet(for: [u[2]]) == Array(u[1...3]), "Dragging one of several selected items moves them all")
+        precondition(browser.dragSet(for: [u[0]]) == [u[0]], "Dragging an unselected item moves just it")
         browser.selectAllDisplayed()
         precondition(browser.selectedURLs == Set(u))
         browser.selection = nil
