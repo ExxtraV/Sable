@@ -14,6 +14,7 @@ struct WritingSidebar: View {
     var showCard: (URL) -> Void = { _ in }
     var releaseCurrentDocument: () -> Void = {}
     var exportManuscript: () -> Void = {}
+    var exportDocument: () -> Void = {}
     @EnvironmentObject private var browser: FolderBrowser
     @AppStorage("outlineTitle") private var outlineTitle = "Outline"
     @AppStorage("outlineLevel") private var outlineLevel = 0
@@ -36,6 +37,26 @@ struct WritingSidebar: View {
         return tab == "outline" ? .outline : .files
     }
     private var showingFiles: Bool { section == .files }
+
+    /// Export is always in reach at the bottom of the desk, so it doesn't take a trip to the Manuscript tab or the File menu.
+    private var exportBar: some View {
+        HStack {
+            if browser.projectURL != nil {
+                Menu {
+                    Button("Export Manuscript…", action: exportManuscript)
+                    Button("Export This Document…", action: exportDocument)
+                } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                    .menuStyle(.borderlessButton).fixedSize()
+                    .help("Export the manuscript or this document as PDF, EPUB, Word, or Markdown")
+            } else {
+                Button(action: exportDocument) { Label("Export…", systemImage: "square.and.arrow.up") }
+                    .buttonStyle(.plain).help("Export this document as PDF, EPUB, Word, or Markdown")
+            }
+            Spacer()
+        }
+        .font(.callout).foregroundStyle(.secondary)
+        .padding(.horizontal, 14).padding(.vertical, 9)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,6 +95,8 @@ struct WritingSidebar: View {
                 }
                 .onChange(of: browser.selection) { _, url in if let url { proxy.scrollTo(url) } }
             }
+            Divider()
+            exportBar
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onChange(of: tab) { _, _ in search = "" }

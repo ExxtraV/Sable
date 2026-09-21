@@ -676,8 +676,10 @@ final class NameHighlighter: Equatable, @unchecked Sendable {
                 // A whole name of several words is specific enough to match in any capitalization ("the pier").
                 add(name, card.kind, exactCase: words.count == 1)
                 guard words.count > 1 else { continue }
-                // Single names taken from it: a first name, a last name. Capitalized only, and never a small word or a title.
-                for word in words {
+                // Only a character is also known by a first or last name on its own (capitalized, and never a small word or a title).
+                // A place or world note is matched by its whole phrase, so "Academy" alone doesn't light up "Highlandsburg Academy".
+                guard card.kind == .character else { continue }
+                for word in [words.first, words.last].compactMap({ $0 }) {
                     let trimmed = word.trimmingCharacters(in: .punctuationCharacters)
                     guard trimmed.count >= 3, trimmed.first?.isUppercase == true, !ignoredWords.contains(trimmed.lowercased()) else { continue }
                     add(trimmed, card.kind, exactCase: true)
@@ -688,18 +690,18 @@ final class NameHighlighter: Equatable, @unchecked Sendable {
     }
 
     /// Where names occur in `text`, longest first and never overlapping. A front-matter block is skipped.
-    func matches(in text: String) -> [(range: NSRange, kind: CardKind)] {
-        guard !isEmpty else { return [] }
+    func matches(in text: String, kinds: Set<CardKind> = Set(CardKind.allCases)) -> [(range: NSRange, kind: CardKind)] {
+        guard !isEmpty, !kinds.isEmpty else { return [] }
         let ns = text as NSString
         let start = NameHighlighter.frontMatterLength(in: ns)
         let area = NSRange(location: start, length: ns.length - start)
         var found: [(range: NSRange, kind: CardKind)] = []
         looseExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
-            guard let range = match?.range, let kind = looseKinds[ns.substring(with: range).lowercased()] else { return }
+            guard let range = match?.range, let kind = looseKinds[ns.substring(with: range).lowercased()], kinds.contains(kind) else { return }
             found.append((range, kind))
         }
         exactExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
-            guard let range = match?.range, let kind = exactKinds[ns.substring(with: range)] else { return }
+            guard let range = match?.range, let kind = exactKinds[ns.substring(with: range)], kinds.contains(kind) else { return }
             found.append((range, kind))
         }
         found.sort { $0.range.location != $1.range.location ? $0.range.location < $1.range.location : $0.range.length > $1.range.length }

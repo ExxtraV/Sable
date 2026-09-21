@@ -41,7 +41,9 @@ struct NativeEditor: NSViewRepresentable {
     var typewriterMode: String = "off"
     /// Names of the project's characters, places, and world notes to make stand out (nil when off).
     var nameHighlighter: NameHighlighter? = nil
-    var nameGlow: Bool = true
+    /// Whether highlighted names shimmer (a soft moving light inside the letters) instead of just taking a color.
+    var nameShimmer: Bool = true
+    var nameKinds: Set<CardKind> = Set(CardKind.allCases)
     var documentUndoManager: UndoManager? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
@@ -109,7 +111,8 @@ struct NativeEditor: NSViewRepresentable {
         editor.pageWidth = pageWidth * zoom
         editor.typewriterMode = typewriterMode
         editor.nameHighlighter = nameHighlighter
-        editor.nameGlow = nameGlow
+        editor.nameShimmer = nameShimmer
+        editor.nameKinds = nameKinds
         editor.updatePageMargins()
         editor.updateScrollRoom()
         editor.appearance = darker ? NSAppearance(named: .darkAqua) : nil
@@ -165,15 +168,24 @@ final class WritingTextView: NSTextView {
     private var lastColorVersion = -1
     private var lastNameKey = ""
     var nameHighlighter: NameHighlighter?
-    var nameGlow = true
-    /// Where names were found on the last styling pass, so paragraph focus can quiet their glow.
+    var nameShimmer = true
+    var nameKinds = Set(CardKind.allCases)
+    /// Where names were found on the last styling pass, so the shimmer knows where to play.
     private(set) var nameRanges: [NSRange] = []
-    private var nameKey: String { (nameHighlighter?.signature ?? "") + (nameGlow ? "#glow" : "#color") }
+    private var nameKey: String {
+        (nameHighlighter?.signature ?? "") + (nameShimmer ? "#shimmer" : "#color") + nameKinds.map(\.rawValue).sorted().joined(separator: ",")
+    }
+    private var nameRangeKinds: [CardKind] = []
+    private var shimmerTimer: Timer?
+    private var shimmerStart = Date()
+    /// The paragraph being written while paragraph focus is on; names elsewhere are dimmed and stay still.
+    private var focusActive: NSRange?
     private var didSetInitialFocus = false
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         observeScrollingForFocus()
+        updateShimmer()
         window?.titlebarAppearsTransparent = true
         window?.titlebarSeparatorStyle = .none
         window?.backgroundColor = .windowBackgroundColor
@@ -342,12 +354,12 @@ final class WritingTextView: NSTextView {
         }
         // Names of characters, places, and world notes stand out on top of everything else, by color and optionally a glow.
         nameRanges = []
+        nameRangeKinds = []
         if let namer = nameHighlighter, !namer.isEmpty {
-            for match in namer.matches(in: string) {
-                let color = Self.nameColor(match.kind)
-                storage.addAttribute(.foregroundColor, value: color, range: match.range)
-                if nameGlow { storage.addAttribute(.shadow, value: Self.glow(for: color, appearance: effectiveAppearance), range: match.range) }
+            for match in namer.matches(in: string, kinds: nameKinds) {
+                storage.addAttribute(.foregroundColor, value: Self.nameColor(match.kind), range: match.range)
                 nameRanges.append(match.range)
+                nameRangeKinds.append(match.kind)
             }
         }
         storage.endEditing()
@@ -360,6 +372,7 @@ final class WritingTextView: NSTextView {
         lastColorVersion = colorVersion
         lastThemeName = themeName
         lastNameKey = nameKey
+        updateShimmer()
     }
 
     /// The color for a kind of name: your own choice, or a warm gold for characters, teal for places, violet for world notes.
@@ -372,15 +385,60 @@ final class WritingTextView: NSTextView {
         }
     }
 
-    /// A soft halo in the name's own color. The color is resolved for the current appearance, since shadows don't adapt on their own.
-    static func glow(for color: NSColor, appearance: NSAppearance) -> NSShadow {
-        var resolved = color
-        appearance.performAsCurrentDrawingAppearance { resolved = color.usingColorSpace(.sRGB) ?? color }
-        let shadow = NSShadow()
-        shadow.shadowOffset = .zero
-        shadow.shadowBlurRadius = 7
-        shadow.shadowColor = resolved.withAlphaComponent(0.85)
-        return shadow
+    // MARK: Name shimmer
+
+    /// A soft light drifting through the letters of each name, then fading back to its color. It runs only while names are
+    /// on screen, never in Reduce Motion, and its strength and speed are set in Writing Style.
+    func updateShimmer() {
+        let strength = UserDefaults.standard.object(forKey: "nameShimmerStrength") as? Double ?? 0.6
+        let wanted = nameShimmer && strength > 0.01 && !nameRanges.isEmpty && window != nil && isEditable
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if wanted {
+            guard shimmerTimer == nil else { return }
+            shimmerStart = Date()
+            let timer = Timer(timeInterval: 1.0 / 24, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.shimmerTick() } }
+            RunLoop.main.add(timer, forMode: .common)
+            shimmerTimer = timer
+        } else if shimmerTimer != nil {
+            shimmerTimer?.invalidate()
+            shimmerTimer = nil
+            restoreNameColors()
+        }
+    }
+
+    private func restoreNameColors() {
+        guard let layoutManager else { return }
+        let length = (string as NSString).length
+        for range in nameRanges where NSMaxRange(range) <= length && focusActive == nil {
+            layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
+        }
+    }
+
+    private func shimmerTick() {
+        guard let layoutManager, let container = textContainer, window != nil, !styling else { return }
+        let defaults = UserDefaults.standard
+        let strength = min(1, max(0, defaults.object(forKey: "nameShimmerStrength") as? Double ?? 0.6))
+        let speed = min(3, max(0.2, defaults.object(forKey: "nameShimmerSpeed") as? Double ?? 1))
+        let length = (string as NSString).length
+        let visibleGlyphs = layoutManager.glyphRange(forBoundingRect: visibleRect.offsetBy(dx: -textContainerOrigin.x, dy: -textContainerOrigin.y), in: container)
+        let visible = layoutManager.characterRange(forGlyphRange: visibleGlyphs, actualGlyphRange: nil)
+        let dark = WritingTheme.named(themeName).dark
+        let time = Date().timeIntervalSince(shimmerStart) * speed
+        for (index, range) in nameRanges.enumerated() where NSMaxRange(range) <= length && NSIntersectionRange(range, visible).length > 0 {
+            if let active = focusActive, NSIntersectionRange(range, active).length == 0 { continue }
+            var base = Self.nameColor(nameRangeKinds[index])
+            effectiveAppearance.performAsCurrentDrawingAppearance { base = base.usingColorSpace(.sRGB) ?? base }
+            let target = dark ? NSColor.white : NSColor.black
+            // A band of light travels along the name, once every couple of seconds, with a rest between passes.
+            for offset in 0..<range.length {
+                let phase = (time * 0.55 - Double(offset) * 0.09).truncatingRemainder(dividingBy: 1.6)
+                let position = phase < 0 ? phase + 1.6 : phase
+                let band = position < 1 ? sin(position * .pi) : 0
+                let mix = CGFloat(band * strength * (dark ? 0.7 : 0.55))
+                let color = base.blended(withFraction: mix, of: target) ?? base
+                layoutManager.addTemporaryAttribute(.foregroundColor, value: color, forCharacterRange: NSRange(location: range.location + offset, length: 1))
+            }
+        }
     }
 
     static func wordColor(_ kind: WordClass) -> NSColor {
@@ -422,6 +480,10 @@ final class WritingTextView: NSTextView {
     }
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
+        if newWindow == nil {
+            shimmerTimer?.invalidate()
+            shimmerTimer = nil
+        }
         if newWindow == nil, let scrollObserver {
             NotificationCenter.default.removeObserver(scrollObserver)
             self.scrollObserver = nil
@@ -434,9 +496,10 @@ final class WritingTextView: NSTextView {
         let length = (string as NSString).length
         let whole = NSRange(location: 0, length: length)
         layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
-        layoutManager.removeTemporaryAttribute(.shadow, forCharacterRange: whole)
+        focusActive = nil
         guard focusParagraph, length > 0 else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
+        focusActive = active
         // withAlphaComponent bakes a dynamic color into concrete RGBA using whatever appearance
         // happens to be current, so resolve under this view's own appearance for correct fades.
         var base = NSColor.labelColor
@@ -444,14 +507,6 @@ final class WritingTextView: NSTextView {
         func fade(_ alpha: CGFloat, _ range: NSRange) {
             guard range.length > 0 else { return }
             layoutManager.addTemporaryAttribute(.foregroundColor, value: base.withAlphaComponent(alpha), forCharacterRange: range)
-        }
-        // Names outside the paragraph being written lose their glow along with their color, so nothing outshines the page.
-        defer {
-            let quiet = NSShadow()
-            quiet.shadowColor = .clear
-            for range in nameRanges where NSIntersectionRange(range, active).length == 0 && NSMaxRange(range) <= length {
-                layoutManager.addTemporaryAttribute(.shadow, value: quiet, forCharacterRange: range)
-            }
         }
         guard focusGradient else {
             fade(0.25, NSRange(location: 0, length: active.location))
