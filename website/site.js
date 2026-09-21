@@ -10,6 +10,23 @@
   });
 })();
 
+// Bring each editorial section in gently as it enters the page. The stylesheet
+// respects the visitor's Reduce Motion setting, so this never becomes required motion.
+(function () {
+  var sections = document.querySelectorAll('.reveal');
+  if (!sections.length) return;
+  if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    sections.forEach(function (item) { item.classList.add('visible'); });
+    return;
+  }
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+    });
+  }, { threshold: .12 });
+  sections.forEach(function (item) { observer.observe(item); });
+})();
+
 // The download button points at the newest release's disk image (or zip), asking GitHub which that is.
 // If the request fails, the button keeps its fallback link to the releases page.
 (function () {
