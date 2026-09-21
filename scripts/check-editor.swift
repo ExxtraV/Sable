@@ -196,6 +196,13 @@ import QuillCore
         roomy.setSelectedRange(NSRange(location: midPoint + 3, length: 0))
         roomy.centerCaretIfNeeded(animated: false)
         precondition(roomClip.bounds.origin.y == restingY, "No jitter while you stay on a line")
+        // A page that has only been laid out near the top (as after an edit) still centers a line far below it
+        let lazy = "Line 90 "
+        roomy.string = (0..<120).map { "Line \($0) of a long chapter that keeps going." }.joined(separator: "\n\n")
+        roomy.setSelectedRange(NSRange(location: (roomy.string as NSString).range(of: lazy).location, length: 0))
+        roomy.centerCaretIfNeeded(animated: false)
+        let lazyAt = (roomy.string as NSString).range(of: lazy).location
+        precondition(abs(roomClip.bounds.midY - caretMid(at: lazyAt)) < 4, "Centering doesn't clamp to a half-laid-out page: \(roomClip.bounds.midY) vs \(caretMid(at: lazyAt))")
         // And to the very end
         roomy.setSelectedRange(NSRange(location: (roomy.string as NSString).length, length: 0))
         roomy.centerCaretIfNeeded(animated: false)

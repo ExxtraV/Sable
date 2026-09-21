@@ -233,6 +233,13 @@ final class WritingTextView: NSTextView {
         return rect
     }
 
+    /// While the page is being kept centered, typing and arrow keys are the only things that move it, and they do so through
+    /// `centerCaretIfNeeded`. AppKit's own scroll-to-the-caret would pull the page a different way at the same moment.
+    override func scrollRangeToVisible(_ range: NSRange) {
+        if typewriterMode == "center", window?.firstResponder === self, NSApp.currentEvent?.type == .keyDown, enclosingScrollView?.contentView is RoomClipView { return }
+        super.scrollRangeToVisible(range)
+    }
+
     /// Clicks and scrolling with the pointer never re-center the page; only typing and keyboard movement do.
     static func isPointerDriven(_ event: NSEvent?) -> Bool {
         switch event?.type {
@@ -249,6 +256,13 @@ final class WritingTextView: NSTextView {
         let clip = scroll.contentView
         // scroll(to:) doesn't clamp, so ask the clip view where that position is allowed to be.
         let wanted = NSRect(x: clip.bounds.minX, y: rect.midY - clip.bounds.height / 2, width: clip.bounds.width, height: clip.bounds.height)
+        // Layout is lazy: after an edit only the text near the top may be laid out, which makes the page look short and would
+        // clamp the target to a false "bottom". If the target reaches past what is known, lay out the whole page first.
+        if wanted.maxY > clip.documentRect.maxY, let layoutManager, let container = textContainer {
+            layoutManager.ensureLayout(for: container)
+            sizeToFit()
+            scroll.reflectScrolledClipView(clip)
+        }
         let target = clip.constrainBoundsRect(wanted).origin
         guard abs(target.y - clip.bounds.origin.y) > rect.height * 0.4 else { return }
         guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
