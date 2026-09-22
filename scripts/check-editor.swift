@@ -118,6 +118,40 @@ import QuillCore
         precondition(rgb(attr(.foregroundColor, walkedAt)) != rgb(WritingTextView.nameColor(.character)), "Ordinary words are untouched")
         precondition(rgb(attr(.foregroundColor, lowerAt)) != rgb(WritingTextView.nameColor(.character)), "A lowercase single word isn't a name")
         precondition(named.nameRanges.count == 3, "Marren Vale, the Pier, and Vale: \(named.nameRanges.count)")
+
+        // Right-clicking a highlighted name offers to open its file or show its card; ordinary text doesn't
+        let marrenCard = nameCard("Marren Vale", .character), pierCard = nameCard("The Pier", .location)
+        named.nameCards = [marrenCard, pierCard]
+        var openedURL: URL?, shownURL: URL?
+        named.openNameFile = { openedURL = $0 }
+        named.showNameCard = { shownURL = $0 }
+        let nameWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 600), styleMask: [.titled], backing: .buffered, defer: true)
+        nameWindow.contentView = named
+        func windowPoint(at index: Int) -> NSPoint {
+            let glyph = named.layoutManager!.glyphIndexForCharacter(at: index)
+            // The glyph's own small box, not lineFragmentRect (which spans the whole line it's on).
+            var rect = named.layoutManager!.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: named.textContainer!)
+            rect.origin.x += named.textContainerOrigin.x; rect.origin.y += named.textContainerOrigin.y
+            return named.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+        }
+        func rightClick(at index: Int) -> NSMenu {
+            let event = NSEvent.mouseEvent(with: .rightMouseDown, location: windowPoint(at: index), modifierFlags: [], timestamp: 0,
+                                           windowNumber: nameWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+            return named.menu(for: event)!
+        }
+        func perform(_ item: NSMenuItem?) { _ = (item?.target as? NSObject)?.perform(item?.action, with: item) }
+        let nameMenu = rightClick(at: marrenAt)
+        let openItem = nameMenu.items.first { $0.title.hasPrefix("Open") }
+        let showItem = nameMenu.items.first { $0.title.hasPrefix("Show") }
+        precondition(openItem != nil && showItem?.title == "Show Character Card", "A name offers Open and Show Card: \(nameMenu.items.map(\.title))")
+        perform(openItem)
+        perform(showItem)
+        precondition(openedURL == marrenCard.url && shownURL == marrenCard.url, "Choosing them calls back with the card's file")
+        let placeMenu = rightClick(at: pierAt)
+        precondition(placeMenu.items.first { $0.title.hasPrefix("Show") }?.title == "Show Location Card", "A place offers its own kind")
+        let plainMenu = rightClick(at: walkedAt)
+        precondition(!plainMenu.items.contains { $0.title.hasPrefix("Open “") || $0.title.hasSuffix(" Card") }, "Ordinary text offers neither: \(plainMenu.items.map(\.title))")
+
         // Color only: the same colors; a kind can be switched off
         named.nameShimmer = false
         named.decorate()
@@ -253,7 +287,7 @@ import QuillCore
         // Near the top of the page nothing slides: typing on the first lines leaves the page where it is
         scrollTo(-1_000_000)
         precondition(roomClip.bounds.origin.y == 0, "The page can't be scrolled down past its first line")
-        for line in [0, 3, 8] {
+        for line in [0, 3, 6] {
             let at = line == 0 ? 0 : (roomy.string as NSString).range(of: "Line \(line) ").location
             roomy.setSelectedRange(NSRange(location: at, length: 0))
             roomy.centerCaretIfNeeded(animated: false)

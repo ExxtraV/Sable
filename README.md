@@ -107,6 +107,14 @@ swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-impor
 swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks && /tmp/quill-search-checks
 swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks && /tmp/quill-revision-checks
 swiftc Sources/Quill/ToolbarTools.swift scripts/check-toolbar.swift -o /tmp/quill-toolbar-checks && /tmp/quill-toolbar-checks
+swiftc Sources/Quill/WritingHistory.swift scripts/check-writing-history.swift -o /tmp/quill-writing-history-checks && /tmp/quill-writing-history-checks
+```
+
+For the Story Timeline (beat tagging, the dramatic arc, and reading the Outline folder):
+
+```sh
+swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/ProjectSearch.swift Sources/Quill/StoryTimeline.swift scripts/check-outline.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-outline-checks
+/tmp/quill-outline-checks
 ```
 
 For manuscript export checks (PDF, EPUB, Word, Markdown):
@@ -149,7 +157,7 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 
 - First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
 - Setup can include an editable **Sable Guide.md**. Open it again from Help; existing guide edits are never overwritten.
-- Writing Style includes Graphite, Midnight, Forest, Parchment, and Paper themes.
+- Writing Style includes Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, and Paper themes.
 - Zoom with Command-Plus/Minus, reset with Command-0, or pinch the trackpad. Pinch zoom can be disabled in Writing Style.
 - Move the pointer to the top edge to reveal the toolbar. Reading mode, focus, sidebar, styling, and sentence colors remain available from the View menu.
 - The footer shows save state. Explicit saves through the editor show completion time; cancellation never reports success. “Saved” refers to the local file, not a cloud-sync confirmation.

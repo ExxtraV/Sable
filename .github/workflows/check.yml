@@ -38,6 +38,15 @@ jobs:
         run: |
           swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks
           /tmp/quill-revision-checks
+      - name: Writing history checks
+        run: |
+          swiftc Sources/Quill/WritingHistory.swift scripts/check-writing-history.swift -o /tmp/quill-writing-history-checks
+          /tmp/quill-writing-history-checks
+      - name: Story Timeline checks
+        run: |
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/ProjectSearch.swift Sources/Quill/StoryTimeline.swift scripts/check-outline.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-outline-checks
+          /tmp/quill-outline-checks
       - name: Project search checks
         run: |
           swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks
