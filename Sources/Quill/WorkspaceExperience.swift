@@ -12,6 +12,8 @@ struct WritingTheme: Identifiable {
     var chrome: String? = nil
     /// Darker shade the page fades toward at its edges. Themes that set it feel "narrowed in" on the writing.
     var edge: String? = nil
+    /// A theme that drifts faint motes of light behind the text, for a quiet fantasy feel.
+    var particles: Bool = false
     var background: NSColor { NSColor(quillHex: paper)! }
     var foreground: NSColor { NSColor(quillHex: ink)! }
     var chromeColor: Color { chrome.flatMap { NSColor(quillHex: $0) }.map(Color.init(nsColor:)) ?? Color(nsColor: .windowBackgroundColor) }
@@ -21,6 +23,8 @@ struct WritingTheme: Identifiable {
         WritingTheme(id: "midnight", name: "Midnight", paper: "131820", ink: "D6DEE8", dark: true, chrome: "0C1015", edge: "05070A"),
         WritingTheme(id: "chalk", name: "Chalk", paper: "2D3034", ink: "EEECE4", dark: true, chrome: "1A1C1F", edge: "121416"),
         WritingTheme(id: "forest", name: "Forest", paper: "1D2925", ink: "DCE4D9", dark: true, edge: "0A100E"),
+        WritingTheme(id: "obsidian", name: "Obsidian", paper: "070707", ink: "D7D3CB", dark: true, chrome: "020202", edge: "000000"),
+        WritingTheme(id: "arcane", name: "Arcane", paper: "1B1330", ink: "E9DFFB", dark: true, chrome: "120B22", edge: "07040D", particles: true),
         WritingTheme(id: "parchment", name: "Parchment", paper: "F3EBDD", ink: "40382E", dark: false),
         WritingTheme(id: "paper", name: "Paper", paper: "FAFAF8", ink: "30302E", dark: false)
     ]
@@ -47,6 +51,59 @@ struct VignetteOverlay: View {
             ], startPoint: .leading, endPoint: .trailing)
         }
         .allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+/// A deterministic, dependency-free random source, so the particle field looks the same on every render
+/// (only time moves them) instead of reshuffling itself each frame.
+private struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed &+ 0x9E3779B97F4A7C15 }
+    mutating func next() -> UInt64 {
+        state ^= state >> 12; state ^= state << 25; state ^= state >> 27
+        return state &* 2685821657736338717
+    }
+}
+
+/// Faint motes of light drifting slowly upward behind the text, for the Arcane theme. Off entirely under
+/// Reduce Motion, and never intercepts clicks.
+struct ParticleField: View {
+    let color: Color
+    var count: Int = 44
+    private struct Mote { let x, y, size, speed, phase: Double }
+    private let motes: [Mote]
+
+    init(color: Color, count: Int = 44) {
+        self.color = color
+        self.count = count
+        var generator = SeededGenerator(seed: 7)
+        motes = (0..<count).map { _ in
+            Mote(x: Double.random(in: 0...1, using: &generator), y: Double.random(in: 0...1, using: &generator),
+                 size: Double.random(in: 1.2...2.8, using: &generator), speed: Double.random(in: 0.012...0.05, using: &generator),
+                 phase: Double.random(in: 0...1, using: &generator))
+        }
+    }
+
+    var body: some View {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            EmptyView()
+        } else {
+            TimelineView(.animation) { timeline in
+                Canvas { context, size in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    for mote in motes {
+                        let travelled = (mote.y - t * mote.speed).truncatingRemainder(dividingBy: 1)
+                        let y = travelled < 0 ? travelled + 1 : travelled
+                        let twinkle = 0.35 + 0.5 * (0.5 + 0.5 * sin(t * 0.6 + mote.phase * .pi * 2))
+                        let point = CGPoint(x: mote.x * size.width, y: y * size.height)
+                        let rect = CGRect(x: point.x - mote.size / 2, y: point.y - mote.size / 2, width: mote.size, height: mote.size)
+                        context.opacity = twinkle * 0.55
+                        context.fill(Path(ellipseIn: rect), with: .color(color))
+                    }
+                }
+            }
+            .allowsHitTesting(false).accessibilityHidden(true)
+        }
     }
 }
 
@@ -493,10 +550,14 @@ struct BarButton: View {
                 .frame(width: edge.vertical ? 38 : 34, height: edge.vertical ? 34 : 30)
                 .foregroundStyle(active ? Color.accentColor : Color.primary)
                 .background(active ? Color.accentColor.opacity(0.16) : (hovering && enabled ? Color.primary.opacity(0.08) : .clear), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(alignment: .bottomTrailing) {
+                    // A small dot makes "on" unmistakable even for icons that don't obviously invert (spelling, prose suggestions).
+                    if active { Circle().fill(Color.accentColor).frame(width: 5, height: 5).padding(3) }
+                }
                 .opacity(enabled ? 1 : 0.35)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(label).accessibilityHint(detail)
+        .accessibilityLabel(label).accessibilityHint((active ? "On. " : "Off. ") + detail)
         .onHover { inside in
             hovering = inside
             tipTask?.cancel()
@@ -557,6 +618,7 @@ struct WritingActions {
     var importDocument: () -> Void = {}
     var revisions: () -> Void = {}
     var saveSnapshot: () -> Void = {}
+    var storyTimeline: () -> Void = {}
     var customizeToolbar: () -> Void = {}
 }
 struct WritingActionsKey: FocusedValueKey { typealias Value = WritingActions }
@@ -574,6 +636,8 @@ struct WritingCommands: Commands {
     @AppStorage("toolbarAutoHide") private var toolbarAutoHide = true
     @AppStorage("toolbarEnabled") private var toolbarEnabled = true
     @AppStorage("nameHighlights") private var nameHighlights = true
+    @AppStorage("spellCheckEnabled") private var spellCheckEnabled = true
+    @AppStorage("reviewProse") private var reviewProse = true
     @Environment(\.openWindow) private var openWindow
     var body: some Commands {
         CommandGroup(after: .saveItem) {
@@ -584,6 +648,7 @@ struct WritingCommands: Commands {
             Divider()
             Button("Save Snapshot…") { actions?.saveSnapshot() }.keyboardShortcut("s", modifiers: [.command, .option]).disabled(actions == nil)
             Button("Revision History…") { actions?.revisions() }.keyboardShortcut("r", modifiers: [.command, .option]).disabled(actions == nil)
+            Button("Story Timeline…") { actions?.storyTimeline() }.keyboardShortcut("y", modifiers: [.command, .option]).disabled(actions?.canExportManuscript != true)
         }
         CommandGroup(after: .textEditing) {
             Button("Find & Replace in Project…") { actions?.findInProject() }.keyboardShortcut("f", modifiers: [.command, .option, .shift]).disabled(actions == nil)
@@ -605,6 +670,8 @@ struct WritingCommands: Commands {
             Button("Writing Style…") { actions?.style() }.keyboardShortcut(",", modifiers: [.command, .option]).disabled(actions == nil)
             Button("Sentence Structure…") { actions?.sentences() }.keyboardShortcut("j", modifiers: [.command, .option]).disabled(actions == nil)
             Toggle("Highlight Names & Places", isOn: $nameHighlights)
+            Toggle("Check Spelling & Grammar as I Type", isOn: $spellCheckEnabled)
+            Toggle("Prose Suggestions", isOn: $reviewProse)
             Button("Tag Scene…") { actions?.tagScene() }.keyboardShortcut("t", modifiers: [.command, .control]).disabled(actions == nil)
             Divider()
             Button("Zoom In") { WritingZoom.step(0.1) }.keyboardShortcut("=", modifiers: .command)

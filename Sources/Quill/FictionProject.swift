@@ -94,10 +94,17 @@ enum ProjectGuide {
 
         - **Manuscript** holds your chapters, one file each. It's pinned to the top and colored red because it's where you'll spend most of your time.
         - **Characters**, **Locations**, and **World** hold the people, places, and ideas of your story. Each file can show up as a floating card while you write.
-        - **Notes** is for anything else: research, outlines, scraps.
+        - **Outline** is for planning: headings become chapters or beats you can see laid out on the **Story Timeline** (File menu). See below.
+        - **Notes** is for anything else: research, scraps, loose ideas.
         - **Images** holds the pictures you attach to cards.
 
+        There's also a **Concept.md** file at the top level, pre-filled with a few questions (logline, themes, your own pitch) to help you think the story through before you draft. Delete what you don't need; it's scratch paper.
+
         Everything here is plain Markdown and ordinary folders. Any other editor can open it, and your cloud service syncs it like any other folder.
+
+        ## Planning with Outline and the Story Timeline
+
+        The **Outline** folder holds plain Markdown files of your own headings — acts, chapters, beats, whatever fits how you plan. Tag any heading with a beat in parentheses and it's placed on the **Story Timeline** (File menu → Story Timeline…, or the toolbar): `(Inciting Incident)`, `(Rising Action)`, `(Midpoint)`, `(Climax)`, `(Falling Action)`, or `(Resolution)`. Untagged headings are spread evenly along the arc, so a rough outline still shows a shape. Click a point on the chart to jump straight to that heading.
 
         ## Writing the manuscript
 
@@ -174,13 +181,78 @@ enum ProjectGuide {
     }
 }
 
+/// A pre-filled scratchpad for thinking a story through before drafting it: not a card, not a chapter, just questions.
+enum ConceptDocument {
+    static let fileName = "Concept.md"
+
+    static func text(projectName: String) -> String {
+        """
+        # \(projectName): Concept
+
+        A place to think before you draft. Answer what's useful and delete the rest; this is scratch paper, not a form.
+
+        ## Logline
+
+        One or two sentences: who wants what, and what stands in the way?
+
+        ## Writer's pitch
+
+        Why this story, why you, why now? What made you want to write it?
+
+        ## Genre & tone
+
+        ## Major themes
+
+        What is this story really about, underneath the plot?
+
+        ## Comparable titles
+
+        Books, shows, or films this sits near on a shelf, and how yours is different.
+
+        ## Who is this for?
+
+        ## Central question
+
+        The question the story asks that its ending answers.
+
+        ## Notes
+
+        """
+    }
+}
+
+/// A starting point for the Outline folder, showing the beat-tagging syntax the Story Timeline reads.
+enum OutlineStarter {
+    static let fileName = "Outline.md"
+
+    static let text = """
+    # Story Outline
+
+    Use headings for acts, chapters, or beats — however you like to plan. Tag any heading with a beat in
+    parentheses and it takes its place on the Story Timeline (File menu → Story Timeline…): (Inciting Incident),
+    (Rising Action), (Midpoint), (Climax), (Falling Action), or (Resolution). Untagged headings are spread evenly
+    along the arc, so even a rough outline shows a shape.
+
+    ## Chapter 1 — Ordinary World
+
+    ## Chapter 3 — The Door Opens (Inciting Incident)
+
+    ## Chapter 9 — Everything Changes (Midpoint)
+
+    ## Chapter 15 — The Reckoning (Climax)
+
+    ## Chapter 17 — After (Resolution)
+    """
+}
+
 struct FictionProject: Codable, Equatable, Sendable {
     static let markerName = ".sable-project.json"
     /// The name projects made before the app was renamed use. Still recognized, and replaced on the next save.
     static let legacyMarkerName = ".quill-project.json"
     static let manuscriptFolder = "Manuscript"
     static let imagesFolder = "Images"
-    static let standardFolders = [manuscriptFolder, "Characters", "Locations", "World", "Notes", imagesFolder]
+    static let outlineFolder = "Outline"
+    static let standardFolders = [manuscriptFolder, "Characters", "Locations", "World", outlineFolder, "Notes", imagesFolder]
 
     var kind = "fiction"
     var title: String
@@ -194,6 +266,7 @@ struct FictionProject: Codable, Equatable, Sendable {
     // MARK: Detecting and reading
 
     static func guideURL(in project: URL) -> URL { project.appendingPathComponent(ProjectGuide.fileName) }
+    static func conceptURL(in project: URL) -> URL { project.appendingPathComponent(ConceptDocument.fileName) }
 
     /// The project's Start Here note, written if it isn't there (an existing one is never overwritten).
     @discardableResult
@@ -201,6 +274,16 @@ struct FictionProject: Codable, Equatable, Sendable {
         let url = guideURL(in: project)
         if !FileManager.default.fileExists(atPath: url.path) {
             try Data(ProjectGuide.text(projectName: load(project)?.title ?? project.lastPathComponent).utf8).write(to: url, options: .withoutOverwriting)
+        }
+        return url
+    }
+
+    /// The project's Concept note, written if it isn't there (an existing one is never overwritten).
+    @discardableResult
+    static func ensureConcept(in project: URL) throws -> URL {
+        let url = conceptURL(in: project)
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try Data(ConceptDocument.text(projectName: load(project)?.title ?? project.lastPathComponent).utf8).write(to: url, options: .withoutOverwriting)
         }
         return url
     }
@@ -276,10 +359,12 @@ struct FictionProject: Codable, Equatable, Sendable {
                 try FileManager.default.createDirectory(at: folder.appendingPathComponent(standard, isDirectory: true), withIntermediateDirectories: true)
             }
             try ensureGuide(in: folder)
+            try ensureConcept(in: folder)
             if starterFiles {
                 _ = try createItem(.chapter, named: "Chapter 1", in: folder)
                 _ = try createItem(.character, named: "Example Character", in: folder)
                 _ = try createItem(.location, named: "Example Location", in: folder)
+                try Data(OutlineStarter.text.utf8).write(to: folder.appendingPathComponent(outlineFolder).appendingPathComponent(OutlineStarter.fileName), options: .withoutOverwriting)
             }
         } catch {
             try? FileManager.default.removeItem(at: folder)
@@ -585,7 +670,8 @@ enum CardIndex {
                 if path == manuscript || url.lastPathComponent == FictionProject.imagesFolder { walker.skipDescendants() }
                 continue
             }
-            guard ["md", "markdown"].contains(url.pathExtension.lowercased()), url.lastPathComponent != ProjectGuide.fileName else { continue }
+            guard ["md", "markdown"].contains(url.pathExtension.lowercased()),
+                  url.lastPathComponent != ProjectGuide.fileName, url.lastPathComponent != ConceptDocument.fileName else { continue }
             let modified = values?.contentModificationDate
             if let old = cache[url.standardizedFileURL.path], old.modified == modified { cards.append(old); continue }
             guard let handle = try? FileHandle(forReadingFrom: url), let head = try? handle.read(upToCount: 4096) else { continue }

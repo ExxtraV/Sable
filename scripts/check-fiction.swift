@@ -42,6 +42,21 @@ import Foundation
         precondition(fm.fileExists(atPath: FictionProject.guideURL(in: bare).path), "Every new project starts with it, sample files or not")
         precondition(CardParsing.info(for: guide, text: guideText, projectRoot: project) == nil, "The guide itself isn't a card")
 
+        // The Concept note and the Outline starter
+        let concept = FictionProject.conceptURL(in: project)
+        let conceptText = try String(contentsOf: concept, encoding: .utf8)
+        precondition(conceptText.hasPrefix("# The Crossing: Concept") && conceptText.contains("## Logline") && conceptText.contains("## Major themes"), "Concept: \(conceptText.prefix(60))")
+        precondition(fm.fileExists(atPath: FictionProject.conceptURL(in: bare).path), "Every new project gets a Concept note, sample files or not")
+        try "my own thinking".write(to: concept, atomically: true, encoding: .utf8)
+        try FictionProject.ensureConcept(in: project)
+        let keptConcept = try String(contentsOf: concept, encoding: .utf8)
+        precondition(keptConcept == "my own thinking", "The concept note never overwrites your edits")
+        precondition(CardParsing.info(for: concept, text: conceptText, projectRoot: project) == nil, "The concept note isn't a card")
+        let outlineStarter = try String(contentsOf: project.appendingPathComponent("Outline/Outline.md"), encoding: .utf8)
+        precondition(outlineStarter.contains("(Inciting Incident)") && outlineStarter.contains("(Climax)"), "The starter outline demonstrates the beat-tagging syntax")
+        let bareOutline = try fm.contentsOfDirectory(atPath: bare.appendingPathComponent("Outline").path)
+        precondition(bareOutline.isEmpty, "A bare project's Outline folder starts empty")
+
         // Detecting a project from inside it
         let deepFile = project.appendingPathComponent("Characters/Example Character.md")
         precondition(FictionProject.projectRoot(containing: deepFile, within: root) == project.standardizedFileURL)

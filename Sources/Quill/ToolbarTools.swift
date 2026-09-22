@@ -57,6 +57,7 @@ enum ToolbarLayout {
         ToolbarTool(id: "snapshot", title: "Save snapshot", icon: "camera", detail: "Keep a copy of your draft as it is now.", shortcut: "⌥⌘S", group: .project),
         ToolbarTool(id: "revisions", title: "Revision history", icon: "clock.arrow.circlepath", detail: "See what changed since a snapshot, and restore.", shortcut: "⌥⌘R", group: .project),
         ToolbarTool(id: "import", title: "Import document", icon: "square.and.arrow.down", detail: "Turn a Word, RTF, or HTML file into Markdown.", shortcut: nil, group: .project),
+        ToolbarTool(id: "timeline", title: "Story timeline", icon: "chart.line.uptrend.xyaxis", detail: "See your Outline folder's headings laid out on a dramatic arc, and jump to any of them.", shortcut: "⌥⌘Y", group: .project),
     ]
 
     static func tool(_ id: String) -> ToolbarTool? { all.first { $0.id == id } }

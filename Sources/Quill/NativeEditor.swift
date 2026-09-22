@@ -44,6 +44,10 @@ struct NativeEditor: NSViewRepresentable {
     /// Whether highlighted names shimmer (a soft moving light inside the letters) instead of just taking a color.
     var nameShimmer: Bool = true
     var nameKinds: Set<CardKind> = Set(CardKind.allCases)
+    /// The project's cards, so right-clicking a highlighted name can offer to open its file or show its card.
+    var nameCards: [IndexedCard] = []
+    var openNameFile: ((URL) -> Void)? = nil
+    var showNameCard: ((URL) -> Void)? = nil
     /// Dim the symbols of Markdown (the stars, hashes, and brackets) so the words stand out.
     var dimMarkers: Bool = true
     /// Curly quotes, em dashes, and ellipses as you type.
@@ -119,6 +123,9 @@ struct NativeEditor: NSViewRepresentable {
         editor.nameHighlighter = nameHighlighter
         editor.nameShimmer = nameShimmer
         editor.nameKinds = nameKinds
+        editor.nameCards = nameCards
+        editor.openNameFile = openNameFile
+        editor.showNameCard = showNameCard
         editor.dimMarkers = dimMarkers
         editor.smartTypography = smartTypography
         editor.updatePageMargins()
@@ -183,6 +190,9 @@ final class WritingTextView: NSTextView {
     var nameHighlighter: NameHighlighter?
     var nameShimmer = true
     var nameKinds = Set(CardKind.allCases)
+    var nameCards: [IndexedCard] = []
+    var openNameFile: ((URL) -> Void)?
+    var showNameCard: ((URL) -> Void)?
     var dimMarkers = true { didSet { if oldValue != dimMarkers { lastStyledText = nil } } }
     var smartTypography = false
     /// Where names were found on the last styling pass, so the shimmer knows where to play.
@@ -310,7 +320,7 @@ final class WritingTextView: NSTextView {
 
     func updatePageMargins() {
         let margin = max(28, (bounds.width - pageWidth) / 2)
-        let inset = NSSize(width: margin, height: 48)
+        let inset = NSSize(width: margin, height: 84)
         if textContainerInset != inset { textContainerInset = inset }
     }
 
@@ -674,6 +684,17 @@ final class WritingTextView: NSTextView {
         let menu = super.menu(for: event) ?? NSMenu()
         let point = convert(event.locationInWindow, from: nil)
         let index = characterIndexForInsertion(at: point)
+        if let card = namedCard(at: index) {
+            let open = NSMenuItem(title: "Open “\(card.stem)”", action: #selector(openNamedFile(_:)), keyEquivalent: "")
+            open.target = self
+            open.representedObject = card.url
+            let show = NSMenuItem(title: "Show \(card.kind.title) Card", action: #selector(showNamedCard(_:)), keyEquivalent: "")
+            show.target = self
+            show.representedObject = card.url
+            menu.insertItem(.separator(), at: 0)
+            menu.insertItem(show, at: 0)
+            menu.insertItem(open, at: 0)
+        }
         contextRange = reviewEnabled ? Prose.suggestions(in: string, words: reviewWords).first { NSLocationInRange(index, $0) } : nil
         if contextRange != nil {
             menu.addItem(.separator())
@@ -685,6 +706,23 @@ final class WritingTextView: NSTextView {
             menu.addItem(ignore)
         }
         return menu
+    }
+    /// The card behind the highlighted name at `index`, if there is one.
+    private func namedCard(at index: Int) -> IndexedCard? {
+        guard !nameCards.isEmpty else { return nil }
+        for (range, kind) in zip(nameRanges, nameRangeKinds) where NSLocationInRange(index, range) {
+            let text = (string as NSString).substring(with: range)
+            return CardIndex.match(text, kind: kind, in: nameCards)
+        }
+        return nil
+    }
+    @objc private func openNamedFile(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        openNameFile?(url)
+    }
+    @objc private func showNamedCard(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        showNameCard?(url)
     }
     @objc private func removeSuggestion(_ sender: Any?) {
         guard let range = contextRange, NSMaxRange(range) <= (string as NSString).length else { return }

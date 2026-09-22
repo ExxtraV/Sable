@@ -113,6 +113,7 @@ struct WritingView: View {
     @State private var showToolbarCustomizer = false
     @AppStorage("edgeShading") private var edgeShading = true
     @AppStorage("edgeStrength") private var edgeStrength = 0.65
+    @AppStorage("themeParticles") private var themeParticles = true
     @AppStorage("toolbarTools") private var toolbarTools = ToolbarLayout.defaultToken
     @StateObject private var commands = EditorCommands()
     @AppStorage("writingTheme") private var themeName = "graphite"
@@ -145,12 +146,15 @@ struct WritingView: View {
     @State private var closeParallelRequest: UUID?
     @State private var startingWords: Int?
     @State private var bankedWords = 0
+    /// The word count this document was at the moment last measured, so only forward progress is banked to the daily record.
+    @State private var historyBaseline: Int?
     @State private var activeURL: URL?
     @State private var openCards: [OpenCard] = []
     @State private var tagSceneSignal = 0
     @State private var exportSource: ExportSource?
     @State private var findRequest: FindRequest?
     @State private var revisionsRequest: RevisionsRequest?
+    @State private var showStoryTimeline = false
     @AppStorage("autoSnapshots") private var autoSnapshots = true
     @State private var importMessage: String?
     @AppStorage("dimMarkers") private var dimMarkers = true
@@ -159,6 +163,13 @@ struct WritingView: View {
     @State private var errorMessage: String?
 
     private var count: Int { Prose.wordCount(document.text) }
+    /// Banks the words added since the last measurement to today's writing record, ignoring any decrease.
+    private func recordWritingProgress(_ text: String) {
+        let now = Prose.wordCount(text)
+        defer { historyBaseline = now }
+        guard let previous = historyBaseline, now > previous else { return }
+        WritingHistory.add(now - previous)
+    }
     private var sessionWords: Int { bankedWords + max(0, count - (startingWords ?? count)) }
     private var colorScheme: ColorScheme? { WritingTheme.named(themeName).dark ? .dark : .light }
 
@@ -173,7 +184,7 @@ struct WritingView: View {
             .sheet(isPresented: $showToolbarCustomizer) { ToolbarCustomizer(stored: $toolbarTools, close: { showToolbarCustomizer = false }) }
             .focusedSceneValue(\.writingActions, writingActions)
             .background(WindowConfigurator())
-            .onChange(of: document.text) { _, _ in saveFeedback.message = ""; edited = true }
+            .onChange(of: document.text) { _, new in saveFeedback.message = ""; edited = true; recordWritingProgress(new) }
             .onReceive(savePoll) { _ in updateSaveState() }
             .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
             .alert("Could not open selection", isPresented: errorPresented) {
@@ -278,6 +289,7 @@ struct WritingView: View {
             importDocument: startImport,
             revisions: { startRevisions(saving: false) },
             saveSnapshot: { startRevisions(saving: true) },
+            storyTimeline: startStoryTimeline,
             customizeToolbar: { showToolbarCustomizer = true }
         )
     }
@@ -365,6 +377,25 @@ struct WritingView: View {
 
     private func openSearchHit(_ url: URL, _ range: NSRange) {
         findRequest = nil
+        jumpTo(url, range)
+    }
+
+    /// Opens the Story Timeline, reading the Fiction Project's Outline folder.
+    private func startStoryTimeline() {
+        guard browser.projectURL != nil else {
+            importMessage = "The Story Timeline reads the Outline folder of a Fiction Project. Open one first, or create one from File → New Fiction Project."
+            return
+        }
+        showStoryTimeline = true
+    }
+
+    private func openStoryTimelinePoint(_ url: URL, _ range: NSRange) {
+        showStoryTimeline = false
+        jumpTo(url, range)
+    }
+
+    /// Switches to `url` if it isn't already open, then moves the caret to `range` and shows it.
+    private func jumpTo(_ url: URL, _ range: NSRange) {
         if url.standardizedFileURL == activeURL?.standardizedFileURL {
             commands.jump(to: range)
         } else {
@@ -432,6 +463,8 @@ struct WritingView: View {
 
     /// Dark themes shade toward the edges of the page when that is on.
     private var shadedPage: Bool { edgeShading && WritingTheme.named(themeName).edgeColor != nil }
+    /// A theme with particles wants the page painted behind the text even if edge shading itself is off.
+    private var wantsPaperBehindText: Bool { shadedPage || (themeParticles && WritingTheme.named(themeName).particles) }
 
     private var toolbarEdge: ToolbarEdge { ToolbarEdge(rawValue: toolbarEdgeName) ?? .top }
 
@@ -498,6 +531,7 @@ struct WritingView: View {
         case "snapshot": return { startRevisions(saving: true) }
         case "revisions": return { startRevisions(saving: false) }
         case "import": return { startImport() }
+        case "timeline": return startStoryTimeline
         default: return {}
         }
     }
@@ -539,6 +573,7 @@ struct WritingView: View {
             bankedWords = sessionWords
             binding.wrappedValue.text = text
             startingWords = Prose.wordCount(text)
+            historyBaseline = nil
             saveFeedback.message = ""
             activeURL = url
             if let url { browser.enterProject(containing: url) }
@@ -631,6 +666,11 @@ struct WritingView: View {
                                restoreOrder: { order in if let project = browser.projectURL { try? FictionProject.setChapterOrder(order, in: project); browser.reload() } },
                                close: { revisionsRequest = nil })
             }
+            .sheet(isPresented: $showStoryTimeline) {
+                if let project = browser.projectURL {
+                    StoryTimelineWindow(project: project, open: openStoryTimelinePoint, close: { showStoryTimeline = false })
+                }
+            }
             .task(id: browser.projectURL) { await takeDailySnapshot() }
             .alert("Import", isPresented: Binding(get: { importMessage != nil }, set: { if !$0 { importMessage = nil } })) {
                 Button("OK", role: .cancel) {}
@@ -642,10 +682,12 @@ struct WritingView: View {
     private var editorColumn: some View {
         VStack(spacing: 0) {
             ZStack {
-                // The page and its edge shading sit behind the text, so the words are never darkened.
-                if shadedPage, let edge = WritingTheme.named(themeName).edgeColor {
-                    Color(nsColor: WritingTheme.named(themeName).background)
-                    VignetteOverlay(color: edge, strength: edgeStrength)
+                // The page, its edge shading, and any particles sit behind the text, so the words are never darkened.
+                if wantsPaperBehindText {
+                    let theme = WritingTheme.named(themeName)
+                    Color(nsColor: theme.background)
+                    if shadedPage, let edge = theme.edgeColor { VignetteOverlay(color: edge, strength: edgeStrength) }
+                    if themeParticles, theme.particles { ParticleField(color: Color(nsColor: theme.foreground)) }
                 }
                 NativeEditor(text: $document.text, review: review, words: words, fontSize: fontSize,
                              pageWidth: pageWidth, commands: commands, fontFamily: fontFamily,
@@ -653,11 +695,12 @@ struct WritingView: View {
                              colorVersion: colorVersion, spellCheckEnabled: spellCheckEnabled, typewriterMode: typewriterMode,
                              nameHighlighter: nameHighlights && browser.projectURL != nil ? cardIndex.highlighter : nil, nameShimmer: nameStyle == "shimmer",
                              nameKinds: Set(CardKind.allCases.filter { ($0 == .character && nameCharacters) || ($0 == .location && nameLocations) || ($0 == .lore && nameLore) }),
-                             dimMarkers: dimMarkers, smartTypography: smartTypography, transparentBackground: shadedPage,
+                             nameCards: cardIndex.cards, openNameFile: switchPrimaryDocument, showNameCard: showCard,
+                             dimMarkers: dimMarkers, smartTypography: smartTypography, transparentBackground: wantsPaperBehindText,
                              saveAction: { saveFeedback.save(commands.editor?.window?.windowController?.document as? NSDocument) },
                              sidebarGesture: { sidebar.toggle() })
                     .opacity(reading ? 0 : 1).allowsHitTesting(!reading).accessibilityHidden(reading)
-                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth, transparent: shadedPage) }
+                if reading { ReadingView(text: document.text, family: fontFamily, size: fontSize, spacing: lineSpacing, width: pageWidth, transparent: wantsPaperBehindText, sidebarGesture: { sidebar.toggle() }) }
                 sceneLayer
             }
             .onChange(of: reading) { _, value in
@@ -714,6 +757,7 @@ struct PreferencesView: View {
                     Stepper("Session goal: \(sessionGoal) words", value: $sessionGoal, in: 0...10000, step: 100)
                     Text("Set the goal to 0 to hide it.").font(.caption).foregroundStyle(.secondary)
                 }
+                Section("Writing record") { WritingRecordSection() }
                 Section("Sable Guide") {
                     Button("Regenerate Guide…") { regenerateGuide() }
                     if let guideMessage { Text(guideMessage).font(.caption).foregroundStyle(.secondary) }

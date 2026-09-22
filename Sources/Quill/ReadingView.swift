@@ -76,11 +76,13 @@ struct ReadingView: NSViewRepresentable {
     var darker = false
     /// Let the page behind show through (the edge shading is drawn there).
     var transparent = false
+    var sidebarGesture: (() -> Void)? = nil
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 700, height: 600))
         scroll.hasVerticalScroller = true; scroll.autohidesScrollers = true
         scroll.zoomKey = zoomKey
+        scroll.sidebarGesture = sidebarGesture
         let view = ReadingTextView(frame: scroll.contentView.bounds)
         view.isEditable = false; view.isSelectable = true
         view.isVerticallyResizable = true; view.autoresizingMask = [.width]
@@ -101,6 +103,7 @@ struct ReadingView: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let view = scroll.documentView as? ReadingTextView else { return }
         (scroll as? WritingScrollView)?.zoomKey = zoomKey
+        (scroll as? WritingScrollView)?.sidebarGesture = sidebarGesture
         let zoom = self.zoom ?? globalZoom
         view.columnWidth = width * zoom
         view.updateMargins()

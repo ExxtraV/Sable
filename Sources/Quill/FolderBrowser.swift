@@ -1322,6 +1322,7 @@ struct FolderBrowserSection: View {
             Menu {
                 if browser.canLeaveProject { Button("Leave Project") { browser.leaveProject() } }
                 Button("Start Here Guide") { openGuide(in: url) }
+                Button("Concept") { openConcept(in: url) }
                 Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
                 Divider()
                 Button("Convert to Regular Folder…") { convertTarget = url }
@@ -1445,6 +1446,15 @@ struct FolderBrowserSection: View {
             let guide = try FictionProject.ensureGuide(in: project)
             browser.reload()
             switchFile(guide)
+        } catch { problem = error.localizedDescription }
+    }
+
+    /// Opens the project's Concept note, writing it first if it was deleted.
+    private func openConcept(in project: URL) {
+        do {
+            let concept = try FictionProject.ensureConcept(in: project)
+            browser.reload()
+            switchFile(concept)
         } catch { problem = error.localizedDescription }
     }
 
@@ -1708,11 +1718,19 @@ private struct BrowserRowView: View {
     var body: some View {
         HStack(spacing: 4) {
             if isRenaming { renameField } else { mainButton }
-            if let addItem, !isRenaming, hovering {
-                Button { addToFolder(entry.url, addItem) } label: {
-                    Image(systemName: "plus.circle").font(.system(size: 12)).foregroundStyle(Color.accentColor).frame(width: 22, height: 20)
-                }.buttonStyle(.plain)
-                .help(addItem.addHelp).accessibilityLabel(addItem.title)
+            if entry.isDirectory, !isRenaming, hovering {
+                if let addItem {
+                    Button { addToFolder(entry.url, addItem) } label: {
+                        Image(systemName: "plus.circle").font(.system(size: 12)).foregroundStyle(Color.accentColor).frame(width: 22, height: 20)
+                    }.buttonStyle(.plain)
+                    .help(addItem.addHelp).accessibilityLabel(addItem.title)
+                } else {
+                    // Every other folder still gets a quick way to add a Markdown file, fiction project or not.
+                    Button { promptNew(.file, entry.url) } label: {
+                        Image(systemName: "plus.circle").font(.system(size: 12)).foregroundStyle(Color.secondary).frame(width: 22, height: 20)
+                    }.buttonStyle(.plain)
+                    .help("New file in this folder").accessibilityLabel("New file")
+                }
             }
             if let cardKind, !isRenaming, hovering {
                 Button { showCard(entry.url) } label: {

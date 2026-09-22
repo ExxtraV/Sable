@@ -19,6 +19,7 @@ struct WritingStyleControls: View {
     @AppStorage("dimMarkers") private var dimMarkers = true
     @AppStorage("edgeShading") private var edgeShading = true
     @AppStorage("edgeStrength") private var edgeStrength = 0.65
+    @AppStorage("themeParticles") private var themeParticles = true
     @AppStorage("smartTypography") private var smartTypography = false
     private func valueSlider(_ value: Binding<Double>, _ range: ClosedRange<Double>, step: Double, label: String) -> some View {
         HStack {
@@ -38,6 +39,9 @@ struct WritingStyleControls: View {
                     }
                 }.padding(.vertical, 4)
                 Toggle("Darken toward the edges (dark themes)", isOn: $edgeShading)
+                if WritingTheme.named(theme).particles {
+                    Toggle("Faint drifting particles", isOn: $themeParticles)
+                }
                 LabeledContent("Edge darkness") {
                     HStack {
                         Slider(value: $edgeStrength, in: 0.3...1.6)
