@@ -157,7 +157,7 @@ private struct CardBodyText: NSViewRepresentable {
 
 struct CardView: View {
     @Binding var card: OpenCard
-    let liveText: String?
+    let liveText: LiveText?
     let onClose: () -> Void
     let onEditBeside: () -> Void
     let onOpenInEditor: () -> Void
@@ -177,7 +177,7 @@ struct CardView: View {
     @AppStorage("fontFamily") private var family = "Charter"
     private let poll = Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()
 
-    init(card: Binding<OpenCard>, writingRoot: URL?, liveText: String?, onClose: @escaping () -> Void, onEditBeside: @escaping () -> Void,
+    init(card: Binding<OpenCard>, writingRoot: URL?, liveText: LiveText?, onClose: @escaping () -> Void, onEditBeside: @escaping () -> Void,
          onOpenInEditor: @escaping () -> Void, onSetField: @escaping (String, String, URL) -> Void, onProblem: @escaping (String) -> Void,
          dragChanged: @escaping (DragGesture.Value) -> Void, dragEnded: @escaping (DragGesture.Value) -> Void, dockSize: CGSize, dimWhenIdle: Bool = false) {
         _card = card
@@ -198,8 +198,8 @@ struct CardView: View {
     var body: some View {
         Group { if expanded { full } else { tab } }
             .onHover(perform: hover)
-            .onAppear { model.refresh(liveText: liveText) }
-            .onChange(of: liveText) { _, text in model.refresh(liveText: text) }
+            .onAppear { model.refresh(liveText: liveText?.text) }
+            .onChange(of: liveText) { _, text in model.refresh(liveText: text?.text) }
             .onReceive(poll) { _ in if liveText == nil { model.refresh(liveText: nil) } }
             .dropDestination(for: URL.self) { urls, _ in
                 guard let picture = urls.first(where: CardParsing.isImage) else { return false }
@@ -506,7 +506,7 @@ struct CardDock: View {
     var dimIdleCards = false
     let writingRoot: URL?
     let activeURL: URL?
-    let liveText: String
+    let liveText: LiveText
     let onEditBeside: (URL) -> Void
     let onOpenInEditor: (URL) -> Void
     let onSetField: (String, String, URL) -> Void
@@ -632,7 +632,7 @@ struct SceneTagsLayer: View {
     @AppStorage("sceneTagsFade") private var fadeWhileTyping = true
     @AppStorage("sceneTagsColor") private var colorCoded = true
     let activeURL: URL?
-    let liveText: String
+    let liveText: LiveText
     /// Fires on each keystroke; the text itself reaches `liveText` only after a pause in typing.
     let typing: PassthroughSubject<Void, Never>
     let editSignal: Int
@@ -652,7 +652,7 @@ struct SceneTagsLayer: View {
     private var tags: SceneTags? {
         guard placement != "off", let url = activeURL, let projectURL = browser.projectURL, FolderMove.isInside(url, of: projectURL),
               ["md", "markdown"].contains(url.pathExtension.lowercased()) else { return nil }
-        let parsed = SceneTags.parse(String(liveText.prefix(4000)))   // tags live at the top of the file
+        let parsed = SceneTags.parse(String(liveText.text.prefix(4000)))   // tags live at the top of the file
         return parsed.isEmpty && !browser.isChapter(url) ? nil : parsed
     }
     private var alignment: Alignment {
@@ -750,9 +750,9 @@ struct SceneTagsLayer: View {
 
     @ViewBuilder
     private var editor: some View {
-        SceneTagEditor(tags: SceneTags.parse(String(liveText.prefix(4000))), cards: index.cards, colorFor: { color(of: $0) },
-                       toggle: { kind, card in setTags(kind, SceneTags.parse(String(liveText.prefix(4000))).toggling(card, kind: kind)) },
-                       remove: { kind, name in setTags(kind, SceneTags.parse(String(liveText.prefix(4000))).removing(name, kind: kind)) })
+        SceneTagEditor(tags: SceneTags.parse(String(liveText.text.prefix(4000))), cards: index.cards, colorFor: { color(of: $0) },
+                       toggle: { kind, card in setTags(kind, SceneTags.parse(String(liveText.text.prefix(4000))).toggling(card, kind: kind)) },
+                       remove: { kind, name in setTags(kind, SceneTags.parse(String(liveText.text.prefix(4000))).removing(name, kind: kind)) })
     }
 
     @ViewBuilder

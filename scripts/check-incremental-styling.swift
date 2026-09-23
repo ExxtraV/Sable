@@ -421,12 +421,35 @@ struct Fuzz {
         if let difference = StyleSnapshot.difference(StyleSnapshot.temporary(of: editor, keys: keys), StyleSnapshot.temporary(of: full, keys: keys), text: text) {
             fail(host, step: step, operation: operation, "temporary attributes (focus or prose suggestions) differ, \(difference)")
         }
+        if !(host.settings.focusParagraph && host.settings.focusGradient) { checkActiveParagraph(host, step: step, operation: operation) }
         if editor.nameRanges != full.nameRanges {
             fail(host, step: step, operation: operation, "name ranges differ: \(editor.nameRanges.prefix(8)) vs \(full.nameRanges.prefix(8))")
         }
     }
 
+    /// The paragraph being written is never dimmed (names in it may still shimmer at full strength). Comparing with a fresh
+    /// view can't catch focus code that dims the wrong text, since both views run the same code.
+    private func checkActiveParagraph(_ host: HostedEditor, step: Int, operation: String) {
+        let editor = host.editor
+        guard host.settings.focusParagraph, let layout = editor.layoutManager else { return }
+        let active = FocusParagraph.range(in: editor.string, caret: editor.selectedRange().location)
+        var index = active.location
+        while index < NSMaxRange(active) {
+            var run = NSRange(location: 0, length: 0)
+            let color = layout.temporaryAttribute(.foregroundColor, atCharacterIndex: index, longestEffectiveRange: &run, in: active) as? NSColor
+            if let color, color.alphaComponent < 0.99 {
+                fail(host, step: step, operation: operation, "paragraph focus dimmed the paragraph being written at \(run)")
+            }
+            index = max(NSMaxRange(run), index + 1)
+        }
+    }
+
     private func compareGradient(_ host: HostedEditor, step: Int, operation: String) {
+        // Look at the paragraph being written, the way the writer does, before checking it isn't dimmed.
+        host.editor.scrollRangeToVisible(host.editor.selectedRange())
+        host.flush()
+        host.editor.updateFocus()
+        checkActiveParagraph(host, step: step, operation: operation)
         let full = HostedEditor(text: host.editor.string, settings: host.settings)
         full.editor.setSelectedRange(host.editor.selectedRange())
         let origin = host.scroll.contentView.bounds.origin

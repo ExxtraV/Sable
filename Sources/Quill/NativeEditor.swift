@@ -686,7 +686,10 @@ final class WritingTextView: NSTextView {
             return nearAlpha + (floorAlpha - nearAlpha) * (t * t * (3 - 2 * t))
         }
         let origin = textContainerOrigin
-        var area = (enclosingScrollView?.contentView.bounds ?? visibleRect).offsetBy(dx: -origin.x, dy: -origin.y)
+        // The clip view's bounds are in its own space; AppKit can leave this view's frame origin away from zero (see
+        // centerCaretIfNeeded), so convert before measuring, or the "near the screen" band lands far from the caret.
+        let seen = enclosingScrollView.map { convert($0.contentView.bounds, from: $0.contentView) } ?? visibleRect
+        var area = seen.offsetBy(dx: -origin.x, dy: -origin.y)
         area = area.insetBy(dx: 0, dy: -area.height)
         let nearGlyphs = layoutManager.glyphRange(forBoundingRect: area, in: container)
         let nearChars = layoutManager.characterRange(forGlyphRange: nearGlyphs, actualGlyphRange: nil)
@@ -891,8 +894,13 @@ final class EditorCommands: ObservableObject {
     let typing = PassthroughSubject<Void, Never>()
     /// `knownToDiffer` skips comparing with the last stats, for new text (comparing two versions of a novel is slow).
     func publish(_ stats: DocumentStats, knownToDiffer: Bool = false) {
-        if knownToDiffer || self.stats != stats { self.stats = stats }
+        guard knownToDiffer || self.stats != stats else { return }
+        var stats = stats
+        stats.revision = (self.stats?.revision ?? 0) + 1
+        self.stats = stats
     }
+    /// `text` for views that only read it, compared by revision rather than character by character.
+    func liveText(_ text: String) -> LiveText { LiveText(text: text, revision: stats?.revision ?? 0) }
     /// Hands any typing the editor is still holding to SwiftUI now. Call before reading or replacing the document's text.
     func flushText() {
         (editor?.delegate as? NativeEditor.Coordinator)?.flush()
