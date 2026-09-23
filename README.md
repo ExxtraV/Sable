@@ -105,3 +105,5 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 - The sentence-color crash is addressed by preventing AppKit's shared color panel from modifying the plain-text manuscript and ignoring text-change notifications with unchanged content.
 
 See [the roadmap](docs/ROADMAP.md) for what's next, and [CHANGELOG.md](CHANGELOG.md) for what's already shipped.
+
+_This README is written by Claude Code._

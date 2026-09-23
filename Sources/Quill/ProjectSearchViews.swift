@@ -210,6 +210,7 @@ struct MarkdownCheatSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Markdown cheat sheet").font(.title3.weight(.semibold))
+            Text("Written by Claude Code.").font(.caption).foregroundStyle(.secondary)
             ScrollView {
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 18, verticalSpacing: 9) {
                     ForEach(rows, id: \.0) { row in
