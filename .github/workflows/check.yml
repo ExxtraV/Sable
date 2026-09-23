@@ -10,6 +10,12 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Fail on unfinished prose markers
+        run: |
+          if grep -rn "PROSE-TODO" README.md website docs Sources --exclude-dir=prose-requests; then
+            echo "Unfinished PROSE-TODO markers found. Replace them with the maintainer's text before merging."
+            exit 1
+          fi
       - name: Build app and verify embedded signatures
         run: sh scripts/build-app.sh
       - name: Native editor regression checks
