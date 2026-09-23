@@ -32,6 +32,7 @@ Two things to know before adding or changing one:
 ### Core checks (no build required, run in CI)
 
 ```sh
+swiftc -O Sources/QuillCore/MarkdownSyntax.swift Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift Sources/QuillCore/IncrementalStyling.swift Sources/QuillCore/Prose.swift Sources/QuillCore/FocusParagraph.swift Sources/QuillCore/SentenceStructure.swift scripts/check-styling-ranges.swift -o /tmp/quill-styling-range-checks && /tmp/quill-styling-range-checks
 swiftc Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown-editing.swift -o /tmp/quill-markdown-editing-checks && /tmp/quill-markdown-editing-checks
 swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-import-checks && /tmp/quill-import-checks
 swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks && /tmp/quill-search-checks
@@ -57,7 +58,7 @@ Sample manuscript and world-note files these checks read are in `Examples/`.
 swiftc Sources/QuillCore/Prose.swift scripts/check-prose.swift -o /tmp/quill-prose-checks
 /tmp/quill-prose-checks
 
-swiftc Sources/QuillCore/MarkdownSyntax.swift Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
+swiftc Sources/QuillCore/MarkdownSyntax.swift Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift Sources/QuillCore/IncrementalStyling.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
 /tmp/quill-markdown-checks
 ```
 
@@ -68,16 +69,16 @@ Build once, then run all of these against the same output directory:
 ```sh
 QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
 
-swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-editor-checks
+swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/EditorStyling.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-editor-checks
 /tmp/quill-editor-checks
 
-swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/check-incremental-styling.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-incremental-styling-checks
+swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/EditorStyling.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/check-incremental-styling.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-incremental-styling-checks
 /tmp/quill-incremental-styling-checks
 
-swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/bench-typing.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-typing-bench
+swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/EditorStyling.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/bench-typing.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-typing-bench
 /tmp/quill-typing-bench --smoke
 
-swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/ReadingView.swift Sources/Quill/ReferenceDocument.swift Sources/Quill/ReferencePane.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-reading-reference.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-parallel-checks
+swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/EditorStyling.swift Sources/Quill/Import.swift Sources/Quill/ReadingView.swift Sources/Quill/ReferenceDocument.swift Sources/Quill/ReferencePane.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-reading-reference.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-parallel-checks
 /tmp/quill-parallel-checks
 
 swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/ProjectSearch.swift Sources/Quill/StoryTimeline.swift scripts/check-outline.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-outline-checks
@@ -87,7 +88,9 @@ swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/Export.swift Sources/Quill/
 /tmp/quill-export-checks
 ```
 
-`check-incremental-styling.swift` makes thousands of seeded random edits through the editor's real typing path and, after each one, compares every attribute against a from-scratch restyle of the same text. On a failure it prints the seed, the edit, and the first differing run, and saves the document to `$TMPDIR/quill-fuzz-failure.md`. `QUILL_FUZZ_SEED` and `QUILL_FUZZ_EDITS` change the seed and length for longer local runs; `QUILL_FUZZ_SABOTAGE=1` corrupts one attribute on purpose to confirm the comparison catches it. Both it and the benchmark share the generated manuscript in `scripts/typing-fixture.swift`.
+`check-incremental-styling.swift` makes thousands of seeded random edits through the editor's real typing path and, after each one, compares every attribute against a from-scratch restyle of the same text. The editor hands typing to SwiftUI's copy of the text in batches, so the check also settles that copy each of the ways the app does (a pause, the idle timer, a real `NSDocument` save, a SwiftUI redraw with the older text, losing focus, an autosave while typing is pending) and then requires it, and the status bar's word and suggestion counts, to match the editor exactly. On a failure it prints the seed, the edit, and the first differing run, and saves the document to `$TMPDIR/quill-fuzz-failure.md`. `QUILL_FUZZ_SEED` and `QUILL_FUZZ_EDITS` change the seed and length for longer local runs; `QUILL_FUZZ_SABOTAGE=1` corrupts one attribute on purpose to confirm the comparison catches it. Both it and the benchmark share the generated manuscript in `scripts/typing-fixture.swift`.
+
+`check-styling-ranges.swift` is the pure-logic half: on random Markdown built to hit every construct that crosses a line (fences, notes, front matter, `\r`, U+2028), it proves the range-limited grammar, prose review, sentence colors, outline, formatting exit, and focus paragraph find exactly what verbatim copies of the old whole-text code find, and that whenever the editor would restyle only a region, nothing outside it changes. `QUILL_RANGE_SEED` and `QUILL_RANGE_DOCUMENTS` change the seed and size of a run.
 
 `bench-typing.swift` times keystrokes in a generated 10k-, 50k-, and 100k-word manuscript. CI runs it with `--smoke` only to keep it building; run it without flags for real numbers (`--out file.md` saves them, `--write-fixture path.md` writes the 100k-word manuscript to open in the app). [docs/performance/typing-baseline.md](docs/performance/typing-baseline.md) records the baseline.
 

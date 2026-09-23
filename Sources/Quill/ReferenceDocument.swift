@@ -96,6 +96,7 @@ struct ParallelEditingSurface: View {
             readOnly: !active,
             syntaxClasses: syntaxClasses,
             documentUndoManager: document.undoManager,
+            editingDocument: document,
             saveAction: { document.saveParallel() }
         )
         .onChange(of: active) { _, value in

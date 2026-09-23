@@ -732,6 +732,7 @@ final class NameHighlighter: Equatable, @unchecked Sendable {
             if entry.exactCase { exact[entry.text] = entry.kind } else { loose[entry.text.lowercased()] = entry.kind }
         }
         self.entries = entries
+        self.staysOnOneLine = !entries.contains { $0.text.contains("\n") }
         self.looseKinds = loose
         self.exactKinds = exact
         self.signature = entries.map { "\($0.kind.rawValue):\($0.exactCase ? "=" : "~")\($0.text)" }.sorted().joined(separator: "|")
@@ -777,16 +778,27 @@ final class NameHighlighter: Equatable, @unchecked Sendable {
 
     /// Where names occur in `text`, longest first and never overlapping. A front-matter block is skipped.
     func matches(in text: String, kinds: Set<CardKind> = Set(CardKind.allCases)) -> [(range: NSRange, kind: CardKind)] {
+        matches(in: text, kinds: kinds, range: NSRange(location: 0, length: (text as NSString).length))
+    }
+
+    /// No name holds a line break, so the names in a run of whole lines are the same whether the whole text is searched or
+    /// just those lines. The editor relies on this to restyle only the paragraph being written.
+    let staysOnOneLine: Bool
+
+    /// The names a whole-text search finds inside `range`, which must be whole lines (see `TextLines`).
+    func matches(in text: String, kinds: Set<CardKind>, range: NSRange) -> [(range: NSRange, kind: CardKind)] {
         guard !isEmpty, !kinds.isEmpty else { return [] }
         let ns = text as NSString
         let start = NameHighlighter.frontMatterLength(in: ns)
-        let area = NSRange(location: start, length: ns.length - start)
+        let area = NSIntersectionRange(NSRange(location: start, length: ns.length - start), range)
+        guard area.length > 0 else { return [] }
+        let bounds: NSRegularExpression.MatchingOptions = [.withTransparentBounds, .withoutAnchoringBounds]
         var found: [(range: NSRange, kind: CardKind)] = []
-        looseExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
+        looseExpression?.enumerateMatches(in: text, options: bounds, range: area) { match, _, _ in
             guard let range = match?.range, let kind = looseKinds[ns.substring(with: range).lowercased()], kinds.contains(kind) else { return }
             found.append((range, kind))
         }
-        exactExpression?.enumerateMatches(in: text, range: area) { match, _, _ in
+        exactExpression?.enumerateMatches(in: text, options: bounds, range: area) { match, _, _ in
             guard let range = match?.range, let kind = exactKinds[ns.substring(with: range)], kinds.contains(kind) else { return }
             found.append((range, kind))
         }

@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import AppKit
 import ImageIO
@@ -632,6 +633,8 @@ struct SceneTagsLayer: View {
     @AppStorage("sceneTagsColor") private var colorCoded = true
     let activeURL: URL?
     let liveText: String
+    /// Fires on each keystroke; the text itself reaches `liveText` only after a pause in typing.
+    let typing: PassthroughSubject<Void, Never>
     let editSignal: Int
     /// Paragraph focus is on: the strip steps back until you point at it.
     var focusDim = false
@@ -678,7 +681,7 @@ struct SceneTagsLayer: View {
         .onAppear { index.reload(project: browser.projectURL) }
         .onChange(of: browser.projectURL) { _, project in index.reload(project: project) }
         .onReceive(poll) { _ in if browser.projectURL != nil { index.reload(project: browser.projectURL) } }
-        .onChange(of: liveText) { _, _ in noteTyping() }
+        .onReceive(typing) { _ in noteTyping() }
         .onChange(of: editSignal) { _, _ in if tags != nil { editing = true } }
     }
 

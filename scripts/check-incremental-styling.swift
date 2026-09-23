@@ -7,6 +7,11 @@ import QuillCore
 // the temporary attributes Sable draws (focus dimming, prose suggestions), the name ranges the shimmer plays on, and the
 // SwiftUI binding's copy of the text. Any shortcut in restyling after an edit has to keep this passing.
 //
+// The editor hands typing to the binding in batches, so after each edit the check settles it one of the ways the app
+// does (a pause, the document committing its editors before a save, losing focus) or leaves it pending for a while, and
+// proves that a SwiftUI update with the binding's older text never throws typing away. Once settled, the binding must
+// hold exactly the editor's text and the status bar's counts must match a fresh count.
+//
 // QUILL_FUZZ_SEED overrides the seed, QUILL_FUZZ_EDITS the number of edits per configuration (for long local soak runs),
 // and QUILL_FUZZ_SABOTAGE=1 corrupts one attribute on purpose to prove the comparison notices.
 
@@ -40,6 +45,20 @@ import QuillCore
         let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
         print("Passed: incremental styling matches a full restyle after every random edit (\(results.joined(separator: "; "))) in \(seconds)s.")
     }
+}
+
+// MARK: - A document to commit and save
+
+/// Stands in for the window's document: it counts as edited while typing is pending and asks the editor to commit before
+/// saving, exactly as AppKit's NSDocument does for any document.
+final class FuzzDocument: NSDocument {
+    var read: () -> String = { "" }
+    override func data(ofType typeName: String) throws -> Data { Data(read().utf8) }
+}
+
+final class SaveWaiter: NSObject {
+    var saved: Bool?
+    @objc func document(_ document: NSDocument, didSave: Bool, contextInfo: UnsafeMutableRawPointer?) { saved = didSave }
 }
 
 // MARK: - Comparing styling
@@ -165,10 +184,15 @@ struct Fuzz {
         let initial = ManuscriptFixture.novel(words: words, seed: seed)
         let host = HostedEditor(text: initial, settings: settings)
         let editor = host.editor
+        let document = FuzzDocument()
+        document.read = { [unowned host] in host.text }
+        host.document = document
+        host.apply(host.settings)
+        var settles: [String: Int] = [:]
+        let passesBefore = (editor.style.fullPasses, editor.style.regionPasses)
         let initialLength = (initial as NSString).length
         var caret = initialLength / 2
         var counts: [String: Int] = [:]
-        var skipNextComparison = false
         var gradientComparisons = 0
 
         func location() -> Int {
@@ -257,10 +281,8 @@ struct Fuzz {
                     type("家")
                     operation = "marked text, committed"
                 } else {
+                    // Without a commit AppKit sends no text change; the editor restyles what was composed when it unmarks.
                     editor.unmarkText()
-                    // Without a commit AppKit sends no text change, so nothing restyles until the next edit. That is
-                    // the current behavior; compare after the next edit instead.
-                    skipNextComparison = true
                     operation = "marked text, unmarked"
                 }
             default:
@@ -286,17 +308,84 @@ struct Fuzz {
                 editor.textStorage!.addAttribute(.kern, value: 3, range: NSRange(location: 10, length: 2))
             }
             guard !editor.hasMarkedText() else { continue }
-            if skipNextComparison, !operation.hasPrefix("marked text, unmarked") { skipNextComparison = false }
-            if skipNextComparison { continue }
+            settles[settle(host, document: document, rng: &rng, step: step, operation: operation), default: 0] += 1
             compare(host, step: step, operation: operation)
             if gradientEvery > 0, step % gradientEvery == 0 {
                 compareGradient(host, step: step, operation: operation)
                 gradientComparisons += 1
             }
         }
+        host.commitText()
+        compare(host, step: edits, operation: "final commit")
+        if sabotage { fail(host, step: edits, operation: "sabotage", "the sabotaged attribute went unnoticed") }
         let ops = counts.values.reduce(0, +)
         let extra = gradientComparisons > 0 ? ", \(gradientComparisons) gradient comparisons" : ""
-        return "\(name): \(ops) edits from seed \(seed)\(extra), \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
+        let full = editor.style.fullPasses - passesBefore.0, region = editor.style.regionPasses - passesBefore.1
+        // Most edits are typing in prose; if they stopped taking the region path, typing would be slow again.
+        if region <= full { fail(host, step: edits, operation: "all", "only \(region) of \(region + full) styling passes restyled a region") }
+        let how = settles.sorted { $0.key < $1.key }.map { "\($0.value) \($0.key)" }.joined(separator: ", ")
+        return "\(name): \(ops) edits from seed \(seed)\(extra), \(region) region and \(full) full passes, binding settled by \(how), \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
+    }
+
+    /// Hands pending typing to the binding one of the ways the app does, or leaves it pending. Returns how it settled.
+    private func settle(_ host: HostedEditor, document: FuzzDocument, rng: inout SeededRandom, step: Int, operation: String) -> String {
+        let editor = host.editor, coordinator = host.coordinator
+        guard coordinator.hasPendingText else { return "nothing pending" }
+        if host.text != coordinator.syncedText { fail(host, step: step, operation: operation, "the binding changed while typing was pending") }
+        if !document.isDocumentEdited { fail(host, step: step, operation: operation, "a document with pending typing doesn't count as edited") }
+        let typed = editor.string
+        switch rng.int(0..<100) {
+        case 0..<30:
+            return "staying pending"
+        case 30..<55:
+            host.commitText()
+            return "a pause"
+        case 55..<70:
+            return saveThroughAppKit(host, document: document, step: step, operation: operation)
+        case 70..<82:
+            // SwiftUI redraws for some other reason while the binding still holds the older text.
+            host.apply(host.settings)
+            if editor.string != typed { fail(host, step: step, operation: operation, "a SwiftUI update with the binding's older text replaced pending typing") }
+            host.commitText()
+            return "a redraw, then a pause"
+        case 82..<90:
+            host.window.makeFirstResponder(nil)
+            host.window.makeFirstResponder(editor)
+            return "losing focus"
+        case 90..<93:
+            // An autosave ran while typing was pending, so it saved older text: the document must stay edited.
+            document.updateChangeCount(.changeCleared)
+            document.fileModificationDate = Date()
+            host.commitText()
+            if !document.isDocumentEdited { fail(host, step: step, operation: operation, "typing that missed an autosave left the document looking saved") }
+            document.updateChangeCount(.changeCleared)
+            return "an autosave"
+        case 93..<95 where step % 4 == 0:
+            // The real idle timer.
+            let deadline = Date().addingTimeInterval(NativeEditor.Coordinator.longestWait + 0.5)
+            while coordinator.hasPendingText, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.02)) }
+            if coordinator.hasPendingText { fail(host, step: step, operation: operation, "the pause timer never handed typing over") }
+            return "the timer"
+        default:
+            host.commitText()
+            return "a pause"
+        }
+    }
+
+    /// A real NSDocument save, which must commit the editor's pending typing before it writes.
+    private func saveThroughAppKit(_ host: HostedEditor, document: FuzzDocument, step: Int, operation: String) -> String {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("quill-fuzz-save.md")
+        let waiter = SaveWaiter()
+        document.save(to: url, ofType: "net.daringfireball.markdown", for: .saveOperation, delegate: waiter,
+                      didSave: #selector(SaveWaiter.document(_:didSave:contextInfo:)), contextInfo: nil)
+        let deadline = Date().addingTimeInterval(10)
+        while waiter.saved == nil, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        guard waiter.saved == true, let written = try? String(contentsOf: url, encoding: .utf8) else {
+            fail(host, step: step, operation: operation, "saving the document failed")
+        }
+        if written != host.editor.string { fail(host, step: step, operation: operation, "a save wrote text without the pending typing") }
+        document.updateChangeCount(.changeCleared)
+        return "a save"
     }
 
     /// A fresh view, never edited, styled from scratch with the same settings.
@@ -313,7 +402,14 @@ struct Fuzz {
     private func compare(_ host: HostedEditor, step: Int, operation: String) {
         let editor = host.editor
         let text = editor.string
-        if host.text != text { fail(host, step: step, operation: operation, "the SwiftUI binding holds different text from the editor") }
+        if !host.coordinator.hasPendingText {
+            if host.text != text { fail(host, step: step, operation: operation, "the SwiftUI binding holds different text from the editor") }
+            let cuts = host.settings.review ? Prose.suggestions(in: text, words: host.settings.words).count : nil
+            let stats = host.commands.stats
+            if stats?.text != text || stats?.words != Prose.wordCount(text) || stats?.cuts != cuts {
+                fail(host, step: step, operation: operation, "the status bar's counts are \(stats.map { "\($0.words) words, \($0.cuts.map(String.init) ?? "no") cuts" } ?? "missing"), not \(Prose.wordCount(text)) words, \(cuts.map(String.init) ?? "no") cuts")
+            }
+        }
         let full = reference(for: host)
         precondition(full.string == text, "Styling never changes the Markdown")
         if let difference = StyleSnapshot.difference(StyleSnapshot.storage(of: editor), StyleSnapshot.storage(of: full), text: text) {
