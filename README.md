@@ -12,9 +12,9 @@ Text is centered in a 680-point column by default, including in a maximized wind
 
 The Files section's menu → Choose Writing Folder opens a persistent folder browser for Markdown and text files. Click folders to expand or collapse nested contents inline. Use the up arrow to return, and click a file to switch the active document. Sable asks macOS to save, discard, or cancel when the active document has unsaved edits, then opens the selected file in the same writing window. Automatic window tabs are disabled. The menu also refreshes the listing or returns to the root folder. Search filters loaded, visible file rows and outline headings. Folder listings refresh manually; recursive full-text search is not implemented. Hidden files, symlinks, and packages are excluded.
 
-Any Markdown file in the writing folder can be opened beside the active document from its context menu. The split pane begins in a clean formatted reading view. Edit enables in-place Markdown editing beside the draft; Read returns to the formatted view. The secondary document saves separately and closes with the split pane. It is general-purpose for now; fiction-specific world-document pinning is deferred to the Fiction Projects milestone.
+Any Markdown file in the writing folder can be opened beside the active document from its context menu. The split pane begins in a clean formatted reading view. Edit enables in-place Markdown editing beside the draft; Read returns to the formatted view. The secondary document saves separately and closes with the split pane. It is general-purpose, separate from Fiction Project cards, which already support characters, locations, and world notes.
 
-Move the pointer to the top edge to reveal the quiet toolbar. Its Aa button opens font and style controls: five presets (Everyday / Georgia, Literary / Charter, Classic / Baskerville, Science fiction / Menlo, Manuscript / Courier New), a custom installed-font choice, size, page width, line spacing, and five themes. Styles are shared across documents; Markdown itself is unchanged. Some installed fonts do not include bold or italic faces, so available styles depend on the font.
+Move the pointer to the top edge to reveal the quiet toolbar. Its Aa button opens font and style controls: five presets (Everyday / Georgia, Literary / Charter, Classic / Baskerville, Science fiction / Menlo, Manuscript / Courier New), a custom installed-font choice, size, page width, line spacing, and eight themes (Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, Paper). Styles are shared across documents; Markdown itself is unchanged. Some installed fonts do not include bold or italic faces, so available styles depend on the font.
 
 Paragraph focus (target icon, ⇧⌘F) dims text outside the paragraph containing the cursor. It follows clicking, keyboard navigation, and typing. Paragraphs are separated by blank lines; soft line breaks stay in the same paragraph. Focus is per writing window and never modifies text.
 
@@ -23,6 +23,8 @@ A session goal shows net words added since the document window opened. Set the g
 The toolbar toggles prose suggestions. A light strikethrough marks words you may want to cut; the underlying text is unchanged. Right-click a suggestion to remove it explicitly or stop flagging that word. Settings lets you edit the comma-separated word/phrase list and font size. Ignoring a word updates this list for all documents.
 
 macOS checks spelling and basic grammar. Right-click flagged text for available corrections. Automatic spelling replacement is disabled to protect intentional fiction wording and invented names. Availability and quality of grammar suggestions depend on macOS and language.
+
+Optional sentence coloring highlights nouns, verbs, adjectives, adverbs, and pronouns using macOS Natural Language locally. These are estimates, particularly for invented names, and are shown in source mode only. Color selections never alter your text.
 
 | Shortcut | Action |
 | --- | --- |
@@ -49,20 +51,15 @@ sh scripts/build-app.sh
 swift test
 ```
 
-`swift test` requires Xcode's XCTest framework. With Command Line Tools only, run the equivalent standalone core checks:
-
-```sh
-swiftc Sources/QuillCore/Prose.swift scripts/check-prose.swift -o /tmp/quill-prose-checks
-/tmp/quill-prose-checks
-```
-
 The build script creates a locally ad-hoc-signed app in `build/`. Community builds can be shared without Apple notarization, with a first-launch approval step on macOS. Optional Developer ID signing and notarization are supported.
+
+`swift test` requires Xcode's XCTest framework. See [CONTRIBUTING.md](CONTRIBUTING.md) for the standalone check commands that work with Command Line Tools alone, and for the full list of regression checks.
 
 ## Scope and next steps
 
 Validation covers release builds, prose checks, Markdown checks, folder-listing checks, and native-editor checks. Native checks include focus tracking/clearing, font changes, source preservation, margins, Unicode, and formatting exits. The focused workflow also exercises first-run folder setup, saving and canceling a first save, sentence-color settings, and the parallel reading surface. Cross-device iCloud syncing remains untested.
 
-This is a first Mac prototype, not a finished cross-platform release. Prose review uses an editable list, not semantic judgment: a flagged word is not necessarily needless. The lightweight matcher excludes common fenced code, inline code, YAML front matter, URLs and inline link destinations; it is not a complete Markdown parser. The source highlighter is also a lightweight grammar, not a full CommonMark renderer; complex nesting, tables, images, and footnotes do not have a rich rendered view. Source mode retains Markdown markers; the Play button (⇧⌘R) switches to a formatted reading view. This reading view supports headings, emphasis, links, lists, quotes, and code, but is not a full CommonMark renderer. Word count is whitespace-based. Large-manuscript performance is not yet benchmarked.
+Sable is under active development for macOS; there is no cross-platform release yet. Prose review uses an editable list, not semantic judgment: a flagged word is not necessarily needless. The lightweight matcher excludes common fenced code, inline code, YAML front matter, URLs and inline link destinations; it is not a complete Markdown parser. The source highlighter is also a lightweight grammar, not a full CommonMark renderer; complex nesting and footnotes do not have a rich rendered view there. Source mode retains Markdown markers; the Play button (⇧⌘R) switches to a formatted reading view. This reading view supports headings, emphasis, links, nested lists, quotes, code, tables, and images (shown with captions), but is not a full CommonMark renderer. Word count is whitespace-based. Large-manuscript performance is not yet benchmarked.
 
 iCloud access uses the system file picker and ordinary files, with no custom cloud database. Actual cross-device sync and conflict behavior still need testing with your iCloud account.
 
@@ -83,69 +80,13 @@ For an iPad edition, reuse `QuillCore` and the document model, add a UIKit text 
 - `Sources/Quill/NativeEditor.swift`: visual overlays, text behavior, context menu, and shortcuts.
 - `Sources/Quill/QuillApp.swift`: document handling, settings, and interface.
 - `Tests/QuillCoreTests`: Unicode and Markdown-protection checks.
+- `Assets/LOGO.md`: the generated logo and its prompt; the icon is packaged with the app.
 
 Apple references: [document-based apps](https://developer.apple.com/documentation/swiftui/building-a-document-based-app/) and [native grammar checking](https://developer.apple.com/documentation/appkit/nstextview/isgrammarcheckingenabled).
 
-## Additional checks
+`sh scripts/build-preview.sh` builds a separate **Sable Markdown Writer Preview.app** with its own preferences and copied sample documents. Its `QUILL_PREVIEW` fixture setup is excluded from the normal app, allowing UI checks without closing an existing draft. Normal app updates take effect after saving work and restarting Sable.
 
-After building, the standalone Markdown and native editor checks can run without XCTest:
-
-```sh
-swiftc Sources/QuillCore/MarkdownSyntax.swift Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown.swift -o /tmp/quill-markdown-checks
-/tmp/quill-markdown-checks
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-editor-checks
-/tmp/quill-editor-checks
-```
-
-The last command uses the Apple Silicon build path; substitute `x86_64-apple-macosx` on Intel. Sample manuscript and world-note files are in `Examples/`.
-
-For the list, heading, and smart-typography rules, document import, and project-wide find and replace:
-
-```sh
-swiftc Sources/QuillCore/MarkdownEditing.swift Sources/QuillCore/MarkdownDocument.swift scripts/check-markdown-editing.swift -o /tmp/quill-markdown-editing-checks && /tmp/quill-markdown-editing-checks
-swiftc Sources/Quill/Import.swift scripts/check-import.swift -o /tmp/quill-import-checks && /tmp/quill-import-checks
-swiftc Sources/Quill/ProjectSearch.swift scripts/check-project-search.swift -o /tmp/quill-search-checks && /tmp/quill-search-checks
-swiftc Sources/Quill/Revisions.swift scripts/check-revisions.swift -o /tmp/quill-revision-checks && /tmp/quill-revision-checks
-swiftc Sources/Quill/ToolbarTools.swift scripts/check-toolbar.swift -o /tmp/quill-toolbar-checks && /tmp/quill-toolbar-checks
-swiftc Sources/Quill/WritingHistory.swift scripts/check-writing-history.swift -o /tmp/quill-writing-history-checks && /tmp/quill-writing-history-checks
-```
-
-For the Story Timeline (beat tagging, the dramatic arc, and reading the Outline folder):
-
-```sh
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/ProjectSearch.swift Sources/Quill/StoryTimeline.swift scripts/check-outline.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-outline-checks
-/tmp/quill-outline-checks
-```
-
-For manuscript export checks (PDF, EPUB, Word, Markdown):
-
-```sh
-swiftc -I .build/arm64-apple-macosx/release/Modules Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift .build/arm64-apple-macosx/release/QuillCore.build/*.o -o /tmp/quill-export-checks
-/tmp/quill-export-checks
-```
-
-For folder-listing checks:
-
-```sh
-swiftc Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift scripts/check-folder.swift -o /tmp/quill-folder-checks
-/tmp/quill-folder-checks
-swiftc Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift scripts/check-fiction.swift -o /tmp/quill-fiction-checks
-/tmp/quill-fiction-checks
-```
-
-`sh scripts/build-preview.sh` builds a separate **Sable Markdown Writer Preview.app** with its own preferences and copied sample documents. Its `QUILL_PREVIEW` fixture setup is excluded from the normal app, allowing UI checks without closing an existing draft. Normal app updates take effect after saving work and restarting Quill.
-
-## New in 0.4
-
-Optional sentence coloring highlights nouns, verbs, adjectives, adverbs, and pronouns using macOS Natural Language locally. These are estimates, particularly for invented names, and are shown in source mode only. Color selections never alter your text. The toolbar stays hidden until the pointer reaches the top edge. PDF and ebook export are deferred.
-
-Standalone checks additionally verified clean reading, bold rendering, list rendering, icon decoding, parts-of-speech/code exclusions, parallel document reuse, and exact native parallel saves. Native document checks require access to macOS document services outside a restricted shell sandbox.
-
-The generated logo and its prompt are in `Assets/LOGO.md`; the icon is packaged with the app.
-
-The app keeps ordinary Markdown files and has no custom cloud database. Fiction-specific project templates and export stay on the roadmap.
-
-## In-app updates (0.5)
+## In-app updates
 
 The app now includes Sparkle, a Check for Updates menu item, and automatic-check settings. The public feed and signing key are configured in UpdateConfig.json; checks require a published release to succeed. Installation is manual. The GitHub workflow prepares Sparkle-signed community draft releases by default, with an optional Apple-notarized mode; pushing code does not release an update. See [the setup and release guide](docs/UPDATES.md). The GitHub signing secret and an end-to-end install/relaunch test are still required before relying on updates.
 
@@ -153,7 +94,7 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 
 [MIT](LICENSE). Bundled Sparkle retains its own license notice.
 
-## Minimalist editor update (in development)
+## Minimalist editor
 
 - First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
 - Setup can include an editable **Sable Guide.md**. Open it again from Help; existing guide edits are never overwritten.
@@ -163,4 +104,4 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 - The footer shows save state. Explicit saves through the editor show completion time; cancellation never reports success. “Saved” refers to the local file, not a cloud-sync confirmation.
 - The sentence-color crash is addressed by preventing AppKit's shared color panel from modifying the plain-text manuscript and ignoring text-change notifications with unchanged content.
 
-See [the roadmap](docs/ROADMAP.md) for Fiction Projects and export plans.
+See [the roadmap](docs/ROADMAP.md) for what's next, and [CHANGELOG.md](CHANGELOG.md) for what's already shipped.

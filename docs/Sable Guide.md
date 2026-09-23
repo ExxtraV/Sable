@@ -103,6 +103,6 @@ Control-click any Markdown file in the writing desk and choose **Open Beside Cur
 
 ## What comes next
 
-Sable is a focused Markdown editor first, with Fiction Projects for writers who want one home for a whole story. PDF and ebook export, plus an iPad edition, are on the roadmap.
+Sable is a focused Markdown editor first, with Fiction Projects for writers who want one home for a whole story. A corkboard, a relationships view, and an iPad edition are on the roadmap.
 
 You can edit this guide freely. Help → Sable Guide opens it again without overwriting your changes.
