@@ -18,6 +18,20 @@ swift test
 
 `swift test` runs `Tests/QuillCoreTests` and requires Xcode's XCTest framework. If you only have the Command Line Tools, use the standalone checks below instead.
 
+### Command Line Tools 27.0
+
+Command Line Tools 27.0 (Swift 6.4, macOS 27 SDK) without Xcode can't build Sable out of the box. `scripts/build-app.sh` works around the two problems below, but only when `xcode-select -p` points at the Command Line Tools. CI and anyone with Xcode are unaffected.
+
+- **The macOS 27 SDK needs Xcode's SwiftUI macros.** In that SDK, SwiftUI's `@State` is a macro implemented by the `SwiftUIMacros` compiler plugin. Xcode ships that plugin; the Command Line Tools don't (their `usr/lib/swift/host/plugins` has only the Observation, Swift, and Testing macros). Every `@State` then fails with "plugin for module 'SwiftUIMacros' not found". The script picks the newest installed SDK whose SwiftUI doesn't need the plugin (26.5 today) and prints a `note:` naming it. You can override it by setting `SDKROOT` yourself. The real fix is to install Xcode or wait for a Command Line Tools release that includes the plugin. Once `usr/lib/swift/host/plugins/libSwiftUIMacros.dylib` exists, the script stops pinning.
+- **A leftover SDK folder stops Swift Build.** Swift 6.4's default build system, Swift Build, reads every `SDKs/*.sdk` folder when it starts. If any of them has no `SDKSettings.plist`, it fails before compiling anything with "Could not initialize build system … Unknown error parsing property list", and setting `SDKROOT` doesn't help. The native build system never reads them. The one seen so far was a partial `MacOSX26.0.sdk` that no installer package owns (`pkgutil --file-info` lists none). When the script finds a folder like that, it prints the command to delete it (`sudo rm -rf …`) and falls back to `--build-system native`. That build system is deprecated and will be removed in a future SwiftPM, so treat it as a stopgap and delete the folder.
+
+The standalone checks compile SwiftUI sources with `swiftc`, so on these tools, export the same SDK before running them. With Swift 6.4, also build the checks' release output with the native build system, because Swift Build uses a different output layout (`.build/out/Products/Release`, no `Modules/` or `QuillCore.build/`):
+
+```sh
+export SDKROOT=$(xcrun --sdk macosx26.5 --show-sdk-path)
+QUILL_CHECK_BUILD=$(swift build -c release --build-system native --show-bin-path)
+```
+
 ## How the check scripts work
 
 Most of Sable's regression coverage lives outside XCTest, in `scripts/check-*.swift`. Each one is a small, self-contained `main`-style Swift file that exercises one area of the app (Markdown parsing, the folder browser, export, and so on) with plain assertions. You compile a check together with the exact source files it depends on using `swiftc`, then run the resulting binary directly — no test framework or simulator required, which is also why these checks can run with just the Command Line Tools.
