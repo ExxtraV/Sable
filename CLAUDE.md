@@ -17,19 +17,24 @@ Describe Sable in terms of focus and single-tasking, never as "minimalist".
 
 Who writes what:
 
-- **Claude writes GitHub-facing material:** the README, release notes
-  (`docs/release-notes.md`, which also become the GitHub release text),
-  CHANGELOG, CONTRIBUTING and other repo docs, and issue templates. Each
-  carries a short authorship note: the README ends with "_This README is
-  written by Claude Code._", and every version's release notes end with
-  "_Release notes written by Claude Code._" Keep that line when rewriting
-  either file.
-- **The maintainer writes everything on the website** (every page, blog posts,
-  FAQ, meta descriptions, the press kit), plus launch and social posts, press
-  emails, and App Store listings. Until the maintainer says otherwise, the
-  Sable Guide, the sample project's story text, and longer in-app
-  explanations are also the maintainer's. Claude never writes final copy for
-  any of these. Instead:
+- **Claude writes GitHub-facing material and the app's own text:** the
+  README, release notes (`docs/release-notes.md`, which also become the
+  GitHub release text), CHANGELOG, CONTRIBUTING and other repo docs, issue
+  templates, the Sable Guide (`docs/Sable Guide.md` and the website's guide
+  page), the Markdown Cheat Sheet, sample and example story text, and in-app
+  explanatory text. The maintainer may rewrite any of these later.
+- **Every Claude-written piece is labeled, for transparency.** The README ends
+  with "_This README is written by Claude Code._" Each version's release notes
+  end with "_Release notes written by Claude Code._" The Sable Guide, sample
+  and example files, and the Cheat Sheet open with a "written by Claude Code"
+  line. The About panel (`NSHumanReadableCopyright` in Info.plist) covers the
+  scattered in-app help text. Keep these labels when editing, and add one to
+  any new Claude-written document. When the maintainer rewrites a piece in
+  their own words, remove its label.
+- **The maintainer writes everything else on the website** (every page except
+  the guide, blog posts, FAQ, meta descriptions, the press kit), plus launch
+  and social posts, press emails, and App Store listings. Claude never writes
+  final copy for any of these. Instead:
 
 - Create `docs/prose-requests/<task>.md` from `docs/prose-requests/TEMPLATE.md`:
   one `##` heading per item, each with where it appears, a length limit, what
@@ -94,10 +99,10 @@ scripts, only http/https/mailto links, malformed input fails gracefully.
 
 ## Docs
 
-When user-visible behavior changes, update the README and release notes
-directly (keeping their authorship notes), and create a prose request (see
-Public-facing prose) for anything in website/, the Sable Guide, or in-app
-prose.
+When user-visible behavior changes, update the README, release notes, Sable
+Guide (both copies), and in-app text directly, keeping their "written by
+Claude Code" labels. Create a prose request (see Public-facing prose) for
+anything else in website/.
 
 ## Testing & wrap-up
 

@@ -36,6 +36,8 @@
 	<string>13</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 ExxtraV. MIT License. The Sable Guide and the app's help text are written by Claude Code.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>SUAllowsAutomaticUpdates</key>

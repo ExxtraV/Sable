@@ -1,5 +1,7 @@
 # Welcome to Sable Markdown Writer
 
+_This guide is written by Claude Code._
+
 Your words live in ordinary Markdown files. They are plain text, so you can open them in other editors and keep them in a folder you control.
 
 ## Your writing folder
