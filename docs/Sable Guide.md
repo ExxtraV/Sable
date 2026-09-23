@@ -90,6 +90,7 @@ The toolbar starts with only the essentials. Click **⋯ → Customize Tools** t
 - Command-0: reset zoom to 100%.
 
 Pinch the trackpad to zoom. You can turn this off in Writing Style. A two-finger horizontal swipe shows or hides the writing desk. Zoom changes the display, not your Markdown.
+<!-- PROSE-TODO: guide-wheel-zoom -->
 
 ## A quiet writing space
 
@@ -99,7 +100,7 @@ Try Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, or Paper in 
 
 ## A second file beside your draft
 
-Control-click any Markdown file in the writing desk and choose **Open Beside Current Document**. It opens as a formatted reading view next to your draft. Each side scrolls and zooms on its own: pinch, or use ⌘+ and ⌘−, with the pointer over the one you want to scale. Choose Edit to work on it in place, then Read to return to the clean view. This stays within one focused document window: Sable does not use writing tabs.
+Control-click any Markdown file in the writing desk and choose **Open Beside Current Document**. It opens as a formatted reading view next to your draft. Each side scrolls and zooms on its own: pinch, or use ⌘+ and ⌘−, with the pointer over the one you want to scale. <!-- PROSE-TODO: guide-parallel-zoom --> Choose Edit to work on it in place, then Read to return to the clean view. This stays within one focused document window: Sable does not use writing tabs.
 
 ## What comes next
 

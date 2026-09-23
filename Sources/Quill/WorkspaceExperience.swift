@@ -114,7 +114,7 @@ struct ParticleField: View {
     nonisolated static let parallelKey = "parallelZoom"
     static var value: Double { value(for: mainKey) }
     static func value(for key: String) -> Double { UserDefaults.standard.object(forKey: key) as? Double ?? 1 }
-    static func set(_ value: Double, for key: String = mainKey) { UserDefaults.standard.set(min(2, max(0.65, value)), forKey: key) }
+    static func set(_ value: Double, for key: String = mainKey) { UserDefaults.standard.set(ZoomSteps.clamped(value), forKey: key) }
 
     static func step(_ delta: Double) { let key = keyUnderPointer(); set(value(for: key) + delta, for: key) }
     static func reset() { set(1, for: keyUnderPointer()) }
@@ -134,10 +134,14 @@ struct ParticleField: View {
 
 final class WritingScrollView: NSScrollView {
     var sidebarGesture: (() -> Void)?
-    /// Which zoom setting a pinch on this surface changes.
+    /// Which zoom setting a pinch or Command-scroll on this surface changes.
     var zoomKey = WritingZoom.mainKey
     private var horizontalGestureDistance: CGFloat = 0
     private var handledHorizontalGesture = false
+    /// Wheel notches that haven't been applied yet (see `ZoomSteps.commitInterval`).
+    private var pendingWheelZoom: Double?
+    private var wheelZoomScheduled = false
+    private var lastWheelZoomCommit: TimeInterval = 0
 
     override func magnify(with event: NSEvent) {
         guard UserDefaults.standard.object(forKey: "pinchToZoom") as? Bool ?? true else { return }
@@ -145,6 +149,11 @@ final class WritingScrollView: NSScrollView {
     }
 
     override func scrollWheel(with event: NSEvent) {
+        if ZoomSteps.wheelZooms(command: event.modifierFlags.contains(.command), preciseDeltas: event.hasPreciseScrollingDeltas,
+                                deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY) {
+            wheelZoom(with: event)
+            return
+        }
         if event.phase == .began {
             horizontalGestureDistance = 0
             handledHorizontalGesture = false
@@ -166,6 +175,30 @@ final class WritingScrollView: NSScrollView {
             horizontalGestureDistance = 0
             handledHorizontalGesture = false
         }
+    }
+
+    /// Command plus a mouse wheel zooms this surface. The first notch applies at once; notches that follow within
+    /// `ZoomSteps.commitInterval` are gathered and applied together, so a fast spin doesn't restyle on every one.
+    private func wheelZoom(with event: NSEvent) {
+        let notches = ZoomSteps.notches(deltaY: event.scrollingDeltaY, directionInverted: event.isDirectionInvertedFromDevice)
+        pendingWheelZoom = ZoomSteps.target(from: pendingWheelZoom ?? WritingZoom.value(for: zoomKey), notches: notches)
+        guard !wheelZoomScheduled else { return }
+        // Measured from when the notch was turned, not when it's handled: notches that queued up while a big
+        // document was restyling count as part of the same spin and are applied together. (Events made up by
+        // another program can carry no time at all.)
+        let turned = event.timestamp > 0 ? event.timestamp : ProcessInfo.processInfo.systemUptime
+        let delay = ZoomSteps.commitDelay(sinceLastCommit: turned - lastWheelZoomCommit)
+        guard delay > 0 else { commitWheelZoom(); return }
+        wheelZoomScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.commitWheelZoom() }
+    }
+
+    private func commitWheelZoom() {
+        wheelZoomScheduled = false
+        guard let zoom = pendingWheelZoom else { return }
+        pendingWheelZoom = nil
+        lastWheelZoomCommit = ProcessInfo.processInfo.systemUptime
+        if zoom != WritingZoom.value(for: zoomKey) { WritingZoom.set(zoom, for: zoomKey) }
     }
 }
 
