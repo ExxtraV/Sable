@@ -23,6 +23,16 @@ jobs:
           QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
           swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-editor-checks
           /tmp/quill-editor-checks
+      - name: Incremental styling random-edit check
+        run: |
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/check-incremental-styling.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-incremental-styling-checks
+          /tmp/quill-incremental-styling-checks
+      - name: Typing benchmark (smoke run, no thresholds)
+        run: |
+          QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
+          swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/bench-typing.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-typing-bench
+          /tmp/quill-typing-bench --smoke
       - name: Parallel document regression checks
         run: |
           QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)

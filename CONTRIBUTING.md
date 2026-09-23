@@ -71,6 +71,12 @@ QUILL_CHECK_BUILD=$(swift build -c release --show-bin-path)
 swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-editor.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-editor-checks
 /tmp/quill-editor-checks
 
+swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/check-incremental-styling.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-incremental-styling-checks
+/tmp/quill-incremental-styling-checks
+
+swiftc -O -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/typing-fixture.swift scripts/bench-typing.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-typing-bench
+/tmp/quill-typing-bench --smoke
+
 swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/NativeEditor.swift Sources/Quill/Import.swift Sources/Quill/ReadingView.swift Sources/Quill/ReferenceDocument.swift Sources/Quill/ReferencePane.swift Sources/Quill/WorkspaceExperience.swift Sources/Quill/FolderBrowser.swift Sources/Quill/FictionProject.swift Sources/Quill/WorldSidebar.swift Sources/Quill/WritingStyle.swift scripts/check-reading-reference.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-parallel-checks
 /tmp/quill-parallel-checks
 
@@ -80,6 +86,10 @@ swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/ProjectSearch.swift Sources
 swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/Export.swift Sources/Quill/FictionProject.swift Sources/Quill/FolderBrowser.swift scripts/check-export.swift "$QUILL_CHECK_BUILD"/QuillCore.build/*.o -o /tmp/quill-export-checks
 /tmp/quill-export-checks
 ```
+
+`check-incremental-styling.swift` makes thousands of seeded random edits through the editor's real typing path and, after each one, compares every attribute against a from-scratch restyle of the same text. On a failure it prints the seed, the edit, and the first differing run, and saves the document to `$TMPDIR/quill-fuzz-failure.md`. `QUILL_FUZZ_SEED` and `QUILL_FUZZ_EDITS` change the seed and length for longer local runs; `QUILL_FUZZ_SABOTAGE=1` corrupts one attribute on purpose to confirm the comparison catches it. Both it and the benchmark share the generated manuscript in `scripts/typing-fixture.swift`.
+
+`bench-typing.swift` times keystrokes in a generated 10k-, 50k-, and 100k-word manuscript. CI runs it with `--smoke` only to keep it building; run it without flags for real numbers (`--out file.md` saves them, `--write-fixture path.md` writes the 100k-word manuscript to open in the app). [docs/performance/typing-baseline.md](docs/performance/typing-baseline.md) records the baseline.
 
 ### Python checks
 
