@@ -186,7 +186,8 @@ struct WritingView: View {
             .focusedSceneValue(\.writingActions, writingActions)
             .background(WindowConfigurator())
             // The editor hands typing to `document.text` in batches; the typing signal marks the document edited at once.
-            .onChange(of: document.text) { _, new in saveFeedback.message = ""; edited = true; recordWritingProgress(new) }
+            // Keyed on the editor's revision, not the text: comparing two versions of a novel on every update is slow.
+            .onChange(of: commands.stats?.revision) { _, _ in saveFeedback.message = ""; edited = true; recordWritingProgress(document.text) }
             .onReceive(commands.typing) { _ in
                 if !edited { edited = true }
                 if !saveFeedback.message.isEmpty { saveFeedback.message = "" }
@@ -235,7 +236,7 @@ struct WritingView: View {
 
     private var writingDesk: some View {
         WritingSidebar(
-            text: document.text,
+            text: commands.liveText(document.text),
             commands: commands,
             chooseFolder: { choosingFolder = true },
             currentURL: activeURL,
@@ -301,7 +302,7 @@ struct WritingView: View {
     }
 
     private var cardDock: some View {
-        CardDock(cards: $openCards, reservedCorner: reservedSceneCorner, dimIdleCards: focus && !reading, writingRoot: browser.root, activeURL: activeURL, liveText: document.text,
+        CardDock(cards: $openCards, reservedCorner: reservedSceneCorner, dimIdleCards: focus && !reading, writingRoot: browser.root, activeURL: activeURL, liveText: commands.liveText(document.text),
                  onEditBeside: showParallelDocument,
                  onOpenInEditor: switchPrimaryDocument,
                  onSetField: setCardField,
@@ -309,7 +310,7 @@ struct WritingView: View {
     }
 
     private var sceneLayer: some View {
-        SceneTagsLayer(activeURL: activeURL, liveText: document.text, typing: commands.typing, editSignal: tagSceneSignal, focusDim: focus && !reading,
+        SceneTagsLayer(activeURL: activeURL, liveText: commands.liveText(document.text), typing: commands.typing, editSignal: tagSceneSignal, focusDim: focus && !reading,
                        openCard: showCard, setTags: setSceneTags, createCard: createSceneCard, index: cardIndex)
     }
 

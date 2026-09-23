@@ -180,6 +180,25 @@ now reads only the lines around the caret: 13.1 ms at 100k words before, under 0
   writing record no longer run whole-document passes. "Unsaved changes" and fading scene tags follow a per-keystroke
   typing signal instead of the text, so they still react to the first keystroke.
 
+### Found by profiling the app itself
+
+The benchmark hosts the editor without SwiftUI, so two problems only showed up in the running app, with a 100k-word
+file and the maintainer's own settings (all sentence colors, center typing, 145% zoom). Both are fixed:
+
+- **Hiccups when typing paused.** Each time the editor handed the text over, SwiftUI compared the old and new
+  manuscript, character by character with Unicode normalization. It did this in every view that took the text as an
+  input: the writing desk, the cards, the scene-tag strip, and the writing-progress `onChange`. Each compare took
+  tens of milliseconds. Those views now take `LiveText`, which compares by a revision number the editor bumps on each
+  flush.
+- **Gradient focus dimmed the paragraph being written.** It read the scroll position in the clip view's coordinates
+  but treated it as the text view's, which is wrong whenever AppKit leaves the text view's frame origin away from
+  zero (center typing does). Restyling the whole document on every keystroke used to hide this, by laying the page out
+  again each time. It now converts between the two, as `centerCaretIfNeeded` already did.
+
+  `check-incremental-styling.swift` now also requires that the paragraph being written is never dimmed. The
+  comparison with a fresh view couldn't catch this, because both views run the same focus code. The new
+  requirement fails against the old focus code.
+
 ### Where the remaining time goes
 
 The defaults profile no longer depends on document length: the 10k, 50k, and 100k rows are within 0.5 ms of each
