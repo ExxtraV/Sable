@@ -8,6 +8,15 @@ The public feed URL and public signing key are committed in `UpdateConfig.json`.
 
 In GitHub, open Settings → Secrets and variables → Actions → New repository secret. Name it `SPARKLE_PRIVATE_KEY` and enter the contents of the protected local key export directly into GitHub. Do not paste it into chat or a commit. Keep a secure backup in your password manager or encrypted storage. The `.secrets/` directory is ignored by Git.
 
+### Keep the signing key safe
+
+The Keychain copy is the only one you can read back: GitHub secrets can be used by workflows but never viewed again, and the login Keychain does not sync through iCloud. If the private key is lost, existing installs can no longer receive updates and everyone has to download the next version by hand. If it leaks and someone also gains control of the repository, they could ship a malicious update.
+
+- Check that the key is still present. This prints only the public key, which must match `publicKey` in `UpdateConfig.json`:
+  `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account new-quill -p`
+- Back it up once: `.build/artifacts/sparkle/Sparkle/bin/generate_keys --account new-quill -x ~/Desktop/sable-sparkle-private-key`, store that file's contents in your password manager (or an encrypted disk image), then delete the file and empty the Trash.
+- Protect the GitHub account with two-factor authentication (a passkey is best), and require your own approval on the `release` environment (Settings → Environments → release → Required reviewers).
+
 No Apple certificate, Apple account password, notarization credentials, or paid membership is needed for community releases. The workflow reads the public key from UpdateConfig.json automatically.
 
 ## Each release
