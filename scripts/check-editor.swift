@@ -430,6 +430,52 @@ import QuillCore
         precondition(FocusParagraph.range(in: "One\nsoft\n\nTwo", caret: 5) == NSRange(location: 0, length: 9))
         precondition(FocusParagraph.range(in: "One\n\n", caret: 5) == NSRange(location: 5, length: 0))
         precondition(FocusParagraph.range(in: "", caret: 0) == NSRange(location: 0, length: 0))
-        print("Passed: focus tracking/clearing, font switching, soft-line paragraphs, pinch zoom; native fonts, source preservation, centered margins, bold insertion/exit/toggle, italic newline exit, Unicode selections.")
+        checkWheelZoom()
+        print("Passed: focus tracking/clearing, font switching, soft-line paragraphs, pinch zoom; native fonts, source preservation, centered margins, bold insertion/exit/toggle, italic newline exit, Unicode selections, Command-wheel zoom.")
+    }
+
+    /// Real wheel events through `WritingScrollView`: Command zooms its own surface a notch at a time, a fast spin is
+    /// applied together, and neither a plain wheel nor a Command-scroll on a trackpad zooms.
+    @MainActor static func checkWheelZoom() {
+        let key = "checkWheelZoom"
+        UserDefaults.standard.set(1.0, forKey: key)
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        let scroll = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        scroll.zoomKey = key
+        scroll.documentView = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 4000))
+        func wheel(_ amount: Int32, command: Bool, units: CGScrollEventUnit = .line) -> NSEvent {
+            let event = CGEvent(scrollWheelEvent2Source: nil, units: units, wheelCount: 1, wheel1: amount, wheel2: 0, wheel3: 0)!
+            event.flags = command ? .maskCommand : []
+            if units == .pixel { event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1) }
+            event.timestamp = CGEventTimestamp(ProcessInfo.processInfo.systemUptime * 1_000_000_000)
+            return NSEvent(cgEvent: event)!
+        }
+        func settle() { RunLoop.main.run(until: Date().addingTimeInterval(ZoomSteps.commitInterval + 0.1)) }
+        let zoom = { WritingZoom.value(for: key) }
+        let away = wheel(1, command: true)
+        precondition(!away.hasPreciseScrollingDeltas)
+        let inward = ZoomSteps.notches(deltaY: away.scrollingDeltaY, directionInverted: away.isDirectionInvertedFromDevice) > 0
+        let zoomIn = { wheel(inward ? 1 : -1, command: true) }, zoomOut = { wheel(inward ? -1 : 1, command: true) }
+        scroll.scrollWheel(with: zoomIn())
+        precondition(abs(zoom() - 1.05) < 1e-9, "The first Command-wheel notch zooms at once: \(zoom())")
+        for _ in 0..<3 { scroll.scrollWheel(with: zoomIn()) }
+        precondition(abs(zoom() - 1.05) < 1e-9, "Notches right after are gathered, not applied one by one")
+        settle()
+        precondition(abs(zoom() - 1.2) < 1e-9, "…and applied together shortly after: \(zoom())")
+        settle()
+        for _ in 0..<4 { scroll.scrollWheel(with: zoomOut()) }
+        settle()
+        precondition(abs(zoom() - 1) < 1e-9, "The other way zooms back: \(zoom())")
+        UserDefaults.standard.set(1.95, forKey: key)
+        settle()
+        for _ in 0..<5 { scroll.scrollWheel(with: zoomIn()) }
+        settle()
+        precondition(zoom() == 2, "Zoom stops at the top")
+        scroll.scrollWheel(with: wheel(-3, command: false))
+        let trackpad = wheel(-40, command: true, units: .pixel)
+        precondition(trackpad.hasPreciseScrollingDeltas)
+        scroll.scrollWheel(with: trackpad)
+        settle()
+        precondition(zoom() == 2, "A plain wheel and a Command-scroll on a trackpad don't zoom")
     }
 }
