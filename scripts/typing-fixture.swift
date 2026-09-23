@@ -245,6 +245,7 @@ struct EditorSettings {
     var theme = "graphite"
     var typewriterMode = "room"
     var names = true
+    var nameKinds = Set(CardKind.allCases)
     var nameShimmer = true
     var dimMarkers = true
     var smartTypography = false
@@ -327,7 +328,7 @@ final class HostedEditor {
                                           focusGradient: settings.focusGradient, syntaxClasses: settings.syntaxClasses,
                                           colorVersion: settings.colorVersion, spellCheckEnabled: settings.spellCheck,
                                           typewriterMode: settings.typewriterMode, nameHighlighter: settings.names ? highlighter : nil,
-                                          nameShimmer: settings.nameShimmer, nameCards: ManuscriptFixture.cards,
+                                          nameShimmer: settings.nameShimmer, nameKinds: settings.nameKinds, nameCards: ManuscriptFixture.cards,
                                           dimMarkers: settings.dimMarkers, smartTypography: settings.smartTypography,
                                           documentUndoManager: undo, editingDocument: document)
         coordinator.syncFromBinding(editor)
@@ -364,7 +365,7 @@ final class HostedEditor {
         editor.typewriterMode = settings.typewriterMode
         editor.nameHighlighter = settings.names ? highlighter : nil
         editor.nameShimmer = settings.nameShimmer
-        editor.nameKinds = Set(CardKind.allCases)
+        editor.nameKinds = settings.nameKinds
         editor.nameCards = ManuscriptFixture.cards
         editor.dimMarkers = settings.dimMarkers
         editor.smartTypography = settings.smartTypography

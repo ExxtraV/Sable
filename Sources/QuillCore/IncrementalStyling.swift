@@ -122,8 +122,10 @@ public enum IncrementalStyling {
         }
     }
 
-    /// Replaces the items of a location-ordered list that fell inside `old` with `replacement` (found in the new text's
-    /// region), and moves the items after it by `delta`. Items never cross a line break, so none straddles `old`.
+    /// Replaces the items of a list that fell inside `old` with `replacement` (found in the new text's region), and moves
+    /// the items after it by `delta`. Items never cross a line break, so none straddles `old`. Inlinable so it is
+    /// specialized for each kind of item: it runs over every kept span and sentence tag on each keystroke.
+    @inlinable
     public static func splice<Item>(_ items: [Item], old: NSRange, delta: Int, replacement: [Item],
                                     range: (Item) -> NSRange, moved: (Item, Int) -> Item) -> [Item] {
         var result = items.filter { NSMaxRange(range($0)) <= old.location }

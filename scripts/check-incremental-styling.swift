@@ -12,15 +12,20 @@ import QuillCore
 // proves that a SwiftUI update with the binding's older text never throws typing away. Once settled, the binding must
 // hold exactly the editor's text and the status bar's counts must match a fresh count.
 //
+// A setting change on unchanged text paints from the spans, sentence tags, and names the editor keeps up to date edit by
+// edit, instead of parsing the text again. Random setting changes are mixed into the edits, and each configuration ends
+// with a run of setting changes after all its edits, so anything the kept lists got wrong along the way shows up there.
+//
 // QUILL_FUZZ_SEED overrides the seed, QUILL_FUZZ_EDITS the number of edits per configuration (for long local soak runs),
-// and QUILL_FUZZ_SABOTAGE=1 corrupts one attribute on purpose to prove the comparison notices.
+// QUILL_FUZZ_SABOTAGE=1 corrupts one attribute on purpose to prove the comparison notices, and QUILL_FUZZ_SABOTAGE=cache
+// drops one kept span before a setting change to prove a stale cache is noticed too.
 
 @main enum IncrementalStylingChecks {
     @MainActor static func main() {
         let environment = ProcessInfo.processInfo.environment
         let seed = environment["QUILL_FUZZ_SEED"].flatMap { UInt64($0) }
         let edits = environment["QUILL_FUZZ_EDITS"].flatMap { Int($0) }
-        let sabotage = environment["QUILL_FUZZ_SABOTAGE"] == "1"
+        let sabotage = Fuzz.Sabotage(rawValue: environment["QUILL_FUZZ_SABOTAGE"] ?? "") ?? .none
         let started = Date()
 
         var defaults = EditorSettings.defaults
@@ -39,9 +44,9 @@ import QuillCore
         results.append(Fuzz(name: "defaults", settings: defaults, words: 600, seed: seed ?? 0xA11CE,
                             edits: edits ?? 2_000, gradientEvery: 0, sabotage: sabotage, reproduce: reproduce).run())
         results.append(Fuzz(name: "everything on", settings: everything, words: 400, seed: seed.map { $0 &+ 1 } ?? 0xB0B,
-                            edits: edits.map { max(1, $0 / 3) } ?? 600, gradientEvery: 0, sabotage: false, reproduce: reproduce).run())
+                            edits: edits.map { max(1, $0 / 3) } ?? 600, gradientEvery: 0, sabotage: .none, reproduce: reproduce).run())
         results.append(Fuzz(name: "gradient focus", settings: gradient, words: 600, seed: seed.map { $0 &+ 2 } ?? 0xC0FFEE,
-                            edits: edits.map { max(1, $0 / 10) } ?? 300, gradientEvery: 10, sabotage: false, reproduce: reproduce).run())
+                            edits: edits.map { max(1, $0 / 10) } ?? 300, gradientEvery: 10, sabotage: .none, reproduce: reproduce).run())
         let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
         print("Passed: incremental styling matches a full restyle after every random edit (\(results.joined(separator: "; "))) in \(seconds)s.")
     }
@@ -164,7 +169,10 @@ struct Fuzz {
     let edits: Int
     /// Every this many edits, compare gradient focus against an identically hosted view (0 = never).
     let gradientEvery: Int
-    let sabotage: Bool
+    enum Sabotage: String { case none = "", attribute = "1", cache }
+    let sabotage: Sabotage
+    /// Setting changes in a row after the last edit.
+    static let settingsTour = 24
     /// How to run this exact sequence again.
     let reproduce: String
 
@@ -189,7 +197,7 @@ struct Fuzz {
         host.document = document
         host.apply(host.settings)
         var settles: [String: Int] = [:]
-        let passesBefore = (editor.style.fullPasses, editor.style.regionPasses)
+        let passesBefore = (editor.style.fullPasses, editor.style.regionPasses, editor.style.repaints)
         let initialLength = (initial as NSString).length
         var caret = initialLength / 2
         var counts: [String: Int] = [:]
@@ -286,15 +294,7 @@ struct Fuzz {
                     operation = "marked text, unmarked"
                 }
             default:
-                var changed = host.settings
-                switch rng.int(0..<5) {
-                case 0: changed.theme = rng.pick(WritingTheme.all.map(\.id)); operation = "theme \(changed.theme)"
-                case 1: changed.dimMarkers.toggle(); operation = "dim markers \(changed.dimMarkers)"
-                case 2: changed.names.toggle(); operation = "names \(changed.names)"
-                case 3: changed.review.toggle(); operation = "review \(changed.review)"
-                default: changed.fontSize = rng.pick([16, 19, 22]); operation = "font size \(changed.fontSize)"
-                }
-                host.apply(changed)
+                operation = changeSetting(host, &rng)
             }
             host.undo.endUndoGrouping()
             if operation == "undo", host.undo.canUndo { host.undo.undo() }
@@ -304,8 +304,13 @@ struct Fuzz {
             caret = editor.selectedRange().location
             host.flush()
 
-            if sabotage, step == edits / 2, editor.textStorage!.length > 20 {
+            if sabotage == .attribute, step == edits / 2, editor.textStorage!.length > 20 {
                 editor.textStorage!.addAttribute(.kern, value: 3, range: NSRange(location: 10, length: 2))
+            }
+            if sabotage == .cache, step == edits / 2, editor.isStyleCurrent,
+               let index = editor.style.lineSpans.firstIndex(where: { if case .bold = $0.kind { true } else { false } }) {
+                editor.style.lineSpans.remove(at: index)
+                operation += ", then a dropped span and " + changeSetting(host, &rng, only: 1)
             }
             guard !editor.hasMarkedText() else { continue }
             settles[settle(host, document: document, rng: &rng, step: step, operation: operation), default: 0] += 1
@@ -317,14 +322,65 @@ struct Fuzz {
         }
         host.commitText()
         compare(host, step: edits, operation: "final commit")
-        if sabotage { fail(host, step: edits, operation: "sabotage", "the sabotaged attribute went unnoticed") }
+        // Setting changes after all the edits paint from what the edits left in the kept lists.
+        let tourBefore = (editor.style.fullPasses, editor.style.repaints)
+        for tour in 1...Self.settingsTour {
+            let operation = changeSetting(host, &rng)
+            host.flush()
+            compare(host, step: edits + tour, operation: "after all edits, " + operation)
+        }
+        if sabotage != .none { fail(host, step: edits, operation: "sabotage", "the sabotage went unnoticed") }
         let ops = counts.values.reduce(0, +)
         let extra = gradientComparisons > 0 ? ", \(gradientComparisons) gradient comparisons" : ""
         let full = editor.style.fullPasses - passesBefore.0, region = editor.style.regionPasses - passesBefore.1
+        let repaints = editor.style.repaints - passesBefore.2
         // Most edits are typing in prose; if they stopped taking the region path, typing would be slow again.
         if region <= full { fail(host, step: edits, operation: "all", "only \(region) of \(region + full) styling passes restyled a region") }
+        // A setting change on settled text should always paint from the kept lists, or setting changes would be slow again.
+        let tourFull = editor.style.fullPasses - tourBefore.0, tourRepaints = editor.style.repaints - tourBefore.1
+        if tourRepaints == 0 || tourRepaints != tourFull {
+            fail(host, step: edits, operation: "settings", "only \(tourRepaints) of \(tourFull) restyles after the edits painted from the kept spans and tags")
+        }
         let how = settles.sorted { $0.key < $1.key }.map { "\($0.value) \($0.key)" }.joined(separator: ", ")
-        return "\(name): \(ops) edits from seed \(seed)\(extra), \(region) region and \(full) full passes, binding settled by \(how), \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
+        return "\(name): \(ops) edits and \(Self.settingsTour) more setting changes from seed \(seed)\(extra), \(region) region and \(full) full passes (\(repaints) painted from kept spans), binding settled by \(how), \(String(format: "%.1f", Date().timeIntervalSince(started)))s"
+    }
+
+    /// One setting change of the kinds Writing Style and the toolbar make (`only` picks the kind). None changes the text,
+    /// so each paints from the kept spans and tags. Custom colors go in the registration domain, which is never saved.
+    private func changeSetting(_ host: HostedEditor, _ rng: inout SeededRandom, only: Int? = nil) -> String {
+        var changed = host.settings
+        let operation: String
+        switch only ?? rng.int(0..<10) {
+        case 0: changed.theme = rng.pick(WritingTheme.all.map(\.id)); operation = "theme \(changed.theme)"
+        case 1: changed.dimMarkers.toggle(); operation = "dim markers \(changed.dimMarkers)"
+        case 2: changed.names.toggle(); operation = "names \(changed.names)"
+        case 3: changed.review.toggle(); operation = "review \(changed.review)"
+        case 4: changed.fontSize = rng.pick([16, 19, 22]); operation = "font size \(changed.fontSize)"
+        case 5:
+            // What a pinch or ⌘+ commits: font size and page width scaled together.
+            let zoom = rng.pick([0.65, 0.9, 1.0, 1.25, 1.6, 2.0])
+            changed.fontSize = 19 * zoom
+            changed.pageWidth = 680 * zoom
+            operation = "zoom \(zoom)"
+        case 6:
+            changed.syntaxClasses = rng.chance(0.3) ? 0 : rng.int(1...SentenceStructure.allClasses)
+            operation = "sentence colors \(changed.syntaxClasses)"
+        case 7:
+            let key = rng.chance(0.6) ? "wordColor.\(rng.pick(WordClass.allCases).rawValue)" : "nameColor.\(rng.pick(CardKind.allCases).rawValue)"
+            let hex = String(format: "#%06X", rng.int(0...0xFFFFFF))
+            UserDefaults.standard.register(defaults: [key: hex])
+            changed.colorVersion += 1
+            operation = "color \(key) \(hex)"
+        case 8:
+            changed.fontFamily = rng.pick(["Charter", "Georgia", "Helvetica Neue", "Menlo"])
+            changed.lineSpacing = rng.pick([0.2, 0.28, 0.5])
+            operation = "font \(changed.fontFamily) spacing \(changed.lineSpacing)"
+        default:
+            changed.nameKinds = Set(CardKind.allCases.filter { _ in rng.chance(0.6) })
+            operation = "name kinds \(changed.nameKinds.map(\.rawValue).sorted())"
+        }
+        host.apply(changed)
+        return operation
     }
 
     /// Hands pending typing to the binding one of the ways the app does, or leaves it pending. Returns how it settled.
@@ -374,7 +430,8 @@ struct Fuzz {
 
     /// A real NSDocument save, which must commit the editor's pending typing before it writes.
     private func saveThroughAppKit(_ host: HostedEditor, document: FuzzDocument, step: Int, operation: String) -> String {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("quill-fuzz-save.md")
+        // One file per run, so checks running side by side (in other checkouts, say) can't write over each other's saves.
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("quill-fuzz-save-\(ProcessInfo.processInfo.processIdentifier).md")
         let waiter = SaveWaiter()
         document.save(to: url, ofType: "net.daringfireball.markdown", for: .saveOperation, delegate: waiter,
                       didSave: #selector(SaveWaiter.document(_:didSave:contextInfo:)), contextInfo: nil)
@@ -452,15 +509,21 @@ struct Fuzz {
         checkActiveParagraph(host, step: step, operation: operation)
         let full = HostedEditor(text: host.editor.string, settings: host.settings)
         full.editor.setSelectedRange(host.editor.selectedRange())
-        let origin = host.scroll.contentView.bounds.origin
         for view in [host.editor, full.editor] {
             view.layoutManager!.ensureLayout(for: view.textContainer!)
             view.sizeToFit()
         }
-        full.scroll.contentView.scroll(to: origin)
-        full.scroll.reflectScrolledClipView(full.scroll.contentView)
+        // AppKit can leave a text view's frame origin away from zero, differently in two views of the same text, so show
+        // the same part of the text (in the text views' own coordinates), not the same clip-view position.
+        let hostClip = host.scroll.contentView, fullClip = full.scroll.contentView
+        let seen = host.editor.convert(hostClip.bounds, from: hostClip)
+        fullClip.scroll(to: fullClip.convert(seen.origin, from: full.editor))
+        full.scroll.reflectScrolledClipView(fullClip)
+        let fullSeen = full.editor.convert(fullClip.bounds, from: fullClip)
+        precondition(abs(fullSeen.minY - seen.minY) < 0.5, "Both views look at the same part of the page (\(seen) vs \(fullSeen))")
+        // Both views' gradients are painted for this layout and scroll position.
+        host.editor.updateFocus()
         full.editor.updateFocus()
-        precondition(full.scroll.contentView.bounds.origin == origin, "Both views look at the same part of the page")
         let keys: Set<NSAttributedString.Key> = [.foregroundColor]
         if let difference = StyleSnapshot.difference(StyleSnapshot.temporary(of: host.editor, keys: keys), StyleSnapshot.temporary(of: full.editor, keys: keys), text: host.editor.string) {
             fail(host, step: step, operation: operation, "gradient focus differs, \(difference)")
