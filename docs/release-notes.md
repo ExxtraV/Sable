@@ -30,3 +30,5 @@ Sable Markdown Writer 0.9.0 adds manuscript export, name highlighting, a much be
 - **Clearer on/off.** Highlight Names & Places, spelling & grammar, and prose suggestions are now checkable from the View menu, and an "on" toolbar tool now shows a small dot so it's unmistakable at a glance.
 - **Fixed:** the two-finger swipe to show or hide the writing desk now works in Reading Mode too.
 - **Update checks, made visible.** Settings → General now shows when Sable last checked for an update and lets you choose daily, every 3 days, or weekly (Sparkle's own default was already daily, while the app is open — now you can see and change it).
+
+_Release notes written by Claude Code._

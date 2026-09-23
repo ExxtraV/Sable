@@ -1,5 +1,7 @@
 # Northwatch
 
+_Sample text written by Claude Code._
+
 ## People
 Mara — a locksmith with a debt to the ferryman.
 
