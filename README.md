@@ -69,6 +69,7 @@ For an iPad edition, reuse `QuillCore` and the document model, add a UIKit text 
 
 - `Sources/QuillCore/Prose.swift`: prose matching and default word list.
 - `Sources/QuillCore/FocusParagraph.swift`: Markdown paragraph boundaries for focus mode.
+- `Sources/Quill/ZoomSteps.swift`: zoom limits and how the mouse wheel steps through them.
 - `Sources/Quill/FolderBrowser.swift`: folder access, file filtering, navigation, and file menu.
 - `Sources/Quill/ReferencePane.swift`: general parallel Markdown reading and editing pane.
 - `Sources/Quill/ReferenceDocument.swift`: tracked parallel document saving.
@@ -99,7 +100,7 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 - First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
 - Setup can include an editable **Sable Guide.md**. Open it again from Help; existing guide edits are never overwritten.
 - Writing Style includes Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, and Paper themes.
-- Zoom with Command-Plus/Minus, reset with Command-0, or pinch the trackpad. Pinch zoom can be disabled in Writing Style. <!-- PROSE-TODO: readme-wheel-zoom -->
+- Zoom with Command-Plus/Minus, reset with Command-0, pinch the trackpad, or hold Command and turn a mouse wheel (5% per notch, 65%–200%). Pinch zoom can be disabled in Writing Style.
 - Move the pointer to the top edge to reveal the toolbar. Reading mode, focus, sidebar, styling, and sentence colors remain available from the View menu.
 - The footer shows save state. Explicit saves through the editor show completion time; cancellation never reports success. “Saved” refers to the local file, not a cloud-sync confirmation.
 - The sentence-color crash is addressed by preventing AppKit's shared color panel from modifying the plain-text manuscript and ignoring text-change notifications with unchanged content.
