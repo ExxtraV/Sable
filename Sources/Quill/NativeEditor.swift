@@ -140,6 +140,7 @@ struct NativeEditor: NSViewRepresentable {
         editor.reviewEnabled = review
         editor.reviewWords = words
         editor.decorate()
+        (scroll as? WritingScrollView)?.zoomDidApply(zoom)
         context.coordinator.publishStatsIfSettled()
     }
     static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
@@ -693,8 +694,14 @@ final class WritingTextView: NSTextView {
         area = area.insetBy(dx: 0, dy: -area.height)
         let nearGlyphs = layoutManager.glyphRange(forBoundingRect: area, in: container)
         let nearChars = layoutManager.characterRange(forGlyphRange: nearGlyphs, actualGlyphRange: nil)
-        fade(floorAlpha, NSRange(location: 0, length: nearChars.location))
-        fade(floorAlpha, NSRange(location: NSMaxRange(nearChars), length: length - NSMaxRange(nearChars)))
+        // A paragraph taller than the band (a long one at a large zoom) reaches past it, and stays undimmed there too.
+        func fadeAroundActive(_ alpha: CGFloat, _ range: NSRange) {
+            fade(alpha, NSRange(location: range.location, length: max(0, min(NSMaxRange(range), active.location) - range.location)))
+            let after = max(range.location, NSMaxRange(active))
+            fade(alpha, NSRange(location: after, length: max(0, NSMaxRange(range) - after)))
+        }
+        fadeAroundActive(floorAlpha, NSRange(location: 0, length: nearChars.location))
+        fadeAroundActive(floorAlpha, NSRange(location: NSMaxRange(nearChars), length: length - NSMaxRange(nearChars)))
         layoutManager.enumerateLineFragments(forGlyphRange: nearGlyphs) { rect, _, _, glyphRange, _ in
             let chars = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
             if NSIntersectionRange(chars, active).length > 0 { return }

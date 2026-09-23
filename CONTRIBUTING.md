@@ -18,6 +18,20 @@ swift test
 
 `swift test` runs `Tests/QuillCoreTests` and requires Xcode's XCTest framework. If you only have the Command Line Tools, use the standalone checks below instead.
 
+### Command Line Tools 27.0
+
+Command Line Tools 27.0 (Swift 6.4, macOS 27 SDK) without Xcode can't build Sable out of the box. `scripts/build-app.sh` works around the two problems below, but only when `xcode-select -p` points at the Command Line Tools. CI and anyone with Xcode are unaffected.
+
+- **The macOS 27 SDK needs Xcode's SwiftUI macros.** In that SDK, SwiftUI's `@State` is a macro implemented by the `SwiftUIMacros` compiler plugin. Xcode ships that plugin; the Command Line Tools don't (their `usr/lib/swift/host/plugins` has only the Observation, Swift, and Testing macros). Every `@State` then fails with "plugin for module 'SwiftUIMacros' not found". The script picks the newest installed SDK whose SwiftUI doesn't need the plugin (26.5 today) and prints a `note:` naming it. You can override it by setting `SDKROOT` yourself. The real fix is to install Xcode or wait for a Command Line Tools release that includes the plugin. Once `usr/lib/swift/host/plugins/libSwiftUIMacros.dylib` exists, the script stops pinning.
+- **A leftover SDK folder stops Swift Build.** Swift 6.4's default build system, Swift Build, reads every `SDKs/*.sdk` folder when it starts. If any of them has no `SDKSettings.plist`, it fails before compiling anything with "Could not initialize build system … Unknown error parsing property list", and setting `SDKROOT` doesn't help. The native build system never reads them. The one seen so far was a partial `MacOSX26.0.sdk` that no installer package owns (`pkgutil --file-info` lists none). When the script finds a folder like that, it prints the command to delete it (`sudo rm -rf …`) and falls back to `--build-system native`. That build system is deprecated and will be removed in a future SwiftPM, so treat it as a stopgap and delete the folder.
+
+The standalone checks compile SwiftUI sources with `swiftc`, so on these tools, export the same SDK before running them. With Swift 6.4, also build the checks' release output with the native build system, because Swift Build uses a different output layout (`.build/out/Products/Release`, no `Modules/` or `QuillCore.build/`):
+
+```sh
+export SDKROOT=$(xcrun --sdk macosx26.5 --show-sdk-path)
+QUILL_CHECK_BUILD=$(swift build -c release --build-system native --show-bin-path)
+```
+
 ## How the check scripts work
 
 Most of Sable's regression coverage lives outside XCTest, in `scripts/check-*.swift`. Each one is a small, self-contained `main`-style Swift file that exercises one area of the app (Markdown parsing, the folder browser, export, and so on) with plain assertions. You compile a check together with the exact source files it depends on using `swiftc`, then run the resulting binary directly — no test framework or simulator required, which is also why these checks can run with just the Command Line Tools.
@@ -89,7 +103,7 @@ swiftc -I "$QUILL_CHECK_BUILD/Modules" Sources/Quill/Export.swift Sources/Quill/
 /tmp/quill-export-checks
 ```
 
-`check-incremental-styling.swift` makes thousands of seeded random edits through the editor's real typing path and, after each one, compares every attribute against a from-scratch restyle of the same text. The editor hands typing to SwiftUI's copy of the text in batches, so the check also settles that copy each of the ways the app does (a pause, the idle timer, a real `NSDocument` save, a SwiftUI redraw with the older text, losing focus, an autosave while typing is pending) and then requires it, and the status bar's word and suggestion counts, to match the editor exactly. On a failure it prints the seed, the edit, and the first differing run, and saves the document to `$TMPDIR/quill-fuzz-failure.md`. `QUILL_FUZZ_SEED` and `QUILL_FUZZ_EDITS` change the seed and length for longer local runs; `QUILL_FUZZ_SABOTAGE=1` corrupts one attribute on purpose to confirm the comparison catches it. Both it and the benchmark share the generated manuscript in `scripts/typing-fixture.swift`.
+`check-incremental-styling.swift` makes thousands of seeded random edits through the editor's real typing path and, after each one, compares every attribute against a from-scratch restyle of the same text. The editor hands typing to SwiftUI's copy of the text in batches, so the check also settles that copy each of the ways the app does (a pause, the idle timer, a real `NSDocument` save, a SwiftUI redraw with the older text, losing focus, an autosave while typing is pending) and then requires it, and the status bar's word and suggestion counts, to match the editor exactly. On a failure it prints the seed, the edit, and the first differing run, and saves the document to `$TMPDIR/quill-fuzz-failure.md`. `QUILL_FUZZ_SEED` and `QUILL_FUZZ_EDITS` change the seed and length for longer local runs; `QUILL_FUZZ_SABOTAGE=1` corrupts one attribute on purpose to confirm the comparison catches it. Random setting changes (theme, fonts, zoom, colors, sentence-color classes, names) are mixed into the edits, and each configuration ends with a run of setting changes that must all repaint from the spans and sentence tags the editor keeps between passes; `QUILL_FUZZ_SABOTAGE=cache` drops one kept span to confirm a stale cache is caught too. Both it and the benchmark share the generated manuscript in `scripts/typing-fixture.swift`.
 
 `check-styling-ranges.swift` is the pure-logic half: on random Markdown built to hit every construct that crosses a line (fences, notes, front matter, `\r`, U+2028), it proves the range-limited grammar, prose review, sentence colors, outline, formatting exit, and focus paragraph find exactly what verbatim copies of the old whole-text code find, and that whenever the editor would restyle only a region, nothing outside it changes. `QUILL_RANGE_SEED` and `QUILL_RANGE_DOCUMENTS` change the seed and size of a run.
 

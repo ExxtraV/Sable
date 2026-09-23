@@ -36,9 +36,11 @@ import QuillCore
                 + "including the layout AppKit does to keep the caret in view; *layout* finishes laying out the visible page; "
                 + "*draw* draws it. *Binding flush* hands the typing to SwiftUI's copy of the text with the status bar's counts; "
                 + "the editor does that after a pause, not per keystroke, so it isn't in the total. *Region passes* counts the "
-                + "keystrokes that restyled only the lines around the edit.\n\n"
-            report += "| Words | Characters | Edit (median) | Layout (median) | Draw (median) | Total median | Total p90 | Total max | Binding flush (median) | Region passes | Full restyle |\n"
-            report += "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+                + "keystrokes that restyled only the lines around the edit. *Full restyle* is a setting change on unchanged text "
+                + "(a word color), and *Zoom* is what a pinch or ⌘+ commits (font size and page width together), each through "
+                + "laying out and drawing the visible page, median of three.\n\n"
+            report += "| Words | Characters | Edit (median) | Layout (median) | Draw (median) | Total median | Total p90 | Total max | Binding flush (median) | Region passes | Full restyle | Zoom |\n"
+            report += "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
             for size in sizes {
                 let keystrokes = smoke ? 3 : (size <= 10_000 ? 30 : (size <= 50_000 ? 15 : 10))
                 report += keystrokeRow(words: size, settings: settings, keystrokes: keystrokes, warmUp: smoke ? 1 : 3) + "\n"
@@ -122,17 +124,29 @@ import QuillCore
         precondition(host.text == editor.string, "The binding kept up with the editor")
 
         // A setting change restyles everything; this is what theme, font, and size changes cost.
-        var changed = settings
-        changed.colorVersion += 1
-        let restyleStart = now()
-        host.apply(changed)
-        layout.ensureLayout(forBoundingRect: visibleArea(), in: container)
-        drawPage()
-        let restyle = milliseconds(restyleStart, now())
+        func settingChange(_ change: (inout EditorSettings, Int) -> Void) -> Double {
+            var runs: [Double] = []
+            for run in 0..<3 {
+                var changed = host.settings
+                change(&changed, run)
+                let start = now()
+                host.apply(changed)
+                layout.ensureLayout(forBoundingRect: visibleArea(), in: container)
+                drawPage()
+                runs.append(milliseconds(start, now()))
+            }
+            return median(runs)
+        }
+        let restyle = settingChange { settings, _ in settings.colorVersion += 1 }
+        let zoom = settingChange { settings, run in
+            let factor = [1.25, 1.1, 1.0][run]
+            settings.fontSize = EditorSettings.defaults.fontSize * factor
+            settings.pageWidth = EditorSettings.defaults.pageWidth * factor
+        }
 
         let characters = (text as NSString).length
         let cells = [median(edit), median(lay), median(draw), median(total), p90(total), total.max() ?? 0, median(flush)].map(format)
-            + ["\(regionPasses) of \(keystrokes)", format(restyle)]
+            + ["\(regionPasses) of \(keystrokes)", format(restyle), format(zoom)]
         return "| \(Prose.wordCount(text)) | \(characters) | " + cells.joined(separator: " | ") + " |"
     }
 

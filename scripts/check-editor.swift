@@ -327,6 +327,73 @@ import QuillCore
         let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: "a", charactersIgnoringModifiers: "a", isARepeat: false, keyCode: 0)
         precondition(WritingTextView.isPointerDriven(click) && !WritingTextView.isPointerDriven(key) && !WritingTextView.isPointerDriven(nil))
 
+        // Pinch zoom follows the fingers on a picture of the page and restyles once, when they lift, keeping the line
+        // under the pointer under it.
+        let zoomKey = "quillCheckPinchZoom"
+        UserDefaults.standard.removeObject(forKey: zoomKey)
+        let pinchHost = WritingScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        pinchHost.zoomKey = zoomKey
+        pinchHost.contentView = RoomClipView()
+        let pinched = WritingTextView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        pinched.isRichText = false
+        pinched.isVerticallyResizable = true
+        pinched.isHorizontallyResizable = false
+        pinched.autoresizingMask = [.width]
+        pinched.textContainer?.widthTracksTextView = true
+        pinched.textContainer?.containerSize = NSSize(width: 700, height: CGFloat.greatestFiniteMagnitude)
+        pinched.minSize = .zero
+        pinched.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        pinchHost.documentView = pinched
+        let pinchWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: true)
+        pinchWindow.contentView = pinchHost
+        pinched.string = (0..<150).map { "Paragraph \($0), which runs on long enough to wrap onto a second line of the page at most sizes." }.joined(separator: "\n\n")
+        // What NativeEditor.updateNSView does when the zoom setting changes.
+        func applyPinchZoom() {
+            let zoom = WritingZoom.value(for: zoomKey)
+            pinched.bodySize = 19 * zoom
+            pinched.pageWidth = 600 * zoom
+            pinched.updatePageMargins()
+            pinched.decorate()
+            pinchHost.zoomDidApply(zoom)
+        }
+        applyPinchZoom()
+        let pinchClip = pinchHost.contentView
+        pinchClip.scroll(to: pinchClip.constrainBoundsRect(NSRect(x: 0, y: 4000, width: 800, height: 600)).origin)
+        pinchHost.reflectScrolledClipView(pinchClip)
+        let pointer = pinchClip.convert(NSPoint(x: 300, y: pinchClip.bounds.minY + 230), to: nil)
+        func characterUnderPointer() -> Int {
+            let inText = pinched.convert(pointer, from: nil)
+            let glyph = pinched.layoutManager!.glyphIndex(for: NSPoint(x: inText.x - pinched.textContainerOrigin.x, y: inText.y - pinched.textContainerOrigin.y), in: pinched.textContainer!)
+            return pinched.layoutManager!.characterIndexForGlyph(at: glyph)
+        }
+        func paragraph(of index: Int) -> String { (pinched.string as NSString).substring(with: (pinched.string as NSString).paragraphRange(for: NSRange(location: index, length: 0))) }
+        let underBefore = characterUnderPointer()
+        let passesBeforePinch = pinched.style.fullPasses
+        pinchHost.pinch(phase: .began, magnification: 0.1, at: pointer)
+        for _ in 0..<20 { pinchHost.pinch(phase: .changed, magnification: 0.02, at: pointer) }
+        precondition(pinched.style.fullPasses == passesBeforePinch && WritingZoom.value(for: zoomKey) == 1, "Nothing is restyled or zoomed while the fingers move")
+        precondition(pinchHost.isPinching && pinchClip.alphaValue == 0, "A picture of the page stands in for it during the pinch")
+        pinchHost.pinch(phase: .ended, magnification: 0, at: pointer)
+        let pinchedZoom = WritingZoom.value(for: zoomKey)
+        precondition(abs(pinchedZoom - 1.1 * pow(1.02, 20)) < 0.0001, "The pinch commits the zoom it showed (\(pinchedZoom))")
+        applyPinchZoom()
+        precondition(pinched.style.fullPasses == passesBeforePinch + 1, "One restyle when the fingers lift")
+        precondition(!pinchHost.isPinching && pinchClip.alphaValue == 1, "The page comes back once it has the new zoom")
+        precondition(paragraph(of: characterUnderPointer()) == paragraph(of: underBefore), "The text under the pointer stays under it")
+        // Pinching past the limits stops at them, and a pinch that ends where it started changes nothing.
+        pinchHost.pinch(phase: .began, magnification: 4, at: pointer)
+        pinchHost.pinch(phase: .ended, magnification: 0, at: pointer)
+        precondition(WritingZoom.value(for: zoomKey) == 2, "Zoom stops at 200%")
+        applyPinchZoom()
+        let passesAtLimit = pinched.style.fullPasses
+        pinchHost.pinch(phase: .began, magnification: 0.2, at: pointer)
+        pinchHost.pinch(phase: .ended, magnification: 0, at: pointer)
+        precondition(pinched.style.fullPasses == passesAtLimit && !pinchHost.isPinching && pinchClip.alphaValue == 1, "A pinch that can't zoom further leaves the page as it was")
+        // A device that sends no gesture phases zooms step by step.
+        pinchHost.pinch(phase: [], magnification: -0.5, at: pointer)
+        precondition(WritingZoom.value(for: zoomKey) == 1 && !pinchHost.isPinching)
+        UserDefaults.standard.removeObject(forKey: zoomKey)
+
         // Releasing the open document so its file can be trashed: the document becomes blank and untitled.
         let document = NSDocument()
         let releasedFile = FileManager.default.temporaryDirectory.appendingPathComponent("quill-release-\(UUID()).md")
@@ -364,7 +431,7 @@ import QuillCore
         precondition(FocusParagraph.range(in: "One\n\n", caret: 5) == NSRange(location: 5, length: 0))
         precondition(FocusParagraph.range(in: "", caret: 0) == NSRange(location: 0, length: 0))
         checkWheelZoom()
-        print("Passed: focus tracking/clearing, font switching, soft-line paragraphs; native fonts, source preservation, centered margins, bold insertion/exit/toggle, italic newline exit, Unicode selections, Command-wheel zoom.")
+        print("Passed: focus tracking/clearing, font switching, soft-line paragraphs, pinch zoom; native fonts, source preservation, centered margins, bold insertion/exit/toggle, italic newline exit, Unicode selections, Command-wheel zoom.")
     }
 
     /// Real wheel events through `WritingScrollView`: Command zooms its own surface a notch at a time, a fast spin is

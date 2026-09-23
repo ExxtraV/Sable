@@ -138,6 +138,9 @@ final class WritingScrollView: NSScrollView {
     var zoomKey = WritingZoom.mainKey
     private var horizontalGestureDistance: CGFloat = 0
     private var handledHorizontalGesture = false
+    /// The pinch under way, and a finished one waiting for the page to take its zoom (see PagePinch).
+    private var livePinch: PagePinch?
+    private var settling: PagePinch?
     /// Wheel notches that haven't been applied yet (see `ZoomSteps.commitInterval`).
     private var pendingWheelZoom: Double?
     private var wheelZoomScheduled = false
@@ -145,10 +148,58 @@ final class WritingScrollView: NSScrollView {
 
     override func magnify(with event: NSEvent) {
         guard UserDefaults.standard.object(forKey: "pinchToZoom") as? Bool ?? true else { return }
-        WritingZoom.set(WritingZoom.value(for: zoomKey) * (1 + event.magnification), for: zoomKey)
+        pinch(phase: event.phase, magnification: event.magnification, at: event.locationInWindow)
     }
 
+    /// A pinch step: zoom follows the fingers on a picture of the page, and the page itself is zoomed once, at the end.
+    func pinch(phase: NSEvent.Phase, magnification: CGFloat, at windowPoint: NSPoint) {
+        // Without gesture phases there is no end to wait for, so each step zooms the page.
+        guard !phase.isEmpty else {
+            WritingZoom.set(WritingZoom.value(for: zoomKey) * (1 + magnification), for: zoomKey)
+            return
+        }
+        if phase.contains(.began) || livePinch == nil {
+            finishSettling()
+            livePinch?.remove(from: self, fade: false)
+            livePinch = PagePinch(in: self, zoom: WritingZoom.value(for: zoomKey), at: windowPoint)
+        }
+        guard let live = livePinch else { return }
+        live.scale(by: 1 + magnification)
+        guard phase.contains(.ended) || phase.contains(.cancelled) else { return }
+        livePinch = nil
+        guard live.changesZoom else {
+            live.remove(from: self, fade: false)
+            return
+        }
+        settling = live
+        WritingZoom.set(live.zoom, for: zoomKey)
+        // If nothing takes the new zoom (the surface closed, or the zoom didn't change after all), stop waiting.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self, weak live] in
+            guard let self, let live, self.settling === live else { return }
+            self.finishSettling()
+        }
+    }
+
+    /// Called once the page has been laid out at `zoom`: puts the text that was under the pointer back under it and
+    /// swaps the picture for the page.
+    func zoomDidApply(_ zoom: Double) {
+        guard let live = settling, abs(live.zoom - zoom) < 0.0001 else { return }
+        settling = nil
+        live.restoreAnchor(in: self)
+        live.remove(from: self, fade: true)
+    }
+
+    private func finishSettling() {
+        settling?.remove(from: self, fade: false)
+        settling = nil
+    }
+
+    /// True while a picture of the page stands in for it.
+    var isPinching: Bool { livePinch != nil || settling != nil }
+
     override func scrollWheel(with event: NSEvent) {
+        // Scrolling under the picture would move the text away from where the pinch will put it back.
+        if livePinch != nil { return }
         if ZoomSteps.wheelZooms(command: event.modifierFlags.contains(.command), preciseDeltas: event.hasPreciseScrollingDeltas,
                                 deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY) {
             wheelZoom(with: event)
@@ -199,6 +250,104 @@ final class WritingScrollView: NSScrollView {
         pendingWheelZoom = nil
         lastWheelZoomCommit = ProcessInfo.processInfo.systemUptime
         if zoom != WritingZoom.value(for: zoomKey) { WritingZoom.set(zoom, for: zoomKey) }
+    }
+}
+
+/// A pinch on the page, shown live by scaling a picture of what is on screen. Zoom scales the font and the page width
+/// together, so the text wraps the same at any zoom and the picture is a faithful preview; the page itself is restyled
+/// once, when the fingers lift, instead of on every step of the gesture (a whole-document restyle each time).
+///
+/// The picture scales around the middle of the page across, where the page stays centered, and around the pointer down,
+/// so the line under the pointer stays under it. When the page has taken the new zoom, the same line is scrolled back
+/// under the pointer and the picture fades away (or just goes, with Reduce Motion).
+@MainActor final class PagePinch {
+    let startZoom: Double
+    private(set) var zoom: Double
+    private let overlay: NSView
+    private let picture = CALayer()
+    /// The character under the pointer, how far below the top of its line the pointer was, and how far below the top
+    /// of the visible page.
+    private var anchor: (character: Int, belowLine: CGFloat, belowTop: CGFloat)?
+
+    var changesZoom: Bool { abs(zoom - startZoom) > 0.001 }
+
+    init(in scroll: NSScrollView, zoom: Double, at windowPoint: NSPoint) {
+        startZoom = zoom
+        self.zoom = zoom
+        let clip = scroll.contentView
+        overlay = NSView(frame: clip.frame)
+        let root = CALayer()
+        overlay.layer = root
+        overlay.wantsLayer = true
+        root.masksToBounds = true
+        if let text = scroll.documentView as? NSTextView, text.drawsBackground { root.backgroundColor = text.backgroundColor.cgColor }
+        if let bitmap = clip.bitmapImageRepForCachingDisplay(in: clip.bounds) {
+            clip.cacheDisplay(in: clip.bounds, to: bitmap)
+            picture.contents = bitmap.cgImage
+        }
+        picture.contentsScale = scroll.window?.backingScaleFactor ?? 2
+        let point = overlay.convert(windowPoint, from: nil)
+        let size = overlay.bounds.size
+        if size.width > 0, size.height > 0 {
+            picture.anchorPoint = CGPoint(x: 0.5, y: min(1, max(0, point.y / size.height)))
+        }
+        picture.frame = overlay.bounds
+        root.addSublayer(picture)
+        overlay.setAccessibilityElement(false)
+        scroll.addSubview(overlay, positioned: .above, relativeTo: clip)
+        // Transparent rather than hidden: a hidden text view would give up the keyboard.
+        clip.alphaValue = 0
+        anchor = Self.anchor(in: scroll, at: windowPoint)
+    }
+
+    func scale(by factor: CGFloat) {
+        zoom = min(2, max(0.65, zoom * Double(factor)))
+        let scale = CGFloat(zoom / startZoom)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        picture.transform = CATransform3DMakeScale(scale, scale, 1)
+        CATransaction.commit()
+    }
+
+    private static func anchor(in scroll: NSScrollView, at windowPoint: NSPoint) -> (Int, CGFloat, CGFloat)? {
+        guard let text = scroll.documentView as? NSTextView, let layout = text.layoutManager, let container = text.textContainer,
+              layout.numberOfGlyphs > 0 else { return nil }
+        let clip = scroll.contentView
+        let inText = text.convert(windowPoint, from: nil)
+        let origin = text.textContainerOrigin
+        let glyph = layout.glyphIndex(for: NSPoint(x: inText.x - origin.x, y: inText.y - origin.y), in: container)
+        let line = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let lineTop = clip.convert(NSPoint(x: 0, y: line.minY + origin.y), from: text).y
+        let pointer = clip.convert(windowPoint, from: nil).y
+        return (layout.characterIndexForGlyph(at: glyph), pointer - lineTop, pointer - clip.bounds.minY)
+    }
+
+    /// Scrolls so the anchor's line sits where the picture showed it: the pointer stayed put and everything scaled around it.
+    func restoreAnchor(in scroll: NSScrollView) {
+        guard let anchor, let text = scroll.documentView as? NSTextView, let layout = text.layoutManager,
+              anchor.character < (text.textStorage?.length ?? 0) else { return }
+        let clip = scroll.contentView
+        let line = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: anchor.character), effectiveRange: nil)
+        let lineTop = clip.convert(NSPoint(x: 0, y: line.minY + text.textContainerOrigin.y), from: text).y
+        let wanted = NSRect(x: clip.bounds.minX, y: lineTop + anchor.belowLine * CGFloat(zoom / startZoom) - anchor.belowTop,
+                            width: clip.bounds.width, height: clip.bounds.height)
+        clip.scroll(to: clip.constrainBoundsRect(wanted).origin)
+        scroll.reflectScrolledClipView(clip)
+    }
+
+    func remove(from scroll: NSScrollView, fade: Bool) {
+        scroll.contentView.alphaValue = 1
+        let overlay = overlay
+        guard fade, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            overlay.removeFromSuperview()
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            overlay.animator().alphaValue = 0
+        } completionHandler: {
+            MainActor.assumeIsolated { overlay.removeFromSuperview() }
+        }
     }
 }
 

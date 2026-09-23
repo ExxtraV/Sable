@@ -3,8 +3,9 @@ import QuillCore
 
 /// Everything the editor remembers between styling passes so that a keystroke restyles only the lines around it.
 /// A full restyle (new text, a theme, font, or size change) and a keystroke's restyle run the same code, one over the
-/// whole text and one over a region, so they can't drift apart. `scripts/check-incremental-styling.swift` holds them to
-/// the same result after thousands of random edits.
+/// whole text and one over a region, so they can't drift apart. A setting change on text that hasn't changed paints the
+/// whole text from the spans, sentence tags, and names kept here instead of parsing and tagging it again.
+/// `scripts/check-incremental-styling.swift` holds all of them to the same result after thousands of random edits.
 @MainActor
 final class EditorStyleState {
     /// The storage settings the text was last styled with; any change restyles everything.
@@ -24,12 +25,20 @@ final class EditorStyleState {
     var proseBlocks: [NSRange] = []
     var nameRanges: [NSRange] = []
     var nameKinds: [CardKind] = []
+    /// Every span except the blocks, over the whole text. None crosses a line, so a region pass splices its lines in.
+    var lineSpans: [MarkdownSpan] = []
+    /// Sentence tags over the whole text for every word class, so choosing other classes needs no tagging. Nil while
+    /// sentence colors are off (it isn't kept up to date then).
+    var tags: [TaggedWord]?
     var suggestions: [NSRange] = []
     /// Words in the whole text, kept up to date region by region; nil after a full pass until someone asks.
     var wordCount: Int?
-    /// How many passes of each kind have run, for the checks and the benchmark.
+    /// How many styling passes of each kind have run (not counting ones that only redo prose review), for the checks and
+    /// the benchmark.
     var fullPasses = 0
     var regionPasses = 0
+    /// Full passes that painted from the kept spans and tags because only a setting changed.
+    var repaints = 0
 }
 
 /// The open document's text for views that only read it (the writing desk, cards, scene tags). SwiftUI compares a view's
@@ -109,12 +118,16 @@ extension WritingTextView: @preconcurrency NSTextStorageDelegate {
             style.wordCount = nil
         }
         if textChanged || restyle {
-            applyStyle(full || restyle ? whole : region, replacing: oldRegion, in: text, storage: storage)
+            // Only a setting changed: the text is exactly as last styled, so what was found in it still holds.
+            let repaint = !textChanged
+            applyStyle(full || restyle ? whole : region, replacing: oldRegion, in: text, storage: storage,
+                       repaint: repaint, keepNames: repaint && style.key?.names == key.names)
+            if repaint { style.repaints += 1 }
+            if full || restyle { style.fullPasses += 1 } else { style.regionPasses += 1 }
         }
         if textChanged || rereview {
             applyReview(full || rereview ? whole : region, replacing: oldRegion, in: text)
         }
-        if full || restyle { style.fullPasses += 1 } else { style.regionPasses += 1 }
         style.previous = text
         style.edits.reset()
         style.key = key
@@ -127,9 +140,18 @@ extension WritingTextView: @preconcurrency NSTextStorageDelegate {
     }
 
     /// Styles `range` from scratch. `old` is where that range was in the previous text (the whole previous text for a
-    /// full pass), so the remembered name ranges outside it can be kept.
-    private func applyStyle(_ range: NSRange, replacing old: NSRange, in text: NSString, storage: NSTextStorage) {
+    /// full pass), so the remembered spans, tags, and name ranges outside it can be kept. `repaint` paints the whole,
+    /// unchanged text from what was kept instead of parsing it again, and `keepNames` keeps its names too.
+    private func applyStyle(_ range: NSRange, replacing old: NSRange, in text: NSString, storage: NSTextStorage,
+                            repaint: Bool, keepNames: Bool) {
         let string = text as String
+        let whole = range.location == 0 && range.length == text.length
+        let lineSpans = repaint ? style.lineSpans : MarkdownSyntax.lineSpans(in: string, range: range, blocks: style.blocks)
+        let spans = MarkdownSyntax.blockParts(in: range, blocks: style.blocks) + lineSpans
+        var tags = repaint ? style.tags : nil
+        if syntaxClasses != 0, tags == nil {
+            tags = SentenceStructure.words(in: string, enabled: SentenceStructure.allClasses, range: range, spans: spans)
+        }
         let base = NSFontManager.shared.font(withFamily: bodyFontFamily, traits: [], weight: 5, size: bodySize) ?? .systemFont(ofSize: bodySize)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = bodySize * lineSpacingRatio
@@ -137,7 +159,6 @@ extension WritingTextView: @preconcurrency NSTextStorageDelegate {
         let attributes: [NSAttributedString.Key: Any] = [.font: base, .foregroundColor: WritingTheme.named(themeName).foreground, .paragraphStyle: paragraph]
         storage.beginEditing()
         storage.setAttributes(attributes, range: range)
-        let spans = MarkdownSyntax.spans(in: string, range: range, blocks: style.blocks)
         // Heading sizes precede inline traits so bold/italic can compose with headings.
         for span in spans {
             if case let .heading(level) = span.kind {
@@ -198,22 +219,39 @@ extension WritingTextView: @preconcurrency NSTextStorageDelegate {
                 }
             }
         }
-        for word in SentenceStructure.words(in: string, enabled: syntaxClasses, range: range, spans: spans) {
-            storage.addAttribute(.foregroundColor, value: Self.wordColor(word.kind), range: word.range)
+        if syntaxClasses != 0, let tags {
+            let colors = Dictionary(uniqueKeysWithValues: WordClass.allCases.map { ($0, Self.wordColor($0)) })
+            for word in tags where syntaxClasses & word.kind.rawValue != 0 {
+                storage.addAttribute(.foregroundColor, value: colors[word.kind]!, range: word.range)
+            }
         }
         // Names of characters, places, and world notes stand out on top of everything else, by color and optionally a glow.
         var found: [(range: NSRange, kind: CardKind)] = []
-        if let namer = nameHighlighter, !namer.isEmpty {
+        if keepNames {
+            found = zip(style.nameRanges, style.nameKinds).map { ($0, $1) }
+        } else if let namer = nameHighlighter, !namer.isEmpty {
             found = namer.matches(in: string, kinds: nameKinds, range: range)
-            for match in found {
-                storage.addAttribute(.foregroundColor, value: Self.nameColor(match.kind), range: match.range)
-            }
+        }
+        let nameColors = Dictionary(uniqueKeysWithValues: CardKind.allCases.map { ($0, Self.nameColor($0)) })
+        for match in found {
+            storage.addAttribute(.foregroundColor, value: nameColors[match.kind]!, range: match.range)
         }
         storage.endEditing()
         // The shimmer paints names with temporary colors; any left on text that was just restyled may no longer be a name.
         // Paragraph focus repaints its own dimming right after this.
         layoutManager?.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
         let delta = range.length - old.length
+        if !repaint {
+            style.lineSpans = whole ? lineSpans : IncrementalStyling.splice(style.lineSpans, old: old, delta: delta, replacement: lineSpans,
+                                                                            range: { $0.range }, moved: { $0.shifted(by: $1) })
+        }
+        if whole {
+            style.tags = tags
+        } else if let tags, let kept = style.tags {
+            style.tags = IncrementalStyling.splice(kept, old: old, delta: delta, replacement: tags, range: { $0.range }, moved: { $0.shifted(by: $1) })
+        } else {
+            style.tags = nil
+        }
         let kept = IncrementalStyling.splice(Array(zip(style.nameRanges, style.nameKinds)), old: old, delta: delta,
                                             replacement: found.map { ($0.range, $0.kind) }, range: { $0.0 },
                                             moved: { (NSRange(location: $0.0.location + $1, length: $0.0.length), $0.1) })
