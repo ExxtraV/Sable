@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in Sable isn't working the way it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. The more detail you can give, especially exact steps, the faster it can be tracked down.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Screenshots or a screen recording help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps, in order, that trigger the bug.
+      placeholder: |
+        1. Open a Fiction Project
+        2. ...
+        3. See error
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      description: Apple menu → About This Mac.
+      placeholder: e.g. macOS 15.1 (Sequoia)
+    validations:
+      required: true
+  - type: input
+    id: sable-version
+    attributes:
+      label: Sable version
+      description: Sable → About Sable Markdown Writer.
+      placeholder: e.g. 0.9.0
+    validations:
+      required: true
+  - type: dropdown
+    id: file-location
+    attributes:
+      label: Is the affected file (or writing folder) in iCloud Drive, Dropbox, or another synced location?
+      description: Cloud-synced files can behave differently than local files, especially around saving and conflicts.
+      options:
+        - "No — it's on local disk only"
+        - "Yes — iCloud Drive"
+        - "Yes — Dropbox"
+        - "Yes — OneDrive"
+        - "Yes — another sync service"
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Crash logs (Console.app → Crash Reports), relevant Markdown, or other context.
+    validations:
+      required: false

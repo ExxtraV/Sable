@@ -49,6 +49,9 @@
         note.hidden = false;
       });
       document.querySelectorAll('[data-install-steps]').forEach(function (steps) { steps.setAttribute('data-kind', isDisk ? 'dmg' : 'zip'); });
+      document.querySelectorAll('[data-version-label]').forEach(function (label) {
+        label.textContent = label.getAttribute('data-version-label') + (release.tag_name || '').replace(/^v/, '');
+      });
     })
     .catch(function () {});
 })();

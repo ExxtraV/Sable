@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest something Sable should do.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, it's worth a quick check of [the roadmap](../../docs/ROADMAP.md) — your idea may already be planned, or may be a deliberate "not planned" choice (Sable stays free, local-first, and without generative AI, accounts, real-time collaboration, or streaks).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and where does Sable currently get in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+      description: Describe the feature or change you have in mind. Mockups or examples from other apps are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Any other approaches, or workarounds you're using today.
+    validations:
+      required: false
+  - type: input
+    id: sable-version
+    attributes:
+      label: Sable version
+      description: Sable → About Sable Markdown Writer.
+      placeholder: e.g. 0.9.0
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+    validations:
+      required: false
