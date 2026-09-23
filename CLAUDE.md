@@ -96,7 +96,7 @@ tested.
 
 ## Git
 
-gh isn't installed. When asked for a PR, push the feature branch and give the
-github.com/ExxtraV/Sable/pull/new/<branch> link. main is protected; never push
-to it. Never merge, publish a release, or change GitHub settings without
+gh is installed and signed in (Homebrew, /opt/homebrew/bin). When asked for a
+PR, push the feature branch, open it with `gh pr create`, and check CI with
+`gh pr checks`. main is protected; never push to it. Never merge, publish a release, or change GitHub settings without
 asking first.
