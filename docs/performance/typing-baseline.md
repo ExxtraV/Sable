@@ -244,3 +244,98 @@ everything on spends about:
 
 This change was run with 5 extra seeds and a 20,000-edit soak (`QUILL_FUZZ_SEED=987654 QUILL_FUZZ_EDITS=20000`,
 about 28,700 edits across the three configurations), all passing. `QUILL_FUZZ_SABOTAGE=1` still fails as it should.
+
+## Pinch zoom and setting changes
+
+Pinch zoom stuttered in a 100k-word file. `WritingScrollView.magnify(with:)` wrote the zoom setting on every
+magnify event. SwiftUI then gave the editor a new font size and page width, and that restyled the whole document:
+about 300 ms with the defaults and 1.2 s with everything on, on each of the dozens of events in one pinch. Theme,
+font, color, and name changes pay the same whole-document cost once.
+
+### What changed
+
+- **A pinch zooms a picture of the page, then the page once.** When the gesture starts, `PagePinch` takes a
+  picture of what's on screen, lays it over the page, and scales it as the fingers move. Zoom scales the font and
+  the page width together, so the text wraps the same at every zoom and the picture is an accurate preview. Nothing
+  is restyled or laid out during the gesture. When the fingers lift (`.ended` or `.cancelled`), the zoom setting is
+  written once. SwiftUI applies it with a single restyle, and `NativeEditor.updateNSView` (or `ReadingView`) calls
+  `zoomDidApply`. That scrolls the line that was under the pointer back under it and removes the picture: a 0.12 s
+  fade, or no fade with Reduce Motion. The picture scales around the pointer vertically and around the middle of
+  the page horizontally, because the page stays centered. Scrolling is ignored while the fingers are down. The "Pinch
+  to zoom" setting still turns it all off. A device that sends magnify events without gesture phases still zooms
+  step by step, as before.
+- **Setting changes paint from what was already found.** `EditorStyleState` now also keeps these, spliced in by each
+  region pass the same way the name ranges already were:
+  - every span except the fences and notes (`lineSpans`; none of these crosses a line)
+  - the sentence tags for every word class (`tags`; only while sentence colors are on)
+
+  A theme, font, size, zoom, color, or marker change on text that hasn't changed then paints the whole document from
+  those lists. It doesn't parse Markdown or run NLTagger again. Name matches are reused too unless the names or name
+  kinds changed. Choosing different sentence-color classes needs no tagging, because every class is kept. Turning
+  sentence colors on for the first time tags the document once.
+- **Splicing is specialized.** `IncrementalStyling.splice` is now `@inlinable`. Called across the module boundary it
+  ran unspecialized, which cost about 5 ms per keystroke once it spliced tens of thousands of kept tags. (That is also
+  why the defaults keystroke got a little faster: the name ranges went through the same unspecialized path.) Word
+  and name colors are looked up once per pass instead of once per word.
+
+### Before and after (ms)
+
+Same Mac as above. Both columns use the updated benchmark: *Full restyle* (a word-color change) and the new *Zoom*
+column (font size and page width together, what committing a pinch or ⌘+ costs) each run through laying out and
+drawing the visible page, median of three. "Before" is the updated benchmark built against `main` at fa5e667.
+
+| Words | Defaults, full restyle | Defaults, zoom | Everything on, full restyle | Everything on, zoom |
+|---:|---:|---:|---:|---:|
+| 10,177 | 25.1 → **11.6** | 31.3 → **18.0** | 86.2 → **29.8** | 96.0 → **42.3** |
+| 50,140 | 145.0 → **76.8** | 198.8 → **133.7** | 541.9 → **257.3** | 684.9 → **406.8** |
+| 100,304 | 304.1 → **174.5** | 439.8 → **309.7** | 1,242.5 → **679.9** | 1,767.4 → **1,068.9** |
+
+Per keystroke, total median at 100k words: 5.59 → 4.89 ms with the defaults and 18.8 → 17.9 ms with everything on.
+Both are within run-to-run noise at 10k and 50k.
+
+During a pinch the cost is now one picture of the page when the gesture starts (one draw of the visible page, a few
+milliseconds) and nothing per event. The zoom column above is paid once, when the fingers lift, while the picture
+is still showing.
+
+### Where the rest of a setting change goes
+
+Timing the pieces of a repaint at 100k words:
+
+- **Defaults:** painting from the kept lists takes about 6 ms. Almost all of the remaining ~170 ms is AppKit laying
+  the text out again. Any attribute change invalidates layout for the range. The layout manager doesn't use
+  non-contiguous layout, so showing the middle of the book means laying out everything before it.
+- **Everything on:** about 190 ms goes to AppKit processing the edit (`endEditing`) with about 100k attribute runs
+  from sentence colors, and 22 ms to adding the word colors. The rest is layout, as above.
+
+Turning on `allowsNonContiguousLayout` is the next lever for both setting changes and the zoom commit. It changes how
+AppKit estimates the page height and where scrolling lands, though, and "center" typing mode was tuned by hand
+against contiguous layout. It should be its own change, tested by hand.
+
+### How correctness is checked
+
+- `check-incremental-styling.swift` now mixes ten kinds of setting change into its random edits: theme, marker
+  dimming, names on and off, name kinds, review, font size, zoom (font size and page width together), sentence-color
+  classes (including off and back on), custom word and name colors, and font family with line spacing. After its
+  edits, each configuration makes 24 more setting changes in a row and compares each one with a from-scratch restyle.
+  So anything the kept lists got wrong over thousands of edits shows up. The check also requires that every restyle
+  in that run painted from the kept lists. `QUILL_FUZZ_SABOTAGE=cache` drops one kept span before a setting change and
+  must fail.
+- The new settings exposed two old problems, both fixed:
+  - **Gradient focus dimmed part of the paragraph being written** when that paragraph was taller than the band
+    around the screen (a long paragraph at 200%). Text outside the band was faded to the floor without excluding the
+    active paragraph.
+  - **The gradient comparison lined the two views up by clip-view position.** AppKit can leave the two text views'
+    frame origins at different places, so the views could show different text. The check now lines them up by the
+    visible text.
+- The check's test saves now go to a file named for the process. Two copies of the check running at once, for
+  example in two checkouts, used to overwrite each other's `quill-fuzz-save.md`. That failed the check with "a save
+  wrote text without the pending typing", although Sable had saved correctly.
+- `check-editor.swift` drives a pinch through `WritingScrollView.pinch(phase:magnification:at:)`. It requires that
+  nothing is restyled while the fingers move, that exactly one restyle happens at the end, that the text under the
+  pointer stays under it, that zoom stops at 200%, and that a pinch that can't zoom further leaves the page alone.
+- `check-styling-ranges.swift` is unchanged and passes: `MarkdownSyntax.spans(in:range:blocks:)` is now
+  `blockParts` + `lineSpans`, and it still matches the verbatim whole-text code.
+
+This change passed the random-edit check with the default seeds, seeds 11, 222, and 3333, and a soak run
+(`QUILL_FUZZ_SEED=987654 QUILL_FUZZ_EDITS=6000`, about 8,600 edits across the three configurations). Both sabotage modes
+fail as they should.

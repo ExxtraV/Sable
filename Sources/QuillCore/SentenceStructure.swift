@@ -10,8 +10,13 @@ public enum WordClass: Int, CaseIterable, Sendable {
 public struct TaggedWord {
     public let range: NSRange
     public let kind: WordClass
+    /// The same word `delta` characters later, for a word after an edit.
+    public func shifted(by delta: Int) -> TaggedWord { TaggedWord(range: NSRange(location: range.location + delta, length: range.length), kind: kind) }
 }
 public enum SentenceStructure {
+    /// Every word class, for tagging once and choosing which classes to color afterwards.
+    public static let allClasses = WordClass.allCases.reduce(0) { $0 | $1.rawValue }
+
     public static func words(in text: String, enabled: Int) -> [TaggedWord] {
         words(in: text, enabled: enabled, range: NSRange(location: 0, length: (text as NSString).length), spans: MarkdownSyntax.spans(in: text))
     }

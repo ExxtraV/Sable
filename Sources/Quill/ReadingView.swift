@@ -122,6 +122,7 @@ struct ReadingView: NSViewRepresentable {
             view.textStorage?.setAttributedString(rendered)
             view.renderKey = key
         }
+        (scroll as? WritingScrollView)?.zoomDidApply(zoom)
     }
 }
 final class ReadingTextView: NSTextView {

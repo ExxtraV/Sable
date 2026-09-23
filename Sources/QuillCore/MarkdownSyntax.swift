@@ -17,6 +17,13 @@ public struct MarkdownSpan {
     public let markers: [NSRange]
     public let closing: NSRange?
     public let destination: NSRange?
+
+    /// The same span `delta` characters later, for a span after an edit.
+    public func shifted(by delta: Int) -> MarkdownSpan {
+        func move(_ range: NSRange) -> NSRange { NSRange(location: range.location + delta, length: range.length) }
+        return MarkdownSpan(kind: kind, range: move(range), content: move(content), markers: markers.map(move),
+                            closing: closing.map(move), destination: destination.map(move))
+    }
 }
 
 public struct ChapterHeading: Identifiable {
@@ -75,16 +82,25 @@ public enum MarkdownSyntax {
     /// The spans a whole-text pass finds inside `range`, which must start at the beginning of a line and end just after a
     /// `\n` (or at the end of the text). `blocks` are the text's `blocks(in:)`; the part of each that falls in `range` leads the list.
     public static func spans(in text: String, range: NSRange, blocks: [MarkdownSpan]) -> [MarkdownSpan] {
+        blockParts(in: range, blocks: blocks) + lineSpans(in: text, range: range, blocks: blocks)
+    }
+
+    /// The part of each block that falls in `range`, as `spans(in:range:blocks:)` lists them first.
+    public static func blockParts(in range: NSRange, blocks: [MarkdownSpan]) -> [MarkdownSpan] {
+        blocks.compactMap { block in
+            let part = NSIntersectionRange(block.range, range)
+            guard part.length > 0 else { return nil }
+            return part == block.range ? block : MarkdownSpan(kind: block.kind, range: part, content: part, markers: [], closing: nil, destination: nil)
+        }
+    }
+
+    /// Every span in `range` except the blocks, in the order `spans(in:range:blocks:)` lists them. None of these crosses
+    /// a line break, so a list of them for whole lines can be kept and spliced line by line as the text changes.
+    public static func lineSpans(in text: String, range: NSRange, blocks: [MarkdownSpan]) -> [MarkdownSpan] {
         let source = text as NSString
         func matches(_ regex: NSRegularExpression) -> [NSTextCheckingResult] { regex.matches(in: text, options: bounds, range: range) }
         var result: [MarkdownSpan] = []
-        var protected: [NSRange] = []
-        for block in blocks {
-            let part = NSIntersectionRange(block.range, range)
-            guard part.length > 0 else { continue }
-            protected.append(block.range)
-            result.append(part == block.range ? block : MarkdownSpan(kind: block.kind, range: part, content: part, markers: [], closing: nil, destination: nil))
-        }
+        var protected = blocks.map(\.range).filter { NSIntersectionRange($0, range).length > 0 }
         func available(_ range: NSRange) -> Bool {
             !protected.contains { NSIntersectionRange($0, range).length > 0 }
         }
