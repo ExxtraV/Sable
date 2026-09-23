@@ -32,6 +32,15 @@ final class EditorStyleState {
     var regionPasses = 0
 }
 
+/// The open document's text for views that only read it (the writing desk, cards, scene tags). SwiftUI compares a view's
+/// inputs on every update, and comparing two versions of a novel character by character takes tens of milliseconds, so
+/// these compare by revision instead.
+struct LiveText: Equatable {
+    var text: String
+    var revision: Int
+    static func == (lhs: LiveText, rhs: LiveText) -> Bool { lhs.revision == rhs.revision }
+}
+
 /// What the status bar shows about the open document, measured by the editor so SwiftUI never has to count.
 struct DocumentStats: Equatable {
     /// The text these numbers describe (shares storage with the binding's copy, so comparing it is cheap).
@@ -39,6 +48,8 @@ struct DocumentStats: Equatable {
     var words: Int
     /// Prose suggestions, or nil while review is off.
     var cuts: Int?
+    /// Goes up by one each time the published text changes (not part of equality).
+    var revision = 0
 
     /// Comparing two novels character by character takes milliseconds, so the counts and lengths go first.
     static func == (lhs: DocumentStats, rhs: DocumentStats) -> Bool {

@@ -4,7 +4,8 @@ import QuillCore
 /// The writing desk deliberately stays small: one thing at a time. Files and the outline
 /// live on separate tabs, so a long file list never buries your headings.
 struct WritingSidebar: View {
-    let text: String
+    /// The open document, compared by revision (see LiveText).
+    let text: LiveText
     let commands: EditorCommands
     let chooseFolder: () -> Void
     let currentURL: URL?
@@ -25,7 +26,7 @@ struct WritingSidebar: View {
     @State private var search = ""
 
     private var chapters: [ChapterHeading] {
-        MarkdownSyntax.headings(in: text).filter { outlineLevel == 0 || $0.level == outlineLevel }
+        MarkdownSyntax.headings(in: text.text).filter { outlineLevel == 0 || $0.level == outlineLevel }
     }
     private var outlineName: String {
         let trimmed = outlineTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -209,7 +210,7 @@ final class ManuscriptModel: ObservableObject {
 private struct ManuscriptTab: View {
     @EnvironmentObject private var browser: FolderBrowser
     let currentURL: URL?
-    let liveText: String
+    let liveText: LiveText
     let search: String
     let switchFile: (URL) -> Void
     let exportManuscript: () -> Void
@@ -222,7 +223,7 @@ private struct ManuscriptTab: View {
 
     private func words(_ chapter: ChapterStat) -> Int {
         // The chapter you're typing in counts live; the rest come from disk.
-        chapter.url.standardizedFileURL.path == currentURL?.standardizedFileURL.path ? ManuscriptStats.wordCount(in: liveText) : chapter.words
+        chapter.url.standardizedFileURL.path == currentURL?.standardizedFileURL.path ? ManuscriptStats.wordCount(in: liveText.text) : chapter.words
     }
     private var total: Int { model.chapters.reduce(0) { $0 + words($1) } }
     private var goal: Int? { browser.project?.wordGoal }
