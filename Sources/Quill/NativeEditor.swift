@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import QuillCore
 
@@ -55,6 +56,8 @@ struct NativeEditor: NSViewRepresentable {
     /// The page is drawn behind the editor (edge shading), so the editor paints nothing of its own.
     var transparentBackground: Bool = false
     var documentUndoManager: UndoManager? = nil
+    /// The document whose saves must wait for typing to reach `text` (the window's document when nil).
+    var editingDocument: NSDocument? = nil
     var saveAction: (() -> Void)? = nil
     var sidebarGesture: (() -> Void)? = nil
 
@@ -89,6 +92,7 @@ struct NativeEditor: NSViewRepresentable {
         editor.usesFindBar = true
         editor.delegate = context.coordinator
         editor.string = text
+        context.coordinator.attach(editor, text: text)
         scroll.contentView = RoomClipView()
         scroll.documentView = editor
         return scroll
@@ -96,12 +100,7 @@ struct NativeEditor: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         context.coordinator.parent = self
         guard let editor = scroll.documentView as? WritingTextView else { return }
-        if editor.string != text {
-            let selection = editor.selectedRange()
-            editor.string = text
-            let length = (text as NSString).length
-            editor.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
-        }
+        context.coordinator.syncFromBinding(editor)
         commands.editor = editor
         editor.isEditable = !readOnly
         editor.isContinuousSpellCheckingEnabled = spellCheckEnabled
@@ -141,10 +140,39 @@ struct NativeEditor: NSViewRepresentable {
         editor.reviewEnabled = review
         editor.reviewWords = words
         editor.decorate()
+        context.coordinator.publishStatsIfSettled()
     }
-    final class Coordinator: NSObject, NSTextViewDelegate {
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        coordinator.flush()
+    }
+
+    /// Typing stays in the text view and reaches SwiftUI's copy of the text (`text`) in batches: after a short pause, at
+    /// least every `longestWait` while typing goes on, and at once before anything else could read it (a save, closing,
+    /// a menu, a click, a shortcut, leaving the editor). Handing a whole novel to SwiftUI on every keystroke made it
+    /// recount and redraw everything that depends on the text.
+    @MainActor final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: NativeEditor
-        init(_ parent: NativeEditor) { self.parent = parent }
+        weak var editor: WritingTextView?
+        /// The binding's text when the editor and SwiftUI last agreed.
+        private(set) var syncedText: String?
+        /// The editor holds typing that SwiftUI hasn't seen yet.
+        private(set) var hasPendingText = false
+        private var pendingSince: TimeInterval = 0
+        private var flushTimer: Timer?
+        private weak var registeredDocument: NSDocument?
+        private var fileDateWhenPending: Date?
+        static let pause: TimeInterval = 0.3
+        static let longestWait: TimeInterval = 1.5
+
+        init(_ parent: NativeEditor) {
+            self.parent = parent
+            super.init()
+            PendingText.register(self)
+        }
+        func attach(_ editor: WritingTextView, text: String) {
+            self.editor = editor
+            syncedText = text
+        }
         func undoManager(for view: NSTextView) -> UndoManager? { parent.documentUndoManager ?? view.window?.undoManager }
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let editor = notification.object as? WritingTextView else { return }
@@ -154,11 +182,119 @@ struct NativeEditor: NSViewRepresentable {
         }
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? WritingTextView else { return }
-            guard parent.text != editor.string else { return }
-            parent.text = editor.string
+            self.editor = editor
             editor.decorate()
             editor.centerCaretIfNeeded()
+            parent.commands.typing.send()
+            if !hasPendingText {
+                hasPendingText = true
+                pendingSince = ProcessInfo.processInfo.systemUptime
+                // While typing is pending the document counts as edited and commits it before saving or closing.
+                let document = parent.editingDocument ?? editor.window?.windowController?.document as? NSDocument
+                fileDateWhenPending = document?.fileModificationDate
+                document?.objectDidBeginEditing(self)
+                registeredDocument = document
+            }
+            let waited = ProcessInfo.processInfo.systemUptime - pendingSince
+            let timer = Timer(timeInterval: max(0, min(Self.pause, Self.longestWait - waited)), repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.flush() }
+            }
+            flushTimer?.invalidate()
+            RunLoop.main.add(timer, forMode: .common)
+            flushTimer = timer
         }
+
+        /// Hands pending typing to SwiftUI, with the status bar's counts for it.
+        func flush() {
+            flushTimer?.invalidate()
+            flushTimer = nil
+            guard hasPendingText, let editor else { return }
+            hasPendingText = false
+            let text = editor.string
+            syncedText = text
+            parent.text = text
+            if let document = registeredDocument {
+                registeredDocument = nil
+                document.objectDidEndEditing(self)
+                // Autosave doesn't wait for editors. If one ran while typing was pending, it saved the older text, so the
+                // document must still count as changed.
+                if document.fileModificationDate != fileDateWhenPending { document.updateChangeCount(.changeDone) }
+            }
+            parent.commands.publish(editor.documentStats(text: text), knownToDiffer: true)
+        }
+
+        /// Takes the binding's text when something other than typing changed it (opening a file, a scene tag, a
+        /// front-matter edit), but never lets the binding's older copy overwrite typing it hasn't received yet.
+        func syncFromBinding(_ editor: WritingTextView) {
+            self.editor = editor
+            let text = parent.text
+            if let syncedText, text == syncedText { return }
+            syncedText = text
+            if hasPendingText {
+                hasPendingText = false
+                flushTimer?.invalidate()
+                flushTimer = nil
+                registeredDocument?.objectDidEndEditing(self)
+                registeredDocument = nil
+            }
+            guard editor.string != text else { return }
+            let selection = editor.selectedRange()
+            editor.string = text
+            let length = (text as NSString).length
+            editor.setSelectedRange(NSRange(location: min(selection.location, length), length: 0))
+        }
+
+        /// After a SwiftUI update restyled the text (a new file, a changed setting), refresh the status bar's counts.
+        func publishStatsIfSettled() {
+            guard !hasPendingText, let editor, let text = syncedText, parent.commands.stats != editor.documentStats(text: text) else { return }
+            // Not during SwiftUI's update. Counted again when it runs, since typing may have been handed over by then.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.hasPendingText, let editor = self.editor, let text = self.syncedText else { return }
+                self.parent.commands.publish(editor.documentStats(text: text))
+            }
+        }
+    }
+}
+
+extension NativeEditor.Coordinator: NSEditor {
+    func commitEditing() -> Bool {
+        flush()
+        return true
+    }
+    func commitEditingWithoutPresentingError() throws { flush() }
+    func discardEditing() { flush() }
+    func commitEditing(withDelegate delegate: Any?, didCommit didCommitSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        flush()
+        guard let delegate = delegate as AnyObject?, let didCommitSelector else { return }
+        typealias DidCommit = @convention(c) (AnyObject, Selector, AnyObject, Bool, UnsafeMutableRawPointer?) -> Void
+        unsafeBitCast(delegate.method(for: didCommitSelector), to: DidCommit.self)(delegate, didCommitSelector, self, true, contextInfo)
+    }
+}
+
+/// Every editor with typing SwiftUI hasn't seen yet hands it over before anything that could read the document: a click
+/// anywhere, a keyboard shortcut, a menu opening, the app going to the background or quitting.
+@MainActor
+enum PendingText {
+    private static let coordinators = NSHashTable<NativeEditor.Coordinator>.weakObjects()
+    private static var watching = false
+
+    static func register(_ coordinator: NativeEditor.Coordinator) {
+        coordinators.add(coordinator)
+        guard !watching else { return }
+        watching = true
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]) { event in
+            if event.type != .keyDown || !event.modifierFlags.intersection([.command, .control]).isEmpty {
+                MainActor.assumeIsolated { flushAll() }
+            }
+            return event
+        }
+        for name in [NSMenu.didBeginTrackingNotification, NSApplication.willResignActiveNotification, NSApplication.willTerminateNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { _ in MainActor.assumeIsolated { flushAll() } }
+        }
+    }
+
+    static func flushAll() {
+        for coordinator in coordinators.allObjects { coordinator.flush() }
     }
 }
 
@@ -169,7 +305,6 @@ final class WritingTextView: NSTextView {
     var colorVersion = 0
     var saveAction: (() -> Void)?
     var themeName = "graphite"
-    private var lastThemeName = ""
     var bodyFontFamily = "Charter"
     var lineSpacingRatio = 0.28
     var focusParagraph = false
@@ -179,28 +314,25 @@ final class WritingTextView: NSTextView {
     var bodySize: Double = 19
     var pageWidth: Double = 680
     private var contextRange: NSRange?
-    private var styling = false
-    private var lastStyledText: String?
-    private var lastStyledSize: Double = 0
-    private var lastStyledFamily = ""
-    private var lastStyledSpacing: Double = -1
-    private var lastSyntaxClasses = -1
-    private var lastColorVersion = -1
-    private var lastNameKey = ""
+    /// True while a styling pass is changing attributes, so nothing else touches them at the same time.
+    var styling = false
+    /// What the last styling pass left behind, so the next one can restyle only what an edit changed.
+    let style = EditorStyleState()
+    /// Between asking to change the text and the change being done.
+    private var changingText = false
+    /// Paragraph focus has dimmed some of the text, so the next update has to clear it first.
+    private var focusPainted = false
     var nameHighlighter: NameHighlighter?
     var nameShimmer = true
     var nameKinds = Set(CardKind.allCases)
     var nameCards: [IndexedCard] = []
     var openNameFile: ((URL) -> Void)?
     var showNameCard: ((URL) -> Void)?
-    var dimMarkers = true { didSet { if oldValue != dimMarkers { lastStyledText = nil } } }
+    var dimMarkers = true
     var smartTypography = false
-    /// Where names were found on the last styling pass, so the shimmer knows where to play.
-    private(set) var nameRanges: [NSRange] = []
-    private var nameKey: String {
+    var nameKey: String {
         (nameHighlighter?.signature ?? "") + (nameShimmer ? "#shimmer" : "#color") + nameKinds.map(\.rawValue).sorted().joined(separator: ",")
     }
-    private var nameRangeKinds: [CardKind] = []
     private var shimmerTimer: Timer?
     private var shimmerStart = Date()
     /// The paragraph being written while paragraph focus is on; names elsewhere are dimmed and stay still.
@@ -243,7 +375,7 @@ final class WritingTextView: NSTextView {
     /// The caret's line, in this view's coordinates.
     private func caretLineRect() -> NSRect? {
         guard let layoutManager else { return nil }
-        let length = (string as NSString).length
+        let length = textStorage?.length ?? 0
         let location = selectedRange().location
         var rect: NSRect
         if location >= length {
@@ -279,9 +411,9 @@ final class WritingTextView: NSTextView {
     /// `defaults write local.quill.editor debugCentering -bool true` makes the page-centering code log what it decides to
     /// /tmp/sable-centering.log, which is how a scrolling problem gets tracked down.
     static var debugCentering: Bool { UserDefaults.standard.bool(forKey: "debugCentering") }
-    static func logCentering(_ message: String) {
+    static func logCentering(_ message: @autoclosure () -> String) {
         guard debugCentering else { return }
-        let line = "\(Date().formatted(.iso8601)) \(message)\n"
+        let line = "\(Date().formatted(.iso8601)) \(message())\n"
         let url = URL(fileURLWithPath: "/tmp/sable-centering.log")
         if let handle = try? FileHandle(forWritingTo: url) { handle.seekToEndOfFile(); handle.write(Data(line.utf8)); try? handle.close() }
         else { try? line.write(to: url, atomically: true, encoding: .utf8) }
@@ -304,7 +436,7 @@ final class WritingTextView: NSTextView {
             scroll.reflectScrolledClipView(clip)
         }
         let target = clip.constrainBoundsRect(wanted).origin
-        Self.logCentering("center caretMid=\(Int(rect.midY)) clipOrigin=\(Int(clip.bounds.origin.y)) clipH=\(Int(clip.bounds.height)) wanted=\(Int(wanted.origin.y)) target=\(Int(target.y)) docRect=\(clip.documentRect) frame=\(frame) rooms=\((clip as? RoomClipView).map { "\($0.topRoom)/\($0.bottomRoom)" } ?? "-") len=\((string as NSString).length) sel=\(selectedRange().location)")
+        Self.logCentering("center caretMid=\(Int(rect.midY)) clipOrigin=\(Int(clip.bounds.origin.y)) clipH=\(Int(clip.bounds.height)) wanted=\(Int(wanted.origin.y)) target=\(Int(target.y)) docRect=\(clip.documentRect) frame=\(frame) rooms=\((clip as? RoomClipView).map { "\($0.topRoom)/\($0.bottomRoom)" } ?? "-") len=\(textStorage?.length ?? 0) sel=\(selectedRange().location)")
         guard abs(target.y - clip.bounds.origin.y) > rect.height * 0.4 else { return }
         guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
             clip.scroll(to: target)
@@ -375,114 +507,12 @@ final class WritingTextView: NSTextView {
 
     @discardableResult
     private func leaveFormatting() -> Bool {
-        guard let offset = MarkdownSyntax.exitOffset(in: string, selection: selectedRange()) else { return false }
+        guard let offset = MarkdownSyntax.exitOffset(in: string, selection: selectedRange(), blocks: currentBlocks()) else { return false }
         setSelectedRange(NSRange(location: offset, length: 0))
         return true
     }
 
     @objc func exitFormatting(_ sender: Any?) { _ = leaveFormatting() }
-
-    private func styleMarkdown() {
-        guard !styling, !hasMarkedText(), let storage = textStorage else { return }
-        guard lastStyledText != string || lastStyledSize != bodySize || lastStyledFamily != bodyFontFamily || lastStyledSpacing != lineSpacingRatio || lastSyntaxClasses != syntaxClasses || lastColorVersion != colorVersion || lastThemeName != themeName || lastNameKey != nameKey else { return }
-        styling = true
-        defer { styling = false }
-        let full = NSRange(location: 0, length: storage.length)
-        let base = NSFontManager.shared.font(withFamily: bodyFontFamily, traits: [], weight: 5, size: bodySize) ?? .systemFont(ofSize: bodySize)
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = bodySize * lineSpacingRatio
-        paragraph.paragraphSpacing = bodySize * 0.25
-        let attributes: [NSAttributedString.Key: Any] = [.font: base, .foregroundColor: WritingTheme.named(themeName).foreground, .paragraphStyle: paragraph]
-        storage.beginEditing()
-        storage.setAttributes(attributes, range: full)
-        let spans = MarkdownSyntax.spans(in: string)
-        // Heading sizes precede inline traits so bold/italic can compose with headings.
-        for span in spans {
-            if case let .heading(level) = span.kind {
-                let size = bodySize + Double(max(0, 4 - level)) * 3
-                let font = NSFontManager.shared.font(withFamily: bodyFontFamily, traits: .boldFontMask, weight: 9, size: size) ?? .systemFont(ofSize: size, weight: .semibold)
-                storage.addAttribute(.font, value: font, range: span.range)
-            }
-        }
-        for span in spans {
-            switch span.kind {
-            case .bold, .italic, .boldItalic:
-                var runs: [(NSRange, NSFont)] = []
-                storage.enumerateAttribute(.font, in: span.content) { value, range, _ in
-                    var traits: NSFontTraitMask = []
-                    if case .bold = span.kind { traits = .boldFontMask }
-                    if case .italic = span.kind { traits = .italicFontMask }
-                    if case .boldItalic = span.kind { traits = [.boldFontMask, .italicFontMask] }
-                    runs.append((range, NSFontManager.shared.convert(value as? NSFont ?? base, toHaveTrait: traits)))
-                }
-                for (range, font) in runs { storage.addAttribute(.font, value: font, range: range) }
-            case .code:
-                storage.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: bodySize * 0.87, weight: .regular), .backgroundColor: NSColor.quaternaryLabelColor], range: span.range)
-            case .link:
-                storage.addAttributes([.foregroundColor: NSColor.linkColor, .underlineStyle: NSUnderlineStyle.single.rawValue], range: span.content)
-                if let destination = span.destination {
-                    let address = (string as NSString).substring(with: destination)
-                    if let url = URL(string: address), ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") {
-                        storage.addAttributes([.link: url, .toolTip: address], range: span.content)
-                    }
-                }
-            case .quote:
-                storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: span.range)
-            case .strike:
-                storage.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: span.content)
-            case .rule:
-                storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .kern: bodySize * 0.3], range: span.range)
-            case .comment:
-                let note = NSMutableParagraphStyle()
-                note.lineSpacing = paragraph.lineSpacing
-                storage.addAttributes([.foregroundColor: NSColor.tertiaryLabelColor, .font: NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)], range: span.range)
-            case .image:
-                storage.addAttributes([.foregroundColor: NSColor.secondaryLabelColor, .font: NSFontManager.shared.convert(base, toHaveTrait: .italicFontMask)], range: span.range)
-                if let destination = span.destination {
-                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: destination)
-                }
-            case let .task(done):
-                storage.addAttributes([.foregroundColor: NSColor.linkColor, .font: NSFont.monospacedSystemFont(ofSize: bodySize * 0.9, weight: .regular)], range: span.content)
-                if done { storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: NSMaxRange(span.content), length: NSMaxRange(span.range) - NSMaxRange(span.content))) }
-            case .table:
-                storage.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: bodySize * 0.86, weight: .regular), range: span.range)
-            case .footnote:
-                storage.addAttributes([.foregroundColor: NSColor.linkColor, .baselineOffset: bodySize * 0.28, .font: NSFont.systemFont(ofSize: bodySize * 0.72)], range: span.range)
-            default: break
-            }
-        }
-        if dimMarkers {
-            for span in spans {
-                for marker in span.markers {
-                    storage.addAttribute(.foregroundColor, value: NSColor.tertiaryLabelColor, range: marker)
-                }
-            }
-        }
-        for word in SentenceStructure.words(in: string, enabled: syntaxClasses) {
-            storage.addAttribute(.foregroundColor, value: Self.wordColor(word.kind), range: word.range)
-        }
-        // Names of characters, places, and world notes stand out on top of everything else, by color and optionally a glow.
-        nameRanges = []
-        nameRangeKinds = []
-        if let namer = nameHighlighter, !namer.isEmpty {
-            for match in namer.matches(in: string, kinds: nameKinds) {
-                storage.addAttribute(.foregroundColor, value: Self.nameColor(match.kind), range: match.range)
-                nameRanges.append(match.range)
-                nameRangeKinds.append(match.kind)
-            }
-        }
-        storage.endEditing()
-        typingAttributes = attributes
-        lastStyledText = string
-        lastStyledSize = bodySize
-        lastStyledFamily = bodyFontFamily
-        lastStyledSpacing = lineSpacingRatio
-        lastSyntaxClasses = syntaxClasses
-        lastColorVersion = colorVersion
-        lastThemeName = themeName
-        lastNameKey = nameKey
-        updateShimmer()
-    }
 
     /// The color for a kind of name: your own choice, or a warm gold for characters, teal for places, violet for world notes.
     static func nameColor(_ kind: CardKind) -> NSColor {
@@ -517,7 +547,7 @@ final class WritingTextView: NSTextView {
 
     private func restoreNameColors() {
         guard let layoutManager else { return }
-        let length = (string as NSString).length
+        let length = textStorage?.length ?? 0
         for range in nameRanges where NSMaxRange(range) <= length && focusActive == nil {
             layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: range)
         }
@@ -528,14 +558,14 @@ final class WritingTextView: NSTextView {
         let defaults = UserDefaults.standard
         let strength = min(1, max(0, defaults.object(forKey: "nameShimmerStrength") as? Double ?? 0.6))
         let speed = min(3, max(0.2, defaults.object(forKey: "nameShimmerSpeed") as? Double ?? 1))
-        let length = (string as NSString).length
+        let length = textStorage?.length ?? 0
         let visibleGlyphs = layoutManager.glyphRange(forBoundingRect: visibleRect.offsetBy(dx: -textContainerOrigin.x, dy: -textContainerOrigin.y), in: container)
         let visible = layoutManager.characterRange(forGlyphRange: visibleGlyphs, actualGlyphRange: nil)
         let dark = WritingTheme.named(themeName).dark
         let time = Date().timeIntervalSince(shimmerStart) * speed
         for (index, range) in nameRanges.enumerated() where NSMaxRange(range) <= length && NSIntersectionRange(range, visible).length > 0 {
             if let active = focusActive, NSIntersectionRange(range, active).length == 0 { continue }
-            var base = Self.nameColor(nameRangeKinds[index])
+            var base = Self.nameColor(style.nameKinds[index])
             effectiveAppearance.performAsCurrentDrawingAppearance { base = base.usingColorSpace(.sRGB) ?? base }
             let target = dark ? NSColor.white : NSColor.black
             // A band of light travels along the name, once every couple of seconds, with a rest between passes.
@@ -572,6 +602,7 @@ final class WritingTextView: NSTextView {
         }
     }
     @objc func saveDocument(_ sender: Any?) {
+        (delegate as? NativeEditor.Coordinator)?.flush()
         if let saveAction { saveAction() }
         else { _ = nextResponder?.tryToPerform(#selector(saveDocument(_:)), with: sender) }
     }
@@ -594,6 +625,7 @@ final class WritingTextView: NSTextView {
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         if newWindow == nil {
+            (delegate as? NativeEditor.Coordinator)?.flush()
             shimmerTimer?.invalidate()
             shimmerTimer = nil
         }
@@ -606,9 +638,12 @@ final class WritingTextView: NSTextView {
 
     func updateFocus() {
         guard !styling, let layoutManager, let container = textContainer else { return }
-        let length = (string as NSString).length
-        let whole = NSRange(location: 0, length: length)
-        layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: whole)
+        let length = textStorage?.length ?? 0
+        // Clearing the whole text costs time in proportion to its length, so only do it when there is dimming to clear.
+        if focusPainted {
+            layoutManager.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(location: 0, length: length))
+            focusPainted = false
+        }
         focusActive = nil
         guard focusParagraph, length > 0 else { return }
         let active = FocusParagraph.range(in: string, caret: selectedRange().location)
@@ -619,6 +654,7 @@ final class WritingTextView: NSTextView {
         effectiveAppearance.performAsCurrentDrawingAppearance { base = WritingTheme.named(themeName).foreground }
         func fade(_ alpha: CGFloat, _ range: NSRange) {
             guard range.length > 0 else { return }
+            focusPainted = true
             layoutManager.addTemporaryAttribute(.foregroundColor, value: base.withAlphaComponent(alpha), forCharacterRange: range)
         }
         guard focusGradient else {
@@ -664,20 +700,34 @@ final class WritingTextView: NSTextView {
         }
     }
 
+    /// Styling, prose suggestions, and paragraph focus, brought up to date with the text (see EditorStyling.swift).
     func decorate() {
-        styleMarkdown()
+        styleText()
         updateFocus()
-        guard let layoutManager else { return }
-        let whole = NSRange(location: 0, length: (string as NSString).length)
-        layoutManager.removeTemporaryAttribute(.strikethroughStyle, forCharacterRange: whole)
-        layoutManager.removeTemporaryAttribute(.strikethroughColor, forCharacterRange: whole)
-        guard reviewEnabled else { return }
-        for range in Prose.suggestions(in: string, words: reviewWords) {
-            layoutManager.addTemporaryAttributes([
-                .strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                .strikethroughColor: NSColor.secondaryLabelColor
-            ], forCharacterRange: range)
-        }
+    }
+
+    override func shouldChangeText(inRanges affectedRanges: [NSValue], replacementStrings: [String]?) -> Bool {
+        let allowed = super.shouldChangeText(inRanges: affectedRanges, replacementStrings: replacementStrings)
+        if allowed { changingText = true }
+        return allowed
+    }
+
+    override func didChangeText() {
+        changingText = false
+        super.didChangeText()
+    }
+
+    /// Ending an input method's composition without committing it changes no text, so nothing else would restyle what
+    /// was composed until the next edit.
+    override func unmarkText() {
+        super.unmarkText()
+        if !changingText, !hasMarkedText() { decorate() }
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { (delegate as? NativeEditor.Coordinator)?.flush() }
+        return resigned
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -695,7 +745,7 @@ final class WritingTextView: NSTextView {
             menu.insertItem(show, at: 0)
             menu.insertItem(open, at: 0)
         }
-        contextRange = reviewEnabled ? Prose.suggestions(in: string, words: reviewWords).first { NSLocationInRange(index, $0) } : nil
+        contextRange = currentSuggestions().first { NSLocationInRange(index, $0) }
         if contextRange != nil {
             menu.addItem(.separator())
             let remove = NSMenuItem(title: "Remove suggested word", action: #selector(removeSuggestion(_:)), keyEquivalent: "")
@@ -710,7 +760,7 @@ final class WritingTextView: NSTextView {
     /// The card behind the highlighted name at `index`, if there is one.
     private func namedCard(at index: Int) -> IndexedCard? {
         guard !nameCards.isEmpty else { return nil }
-        for (range, kind) in zip(nameRanges, nameRangeKinds) where NSLocationInRange(index, range) {
+        for (range, kind) in zip(nameRanges, style.nameKinds) where NSLocationInRange(index, range) {
             let text = (string as NSString).substring(with: range)
             return CardIndex.match(text, kind: kind, in: nameCards)
         }
@@ -835,6 +885,28 @@ final class EditorCommands: ObservableObject {
     }
     /// Words in the selection, for the status bar (0 when nothing is selected).
     @Published var selectionWords = 0
+    /// The document's word and suggestion counts, published whenever the editor hands its text to SwiftUI.
+    @Published private(set) var stats: DocumentStats?
+    /// Fires on every keystroke, for views that react to typing itself rather than to the text (fading scene tags).
+    let typing = PassthroughSubject<Void, Never>()
+    /// `knownToDiffer` skips comparing with the last stats, for new text (comparing two versions of a novel is slow).
+    func publish(_ stats: DocumentStats, knownToDiffer: Bool = false) {
+        if knownToDiffer || self.stats != stats { self.stats = stats }
+    }
+    /// Hands any typing the editor is still holding to SwiftUI now. Call before reading or replacing the document's text.
+    func flushText() {
+        (editor?.delegate as? NativeEditor.Coordinator)?.flush()
+    }
+    /// The status bar's word count for `text`: the editor's, when it describes this text, or a fresh count.
+    func words(in text: String) -> Int {
+        if let stats, stats.text == text { return stats.words }
+        return Prose.wordCount(text)
+    }
+    /// Prose suggestions in `text`, from the editor when it can say.
+    func cuts(in text: String, words: String) -> Int {
+        if let stats, let cuts = stats.cuts, stats.text == text { return cuts }
+        return Prose.suggestions(in: text, words: words).count
+    }
     func reportSelection(in editor: WritingTextView) {
         let range = editor.selectedRange()
         let count = range.length > 0 && range.length < 400_000 ? Prose.wordCount((editor.string as NSString).substring(with: range)) : 0

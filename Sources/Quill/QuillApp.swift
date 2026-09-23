@@ -162,10 +162,11 @@ struct WritingView: View {
     @AppStorage("sceneTagsPlacement") private var sceneTagsPlacement = "bottom"
     @State private var errorMessage: String?
 
-    private var count: Int { Prose.wordCount(document.text) }
+    /// The editor counts as you type, so the status bar never has to count a whole manuscript itself.
+    private var count: Int { commands.words(in: document.text) }
     /// Banks the words added since the last measurement to today's writing record, ignoring any decrease.
     private func recordWritingProgress(_ text: String) {
-        let now = Prose.wordCount(text)
+        let now = commands.words(in: text)
         defer { historyBaseline = now }
         guard let previous = historyBaseline, now > previous else { return }
         WritingHistory.add(now - previous)
@@ -184,7 +185,12 @@ struct WritingView: View {
             .sheet(isPresented: $showToolbarCustomizer) { ToolbarCustomizer(stored: $toolbarTools, close: { showToolbarCustomizer = false }) }
             .focusedSceneValue(\.writingActions, writingActions)
             .background(WindowConfigurator())
+            // The editor hands typing to `document.text` in batches; the typing signal marks the document edited at once.
             .onChange(of: document.text) { _, new in saveFeedback.message = ""; edited = true; recordWritingProgress(new) }
+            .onReceive(commands.typing) { _ in
+                if !edited { edited = true }
+                if !saveFeedback.message.isEmpty { saveFeedback.message = "" }
+            }
             .onReceive(savePoll) { _ in updateSaveState() }
             .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder], allowsMultipleSelection: false, onCompletion: handleFolderImport)
             .alert("Could not open selection", isPresented: errorPresented) {
@@ -303,7 +309,7 @@ struct WritingView: View {
     }
 
     private var sceneLayer: some View {
-        SceneTagsLayer(activeURL: activeURL, liveText: document.text, editSignal: tagSceneSignal, focusDim: focus && !reading,
+        SceneTagsLayer(activeURL: activeURL, liveText: document.text, typing: commands.typing, editSignal: tagSceneSignal, focusDim: focus && !reading,
                        openCard: showCard, setTags: setSceneTags, createCard: createSceneCard, index: cardIndex)
     }
 
@@ -321,6 +327,7 @@ struct WritingView: View {
 
     /// Scene tags are edited in the open chapter itself, so they undo like any other change and never race the file on disk.
     private func setSceneTags(_ kind: CardKind, _ names: [String]) {
+        commands.flushText()
         document.text = SceneTags.setting(names, for: kind, in: document.text)
     }
 
@@ -334,6 +341,7 @@ struct WritingView: View {
     /// Opens the export sheet for the whole manuscript. A chapter that's open with unsaved changes is exported as it stands on screen.
     private func startManuscriptExport() {
         guard let projectURL = browser.projectURL else { return }
+        commands.flushText()
         var unsaved: [String: String] = [:]
         if let url = activeURL, browser.isChapter(url) { unsaved[url.lastPathComponent] = document.text }
         exportSource = .manuscript(project: projectURL, title: browser.project?.title ?? projectURL.lastPathComponent, unsaved: unsaved)
@@ -341,6 +349,7 @@ struct WritingView: View {
 
     /// What revisions look at: every chapter of a Fiction Project, or the document that is open.
     private func revisionScope() -> RevisionScope? {
+        commands.flushText()
         if let project = browser.projectURL {
             let files = ProjectSearch.markdownFiles(in: FictionProject.folder(for: .chapter, in: project))
             return RevisionScope(root: project, files: files, chapterOrder: browser.project?.chapterOrder, isProject: true, openURL: activeURL, openText: document.text)
@@ -372,6 +381,7 @@ struct WritingView: View {
             importMessage = "Choose a writing folder first; Find & Replace looks through every Markdown file in it."
             return
         }
+        commands.flushText()
         findRequest = FindRequest(root: root, openURL: activeURL, openText: document.text)
     }
 
@@ -430,6 +440,7 @@ struct WritingView: View {
 
     private func startDocumentExport() {
         let name = activeURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
+        commands.flushText()
         exportSource = .document(title: name, markdown: document.text)
     }
 
@@ -455,6 +466,7 @@ struct WritingView: View {
     /// document itself, so it can be undone and never fights the editor over the file on disk.
     private func setCardField(_ key: String, _ value: String, _ url: URL) {
         if activeURL?.standardizedFileURL == url.standardizedFileURL {
+            commands.flushText()
             document.text = FrontMatter.setting(key, to: value, in: document.text)
         } else {
             do { try CardStore.setField(key, to: value, in: url) } catch { errorMessage = error.localizedDescription }
@@ -569,7 +581,8 @@ struct WritingView: View {
         activeURL = fileURL
         if let fileURL { browser.enterProject(containing: fileURL) }
         let binding = $document
-        commands.loadText = { text, url in
+        commands.loadText = { [commands] text, url in
+            commands.flushText()
             bankedWords = sessionWords
             binding.wrappedValue.text = text
             startingWords = Prose.wordCount(text)
@@ -717,7 +730,7 @@ struct WritingView: View {
                 if sessionGoal > 0 { Text("\(sessionWords) / \(sessionGoal) this session").help("Net words added since this document window opened.") }
                 Spacer(minLength: 0)
                 if focus && !reading { Image(systemName: "scope").help("Paragraph focus is on") }
-                if review && !reading { Text("\(Prose.suggestions(in: document.text, words: words).count) cuts") }
+                if review && !reading { Text("\(commands.cuts(in: document.text, words: words)) cuts") }
                 Button { showHelp.toggle() } label: { Image(systemName: "questionmark.circle") }
                     .buttonStyle(.plain).accessibilityLabel("Writing shortcuts")
                     .popover(isPresented: $showHelp) {

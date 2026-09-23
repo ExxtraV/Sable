@@ -32,20 +32,24 @@ import QuillCore
         var report = "# Typing benchmark\n\n\(machine())\n"
         for (name, settings) in profiles {
             report += "\n## Per keystroke, \(name)\n\n"
-            report += "Milliseconds. *Edit* is `insertText` through the delegate (binding copy, restyle, focus, caret centering), "
+            report += "Milliseconds. *Edit* is `insertText` through the delegate (restyle, focus, caret centering), "
                 + "including the layout AppKit does to keep the caret in view; *layout* finishes laying out the visible page; "
-                + "*draw* draws it.\n\n"
-            report += "| Words | Characters | Edit (median) | Layout (median) | Draw (median) | Total median | Total p90 | Total max | Full restyle |\n"
-            report += "|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+                + "*draw* draws it. *Binding flush* hands the typing to SwiftUI's copy of the text with the status bar's counts; "
+                + "the editor does that after a pause, not per keystroke, so it isn't in the total. *Region passes* counts the "
+                + "keystrokes that restyled only the lines around the edit.\n\n"
+            report += "| Words | Characters | Edit (median) | Layout (median) | Draw (median) | Total median | Total p90 | Total max | Binding flush (median) | Region passes | Full restyle |\n"
+            report += "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
             for size in sizes {
                 let keystrokes = smoke ? 3 : (size <= 10_000 ? 30 : (size <= 50_000 ? 15 : 10))
                 report += keystrokeRow(words: size, settings: settings, keystrokes: keystrokes, warmUp: smoke ? 1 : 3) + "\n"
                 print("measured \(name) at \(size) words")
             }
         }
-        report += "\n## Whole-document passes behind each keystroke\n\n"
-        report += "Milliseconds, median. Each runs over the whole text on every keystroke today. The SwiftUI side (status bar and "
-            + "writing progress) also runs `Prose.wordCount` about three times and `Prose.suggestions` once per keystroke.\n\n"
+        report += "\n## Whole-document passes\n\n"
+        report += "Milliseconds, median, each over the whole text. A full restyle (a new file or a setting change) runs them; "
+            + "before incremental styling every keystroke did, and the SwiftUI side also ran `Prose.wordCount` about three "
+            + "times and `Prose.suggestions` once per keystroke. The last column is the compare and copy the binding used to do "
+            + "per keystroke.\n\n"
         report += "| Words | Markdown spans | Sentence colors (all) | Names | Prose suggestions | Focus paragraph | Word count | Binding compare + copy |\n"
         report += "|---:|---:|---:|---:|---:|---:|---:|---:|\n"
         for size in sizes { report += passesRow(words: size, repeats: smoke ? 1 : (size <= 10_000 ? 7 : 3)) + "\n" }
@@ -93,8 +97,10 @@ import QuillCore
         drawPage()
 
         let letters = Array("tide ")
-        var edit: [Double] = [], lay: [Double] = [], draw: [Double] = [], total: [Double] = []
+        var edit: [Double] = [], lay: [Double] = [], draw: [Double] = [], total: [Double] = [], flush: [Double] = []
+        var regionPasses = 0
         for index in 0..<(warmUp + keystrokes) {
+            let regionsBefore = editor.style.regionPasses
             let start = now()
             host.edit { editor.insertText(String(letters[index % letters.count]), replacementRange: NSRange(location: NSNotFound, length: 0)) }
             let edited = now()
@@ -102,8 +108,12 @@ import QuillCore
             let laidOut = now()
             drawPage()
             let drawn = now()
+            host.commitText()
+            let flushed = now()
             host.flush()
             guard index >= warmUp else { continue }
+            if editor.style.regionPasses > regionsBefore { regionPasses += 1 }
+            flush.append(milliseconds(drawn, flushed))
             edit.append(milliseconds(start, edited))
             lay.append(milliseconds(edited, laidOut))
             draw.append(milliseconds(laidOut, drawn))
@@ -121,7 +131,8 @@ import QuillCore
         let restyle = milliseconds(restyleStart, now())
 
         let characters = (text as NSString).length
-        let cells = [median(edit), median(lay), median(draw), median(total), p90(total), total.max() ?? 0, restyle].map(format)
+        let cells = [median(edit), median(lay), median(draw), median(total), p90(total), total.max() ?? 0, median(flush)].map(format)
+            + ["\(regionPasses) of \(keystrokes)", format(restyle)]
         return "| \(Prose.wordCount(text)) | \(characters) | " + cells.joined(separator: " | ") + " |"
     }
 

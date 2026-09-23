@@ -274,8 +274,10 @@ final class HostedEditor {
     let commands = EditorCommands()
     let highlighter = ManuscriptFixture.highlighter
     private(set) var settings: EditorSettings
-    /// What SwiftUI's `document.text` holds.
+    /// What SwiftUI's `document.text` holds. The editor hands typing to it in batches; `commitText()` hands it over now.
     var text: String
+    /// The document whose saves wait for pending typing, as the window's document does in the app (optional here).
+    var document: NSDocument?
 
     init(text: String, settings: EditorSettings, size: NSSize = NSSize(width: 1100, height: 800)) {
         _ = NSApplication.shared
@@ -307,6 +309,7 @@ final class HostedEditor {
         coordinator = NativeEditor.Coordinator(NativeEditor(text: .constant(""), review: true, words: "", fontSize: 19, pageWidth: 680, commands: commands))
         editor.delegate = coordinator
         editor.string = text
+        coordinator.attach(editor, text: text)
         scroll.contentView = RoomClipView()
         scroll.documentView = editor
         window.contentView = scroll
@@ -326,8 +329,8 @@ final class HostedEditor {
                                           typewriterMode: settings.typewriterMode, nameHighlighter: settings.names ? highlighter : nil,
                                           nameShimmer: settings.nameShimmer, nameCards: ManuscriptFixture.cards,
                                           dimMarkers: settings.dimMarkers, smartTypography: settings.smartTypography,
-                                          documentUndoManager: undo)
-        if editor.string != text { editor.string = text }
+                                          documentUndoManager: undo, editingDocument: document)
+        coordinator.syncFromBinding(editor)
         HostedEditor.configure(editor, settings, highlighter: highlighter)
         editor.updatePageMargins()
         editor.updateScrollRoom()
@@ -339,7 +342,11 @@ final class HostedEditor {
         scroll.contentView.backgroundColor = paper
         editor.insertionPointColor = WritingTheme.named(editor.themeName).foreground
         editor.decorate()
+        coordinator.publishStatsIfSettled()
     }
+
+    /// Hands pending typing to the binding now, as a pause in typing, a save, or a click would.
+    func commitText() { coordinator.flush() }
 
     /// The editor's own settings, the part of `updateNSView` a bare, unhosted view needs too.
     static func configure(_ editor: WritingTextView, _ settings: EditorSettings, highlighter: NameHighlighter) {
@@ -373,5 +380,11 @@ final class HostedEditor {
     }
 
     /// Lets queued main-thread work run, as it would between keystrokes.
-    func flush() { RunLoop.main.run(until: Date()) }
+    func flush() {
+        // The main queue runs in order, so once this block has run, everything queued before it has too.
+        final class Flag { var raised = false }
+        let drained = Flag()
+        DispatchQueue.main.async { drained.raised = true }
+        while !drained.raised { RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01)) }
+    }
 }
