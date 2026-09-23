@@ -64,3 +64,6 @@ tested.
 
 Never push, merge, publish a release, or change GitHub settings without
 asking first.
+
+gh isn't installed. When asked for a PR, push the feature branch and 
+give the pull/new link. main is protected, so never push to it.
