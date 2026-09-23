@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import QuillCore
 
 /// The writing desk deliberately stays small: one thing at a time. Files and the outline

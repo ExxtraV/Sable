@@ -143,7 +143,8 @@ struct ExportSheet: View {
         panel.nameFieldStringValue = ManuscriptExport.fileName(for: options.title, format: format)
         if let type = UTType(filenameExtension: format.fileExtension) { panel.allowedContentTypes = [type] }
         panel.canCreateDirectories = true
-        panel.begin { response in
+        // Capture a copy of `options`: a captured `var` is shared with this main-actor function, so it can't be sent to the detached export.
+        panel.begin { [options] response in
             guard response == .OK, let url = panel.url else { return }
             working = true
             problem = nil
