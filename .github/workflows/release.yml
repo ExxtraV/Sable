@@ -34,7 +34,7 @@ jobs:
       SIGNING_IDENTITY: ${{ inputs.distribution == 'notarized' && vars.SIGNING_IDENTITY || '-' }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Read public update configuration
         run: |
           python3 - <<'PY'
