@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://sable.jtsjaden.com/sitemap.xml
+Sitemap: https://sablewriter.app/sitemap.xml

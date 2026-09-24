@@ -94,6 +94,10 @@ Apple references: [document-based apps](https://developer.apple.com/documentatio
 
 The app now includes Sparkle, a Check for Updates menu item, and automatic-check settings. The public feed and signing key are configured in UpdateConfig.json; checks require a published release to succeed. Installation is manual. Settings → General has a **Get beta updates** option (off by default) for the occasional rougher build published ahead of a stable release. The GitHub workflow prepares Sparkle-signed community draft releases by default (stable, or beta pre-releases only opted-in users receive), with an optional Apple-notarized mode; pushing code does not release an update. See [the setup and release guide](docs/UPDATES.md). The GitHub signing secret and an end-to-end install/relaunch test are still required before relying on updates.
 
+## Support Sable
+
+Sable is free and always will be. If you'd like to chip in toward the Apple developer fee and ongoing work, you can [buy Sable a book](https://buymeacoffee.com/sablewriter). There's no need to, and nothing in the app is held back.
+
 ## License
 
 [MIT](LICENSE). Bundled Sparkle retains its own license notice.
