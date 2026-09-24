@@ -44,6 +44,18 @@ enum SafeFile {
         return try result.get()
     }
 
+    /// Moves a file, coordinated so a document that has it open follows it. Never replaces anything at `destination`.
+    static func move(from source: URL, to destination: URL) throws {
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: destination.path) else { throw CocoaError(.fileWriteFileExists, userInfo: [NSURLErrorKey: destination]) }
+        var coordinationError: NSError?
+        var failure: Error?
+        NSFileCoordinator().coordinate(writingItemAt: source, options: .forMoving, writingItemAt: destination, options: .forReplacing, error: &coordinationError) { from, to in
+            do { try fm.moveItem(at: from, to: to) } catch { failure = error }
+        }
+        if let error = coordinationError ?? failure { throw error }
+    }
+
     /// Puts a copy of `text` in the Trash, so a version that is about to be replaced is never simply gone.
     @discardableResult
     static func keepInTrash(_ text: String, named name: String) throws -> URL {
@@ -92,5 +104,21 @@ enum SafeFile {
         // that turned up in the meantime.
         if fm.fileExists(atPath: url.path) { _ = try fm.replaceItemAt(url, withItemAt: temporary) }
         else { try fm.moveItem(at: temporary, to: url) }
+    }
+}
+
+/// Where an open file has ended up. An open document follows its file wherever it goes, into the Trash too, and
+/// keeps saving there; a file deleted outright exists only in the open document until it is saved again.
+enum FileWhereabouts: Equatable, Sendable {
+    case inPlace
+    /// In the Trash (put there by Finder, another app, or sync): emptying the Trash would delete it.
+    case inTrash
+    /// Gone from disk.
+    case missing
+
+    static func of(_ url: URL) -> FileWhereabouts {
+        // ~/.Trash, iCloud Drive's Mobile Documents/.Trash, and .Trashes on other disks.
+        if url.standardizedFileURL.pathComponents.contains(where: { $0 == ".Trash" || $0 == ".Trashes" }) { return .inTrash }
+        return FileManager.default.fileExists(atPath: url.path) ? .inPlace : .missing
     }
 }

@@ -150,6 +150,10 @@ struct WritingView: View {
     /// The word count this document was at the moment last measured, so only forward progress is banked to the daily record.
     @State private var historyBaseline: Int?
     @State private var activeURL: URL?
+    /// Whether the open file is still where it was, or has been moved to the Trash or deleted outside Sable.
+    @State private var whereabouts = FileWhereabouts.inPlace
+    /// Where the open file last was in its own folder, so it can be put back if it lands in the Trash.
+    @State private var lastPlacedURL: URL?
     @State private var openCards: [OpenCard] = []
     @State private var tagSceneSignal = 0
     @State private var exportSource: ExportSource?
@@ -612,6 +616,54 @@ struct WritingView: View {
             if let url = native.fileURL { browser.enterProject(containing: url) }
         }
         LaunchBehavior.remember(native.fileURL)
+        let place = native.fileURL.map(FileWhereabouts.of) ?? .inPlace
+        if place == .inPlace, lastPlacedURL != native.fileURL { lastPlacedURL = native.fileURL }
+        if whereabouts != place { whereabouts = place }
+    }
+
+    /// The open file was moved to the Trash or deleted outside Sable. The document follows its file into the Trash and
+    /// keeps saving there, so say so once, quietly, with a way out.
+    @ViewBuilder private var fileNotice: some View {
+        if whereabouts != .inPlace, let name = activeURL?.deletingPathExtension().lastPathComponent {
+            HStack(spacing: 10) {
+                Image(systemName: whereabouts == .inTrash ? "trash" : "exclamationmark.triangle").accessibilityHidden(true)
+                Text(whereabouts == .inTrash
+                     ? "“\(name)” is in the Trash. Sable is still saving it there, so emptying the Trash would delete it."
+                     : "“\(name)” was deleted outside Sable. Your words are still here; save to put the file back.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if whereabouts == .inTrash, lastPlacedURL != nil {
+                    Button("Put Back", action: putBackOpenFile).help("Move it back to where it was, and keep writing there")
+                }
+                if whereabouts == .missing {
+                    Button("Save Again", action: saveOpenFileAgain).help("Write the file again where it was")
+                }
+                Button("Save As…") { openDocument?.saveAs(nil) }.help("Save it somewhere else")
+            }
+            .font(.system(size: 11)).padding(.horizontal, 18).padding(.vertical, 8)
+            .background(Color.orange.opacity(0.14))
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    private var openDocument: NSDocument? { commands.editor?.window?.windowController?.document as? NSDocument }
+
+    private func putBackOpenFile() {
+        guard let from = openDocument?.fileURL, let to = lastPlacedURL else { return }
+        guard FileManager.default.fileExists(atPath: to.deletingLastPathComponent().path) else {
+            errorMessage = "The folder “\(to.deletingLastPathComponent().lastPathComponent)” isn’t there any more. Use Save As… to choose where the file goes."
+            return
+        }
+        do { try SafeFile.move(from: from, to: to) }
+        catch { errorMessage = "Could not put “\(to.lastPathComponent)” back: \(error.localizedDescription) Use Save As… to keep it somewhere else." }
+    }
+
+    private func saveOpenFileAgain() {
+        guard let document = openDocument, let url = document.fileURL else { return }
+        commands.flushText()
+        document.save(to: url, ofType: document.fileType ?? "net.daringfireball.markdown", for: .saveOperation) { error in
+            if let error { errorMessage = "Could not save “\(url.lastPathComponent)” again: \(error.localizedDescription)" }
+        }
     }
 
     private func handleFolderImport(_ result: Result<[URL], Error>) {
@@ -729,6 +781,7 @@ struct WritingView: View {
                 if value { commands.editor?.window?.makeFirstResponder(nil) }
                 else { commands.editor?.window?.makeFirstResponder(commands.editor) }
             }
+            fileNotice
             Divider().opacity(0.5)
             HStack(spacing: 12) {
                 Text(commands.selectionWords > 0 ? "\(commands.selectionWords) of \(count) words selected" : "\(count) words")

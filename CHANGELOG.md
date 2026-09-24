@@ -13,6 +13,9 @@ Safer file handling, after an audit of every place Sable writes, moves, or delet
 - **Restoring from Revision History** runs in the background. If it stops partway, it says how many files were restored and where the safety snapshot is.
 - **Import** never replaces a file that appears with the same name at the same moment.
 - **Changing a card's color or picture** no longer runs on the main thread, so it can't freeze Sable when that file is open beside your draft.
+- **An open file moved to the Trash or deleted outside Sable** now gets a quiet note under the page (or in the side pane). **Put Back** returns a trashed file to its folder, **Save Again** writes a deleted file back, and **Save As…** keeps it somewhere else. Before, Sable kept saving a trashed file into the Trash without a word.
+- **The writing desk won't trash a file that's open in another window**, and it checks before clearing the page in this one.
+- **Switching files** reads the file's date before its text, so a change made mid-switch makes the next save ask instead of overwriting it.
 - The Sable Guide has a new section, "How Sable protects your files."
 
 ## 0.9.0

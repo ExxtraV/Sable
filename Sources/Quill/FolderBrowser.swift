@@ -711,9 +711,7 @@ final class FolderBrowser: ObservableObject {
     /// Moves everything to the Trash at once. Items already inside another selected folder ride along with it.
     func trash(_ entries: [BrowserEntry], protecting inUse: [URL]) throws {
         let top = entries.filter { entry in !entries.contains { $0.url != entry.url && FolderMove.isInside(entry.url, of: $0.url) } }
-        if let blocked = top.first(where: { entry in inUse.contains { FolderMove.isInside($0, of: entry.url) } }) {
-            throw FolderTrashError.inUse(blocked.displayName)
-        }
+        if let blocked = trashBlocker(top, protecting: inUse) { throw FolderTrashError.inUse(blocked.displayName) }
         var done: [TrashedItem] = []
         var failure: Error?
         for entry in top {
@@ -737,6 +735,12 @@ final class FolderBrowser: ObservableObject {
             }
         }
         if let failure { throw failure }
+    }
+
+    /// The first of `entries` that is, or holds, a file in `inUse`. An open file must not go to the Trash: its document
+    /// would follow it there and keep saving into the Trash.
+    func trashBlocker(_ entries: [BrowserEntry], protecting inUse: [URL]) -> BrowserEntry? {
+        entries.first { entry in inUse.contains { FolderMove.isInside($0, of: entry.url) } }
     }
 
     /// Restores everything from the last batch. Anything whose place has been taken stays in the Trash and is reported.
@@ -1534,9 +1538,18 @@ struct FolderBrowserSection: View {
 
     private func performTrash(_ entries: [BrowserEntry]) {
         pendingTrash = []
+        // A file open in another window stays put, checked before anything here changes.
+        let current = currentURL?.standardizedFileURL
+        let openElsewhere = NSDocumentController.shared.documents.compactMap(\.fileURL).filter { $0.standardizedFileURL != current }
+        let protected = [parallelURL].compactMap { $0 } + openElsewhere
+        if let blocked = browser.trashBlocker(entries, protecting: protected) {
+            problem = blocked.isDirectory ? "“\(blocked.displayName)” holds a file that is open in another window. Close it there first."
+                                          : "“\(blocked.displayName)” is open in another window. Close it there first."
+            return
+        }
         // The open file can't be trashed out from under the editor, so the page becomes blank first.
         if includesOpenFile(entries) { releaseCurrentDocument() }
-        do { try browser.trash(entries, protecting: [parallelURL].compactMap { $0 }) } catch { problem = error.localizedDescription }
+        do { try browser.trash(entries, protecting: protected) } catch { problem = error.localizedDescription }
     }
 
     private var trashTitle: String {

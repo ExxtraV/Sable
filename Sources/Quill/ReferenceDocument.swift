@@ -10,6 +10,10 @@ final class ParallelDocument: NSDocument, ObservableObject {
     @Published private(set) var conflict = false
     /// Where the version that wasn't kept went when the last conflict was settled.
     @Published private(set) var lastKept: URL?
+    /// Whether the file is still where it was, or was moved to the Trash or deleted outside Sable.
+    @Published private(set) var whereabouts = FileWhereabouts.inPlace
+    /// Where the file last was in its own folder, so it can be put back if it lands in the Trash.
+    private(set) var lastPlacedURL: URL?
     weak var hostWindow: NSWindow?
     private var scopedURL: URL?
     /// The file's text when it was last read or saved here, to tell whether something else has changed it since.
@@ -52,6 +56,7 @@ final class ParallelDocument: NSDocument, ObservableObject {
         text = content
         savedText = content
         conflict = false
+        checkWhereabouts()
     }
 
     /// Every save and autosave comes through here. If the file on disk no longer says what was last read or saved,
@@ -103,6 +108,33 @@ final class ParallelDocument: NSDocument, ObservableObject {
             saveError = nil
         } catch {
             saveError = "Could not load the saved file: \(error.localizedDescription)"
+        }
+    }
+
+    /// Looks again at where the file is. The document follows its file into the Trash and keeps saving there.
+    func checkWhereabouts() {
+        guard let url = fileURL else { return }
+        let place = FileWhereabouts.of(url)
+        if place == .inPlace { lastPlacedURL = url }
+        if whereabouts != place { whereabouts = place }
+    }
+
+    /// Moves the file from the Trash back to where it was; the document follows it.
+    func putBack() throws {
+        guard let from = fileURL, let to = lastPlacedURL else { return }
+        guard FileManager.default.fileExists(atPath: to.deletingLastPathComponent().path) else {
+            throw CocoaError(.fileNoSuchFile, userInfo: [NSLocalizedDescriptionKey: "The folder “\(to.deletingLastPathComponent().lastPathComponent)” isn’t there any more. Use Save As… to choose where the file goes."])
+        }
+        try SafeFile.move(from: from, to: to)
+    }
+
+    /// Writes a file that was deleted outside Sable back where it was.
+    func saveAgain(completion: @escaping (Error?) -> Void = { _ in }) {
+        guard let url = fileURL else { return }
+        save(to: url, ofType: fileType ?? "net.daringfireball.markdown", for: .saveOperation) { [weak self] error in
+            self?.saveError = error?.localizedDescription
+            self?.checkWhereabouts()
+            completion(error)
         }
     }
 

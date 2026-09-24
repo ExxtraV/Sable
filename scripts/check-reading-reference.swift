@@ -80,7 +80,26 @@ import QuillCore
         try await Task.detached { try SafeFile.writeText("Written by a replacement.\n", to: url) }.value
         for _ in 0..<50 where document.text != "Written by a replacement.\n" { try await Task.sleep(nanoseconds: 100_000_000) }
         precondition(document.text == "Written by a replacement.\n" && !document.conflict, "And a coordinated write reloads it")
+
+        // Moved to the Trash outside Sable: the document follows, says so, and Put Back brings it home
+        var trashed: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+        for _ in 0..<50 where document.fileURL?.standardizedFileURL == url.standardizedFileURL { try await Task.sleep(nanoseconds: 100_000_000) }
+        document.checkWhereabouts()
+        precondition(document.whereabouts == .inTrash && document.lastPlacedURL?.standardizedFileURL == url.standardizedFileURL, "In the Trash: \(String(describing: document.fileURL))")
+        try document.putBack()
+        for _ in 0..<50 where document.fileURL?.standardizedFileURL != url.standardizedFileURL { try await Task.sleep(nanoseconds: 100_000_000) }
+        document.checkWhereabouts()
+        precondition(document.whereabouts == .inPlace && disk() == "Written by a replacement.\n", "Put back where it was, words intact")
+        precondition((trashed as URL?).map { !FileManager.default.fileExists(atPath: $0.path) } ?? true, "Nothing is left in the Trash")
+
+        // Deleted outright: the words stay, and Save Again writes the file back
+        try FileManager.default.removeItem(at: url)
+        document.checkWhereabouts()
+        precondition(document.whereabouts == .missing && document.text == "Written by a replacement.\n", "Missing, words kept")
+        let resaved: Error? = await withCheckedContinuation { c in document.saveAgain { c.resume(returning: $0) } }
+        precondition(resaved == nil && disk() == "Written by a replacement.\n" && document.whereabouts == .inPlace, "Saved again: \(String(describing: resaved))")
         document.close()
-        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked parallel edits/reuse, exact native save, coordinated reads/writes reaching the open copy, and outside changes never saved over (Keep Mine / Use Saved File keep the other version in the Trash).")
+        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked parallel edits/reuse, exact native save, coordinated reads/writes reaching the open copy, files trashed or deleted outside Sable (Put Back, Save Again), and outside changes never saved over (Keep Mine / Use Saved File keep the other version in the Trash).")
     }
 }
