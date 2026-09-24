@@ -80,6 +80,8 @@ For an iPad edition, reuse `QuillCore` and the document model, add a UIKit text 
 - `Sources/QuillCore/MarkdownSyntax.swift`: source highlighting spans, chapter outline, and formatting exit logic.
 - `Sources/Quill/WorldSidebar.swift`: writing desk with file browser and outline.
 - `Sources/Quill/NativeEditor.swift`: visual overlays, text behavior, context menu, and shortcuts.
+- `Sources/Quill/EditorStyling.swift`: Markdown styling, name highlights, sentence colors, and prose suggestions in the editor, restyling only the lines you edit.
+- `Sources/QuillCore/IncrementalStyling.swift`: how much of the text an edit needs restyled.
 - `Sources/Quill/QuillApp.swift`: document handling, settings, and interface.
 - `Tests/QuillCoreTests`: Unicode and Markdown-protection checks.
 - `Assets/LOGO.md`: the generated logo and its prompt; the icon is packaged with the app.
