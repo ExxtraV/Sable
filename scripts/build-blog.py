@@ -31,7 +31,7 @@ SITEMAP = ROOT / "website" / "sitemap.xml"
 HOME = ROOT / "website" / "index.html"
 HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "15"
+CSS_VERSION = "16"
 
 OG_ALT = ("The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, "
           "on a dark background.")

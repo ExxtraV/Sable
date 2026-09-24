@@ -198,6 +198,10 @@ def check_page(path, page, pages):
                  % (apps[0].get("softwareVersion"), app_version()))
         if "Organization" not in types:
             fail(name, "missing Organization JSON-LD.")
+        for shot in (apps[0].get("screenshot") or [] if apps else []):
+            url = shot.get("url", "") if isinstance(shot, dict) else shot
+            if not url.startswith(SITE + "/") or not (SITE_DIR / url[len(SITE) + 1:]).is_file():
+                fail(name, "screenshot %s isn't a file on the site." % url)
 
 
 def app_version():

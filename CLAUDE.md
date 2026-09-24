@@ -21,20 +21,21 @@ Who writes what:
   README, release notes (`docs/release-notes.md`, which also become the
   GitHub release text), CHANGELOG, CONTRIBUTING and other repo docs, issue
   templates, the Sable Guide (`docs/Sable Guide.md` and the website's guide
-  page), the Markdown Cheat Sheet, sample and example story text, and in-app
-  explanatory text. The maintainer may rewrite any of these later.
+  page), the website's privacy page, the Markdown Cheat Sheet, sample and
+  example story text, and in-app explanatory text. The maintainer may rewrite
+  any of these later.
 - **Every Claude-written piece is labeled, for transparency.** The README ends
   with "_This README is written by Claude Code._" Each version's release notes
   end with "_Release notes written by Claude Code._" The Sable Guide, sample
-  and example files, and the Cheat Sheet open with a "written by Claude Code"
-  line. The About panel (`NSHumanReadableCopyright` in Info.plist) covers the
-  scattered in-app help text. Keep these labels when editing, and add one to
-  any new Claude-written document. When the maintainer rewrites a piece in
-  their own words, remove its label.
+  and example files, the privacy page, and the Cheat Sheet open with a
+  "written by Claude Code" line. The About panel (`NSHumanReadableCopyright`
+  in Info.plist) covers the scattered in-app help text. Keep these labels
+  when editing, and add one to any new Claude-written document. When the
+  maintainer rewrites a piece in their own words, remove its label.
 - **The maintainer writes everything else on the website** (every page except
-  the guide, blog posts, FAQ, meta descriptions, the press kit), plus launch
-  and social posts, press emails, and App Store listings. Claude never writes
-  final copy for any of these. Instead:
+  the guide, privacy page, blog posts, FAQ, meta descriptions, the press
+  kit), plus launch and social posts, press emails, and App Store listings.
+  Claude never writes final copy for any of these. Instead:
 
 - Create `docs/prose-requests/<task>.md` from `docs/prose-requests/TEMPLATE.md`:
   one `##` heading per item, each with where it appears, a length limit, what
