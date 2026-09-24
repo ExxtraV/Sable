@@ -2,10 +2,15 @@
 
 All notable changes to Sable Markdown Writer are documented here. The app was originally called New Quill; it was rebranded to Sable Markdown Writer in 0.7.0. Entries are written by Claude Code.
 
-## Unreleased
+## 0.10.0
 
-Safer file handling, after an audit of every place Sable writes, moves, or deletes your files.
+Instant typing in long manuscripts, smooth pinch zoom, ⌘ + mouse wheel zoom, faster theme and font changes, safer file handling after an audit of every place Sable writes, moves, or deletes your files, and an opt-in beta update channel.
 
+- **Instant typing, however long the file.** The editor restyles only the lines around an edit instead of the whole document, and hands text to SwiftUI after a short pause instead of on every keystroke. A keystroke in a 100,000-word file went from about 430 ms to about 5 ms with the default settings, and from about 1.8 s to about 24 ms with everything on; it now costs the same at any length. The status bar's word count and cuts update when you pause (within a third of a second) instead of on every letter. Numbers are in `docs/performance/typing-baseline.md`.
+- **Smooth pinch zoom.** A pinch scales a picture of the page while your fingers move and applies the zoom once when they lift, keeping the line under the pointer in place. Before, every step of a pinch restyled the whole document.
+- **Zoom with ⌘ and a mouse wheel.** Hold ⌘ and turn a notched mouse wheel over a writing or reading surface: away from you zooms in, 5% per notch, within 65%–200%. Trackpads keep scrolling.
+- **Faster theme and font changes.** A setting change repaints from the Markdown spans and sentence tags the editor already keeps, instead of parsing and tagging the whole text again: well under half the time of 0.9.0 in a 100,000-word file.
+- **Beta updates.** Settings → General has a **Get beta updates** checkbox, off by default. The release workflow can publish beta pre-releases that only opted-in users receive.
 - **Find & Replace in Project** won't change anything if it can't save its safety snapshot first. If a replacement stops partway, it puts back the files it already changed and names any it couldn't.
 - **Undo Replace won't erase newer words.** It puts back only files that still read exactly as the replacement left them, lists any it left alone, and undoes the open document directly on the page.
 - **A file open beside your draft** saves your latest words before Find & Replace or a restore touches it, then shows the new text. If the file changes somewhere else while you have edits beside your draft, Sable stops instead of saving over it. Choose **Keep Mine** or **Use Saved File**; the other version goes to the Trash as a copy.
@@ -16,7 +21,8 @@ Safer file handling, after an audit of every place Sable writes, moves, or delet
 - **An open file moved to the Trash or deleted outside Sable** now gets a quiet note under the page (or in the side pane). **Put Back** returns a trashed file to its folder, **Save Again** writes a deleted file back, and **Save As…** keeps it somewhere else. Before, Sable kept saving a trashed file into the Trash without a word.
 - **The writing desk won't trash a file that's open in another window**, and it checks before clearing the page in this one.
 - **Switching files** reads the file's date before its text, so a change made mid-switch makes the next save ask instead of overwriting it.
-- The Sable Guide has a new section, "How Sable protects your files."
+- The Sable Guide has a new section, "How Sable protects your files," and a short "Updates" section.
+- **Under the hood:** Sable builds again with Command Line Tools 27.0 (Swift 6.4). New checks cover typing speed, incremental styling against thousands of random edits, range-limited styling, zoom steps, and file safety.
 
 ## 0.9.0
 

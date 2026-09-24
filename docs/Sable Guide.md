@@ -79,6 +79,10 @@ Before a big rewrite, save a snapshot: **File → Save Snapshot** (⌥⌘S), or 
 
 Settings → General charts the words you've added each day for the last 30 days, with your best day and a lifetime total. It only counts progress you keep — deleting words never counts against you — and it isn't a streak, so a quiet day changes nothing. It's kept only on this Mac, and you can clear it any time.
 
+## Updates
+
+Sable checks for updates while it's open: every day, every 3 days, or every week, as you choose in Settings → General, where you can also turn automatic checks off. **Check for Updates…** in the Sable Markdown Writer menu checks right away. Either way, you choose when to install and restart. **Get beta updates**, off by default, also offers early builds published ahead of a stable release; they may be rougher. If you turn it off again, you keep the build you have until a newer stable release arrives.
+
 ## Your toolbar
 
 The toolbar starts with only the essentials. Click **⋯ → Customize Tools** to add the tools you use (headings, bold, italic, lists, quotes, scene breaks, revisions, and more) and drag them into the order you like. Dark themes shade toward the page edges to keep your eye on the text; Writing Style lets you turn that off or change how deep it is.
