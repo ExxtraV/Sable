@@ -98,6 +98,8 @@ The app now includes Sparkle, a Check for Updates menu item, and automatic-check
 
 [MIT](LICENSE). Bundled Sparkle retains its own license notice.
 
+The Sable name and logo aren't covered by the MIT License. Forks are welcome under their own name and icon; see [TRADEMARK.md](TRADEMARK.md).
+
 ## Minimalist editor
 
 - First launch opens a blank document and asks you to choose or create a writing folder. Cloud folders are recommended; normal files elsewhere remain supported.
