@@ -115,6 +115,7 @@ struct ParallelMarkdownPane: View {
 
 private struct ParallelDocumentContent: View {
     @ObservedObject var document: ParallelDocument
+    private let whereaboutsPoll = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let editing: Bool
     var zoom = 1.0
     @AppStorage("fontFamily") private var family = "Charter"
@@ -136,6 +137,28 @@ private struct ParallelDocumentContent: View {
                 Spacer()
                 Button("Save") { document.saveParallel() }.font(.caption)
             }.padding(12)
+            if document.whereabouts != .inPlace {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(document.whereabouts == .inTrash
+                         ? "This file is in the Trash. Sable is still saving it there, so emptying the Trash would delete it."
+                         : "This file was deleted outside Sable. Your words are still here; save to put the file back.")
+                        .font(.caption).fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        if document.whereabouts == .inTrash, document.lastPlacedURL != nil {
+                            Button("Put Back") {
+                                do { try document.putBack() } catch { document.saveError = error.localizedDescription }
+                            }.help("Move it back to where it was, and keep editing it there")
+                        }
+                        if document.whereabouts == .missing {
+                            Button("Save Again") { document.saveAgain() }.help("Write the file again where it was")
+                        }
+                        Button("Save As…") { document.saveAs(nil) }.help("Save it somewhere else")
+                    }.font(.caption)
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12))
+                .accessibilityElement(children: .contain)
+            }
             if document.conflict {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("This file changed outside Sable while you were editing it here. Choose the version to keep; the other goes to the Trash as a copy.")
@@ -156,5 +179,6 @@ private struct ParallelDocumentContent: View {
                 Text("The other version is in the Trash as “\(kept.lastPathComponent)”.").font(.caption).foregroundStyle(.secondary).padding(12)
             }
         }
+        .onReceive(whereaboutsPoll) { _ in document.checkWhereabouts() }
     }
 }

@@ -76,6 +76,26 @@ import Foundation
         precondition(text(chapter) == "Mara woke.\n", "The file itself stays")
         try fm.removeItem(at: copy)
 
-        print("Passed: coordinated reads and writes, no leftovers, tags and dates kept, write-if-unchanged, deleted files restored, failed writes leave originals whole, copies kept in the Trash.")
+        // Moving never replaces anything, and knows where a file has ended up
+        let moved = root.appendingPathComponent("Moved.md")
+        try SafeFile.move(from: chapter, to: moved)
+        precondition(text(moved) == "Mara woke.\n" && !fm.fileExists(atPath: chapter.path), "Moved")
+        try Data("Someone else's file.\n".utf8).write(to: chapter)
+        failed = false
+        do { try SafeFile.move(from: moved, to: chapter) } catch { failed = true }
+        precondition(failed && text(chapter) == "Someone else's file.\n" && text(moved) == "Mara woke.\n", "A move never lands on another file")
+        precondition(FileWhereabouts.of(moved) == .inPlace, "In place")
+        precondition(FileWhereabouts.of(root.appendingPathComponent("Nowhere.md")) == .missing, "Missing")
+        precondition(FileWhereabouts.of(URL(fileURLWithPath: NSHomeDirectory() + "/.Trash/Chapter.md")) == .inTrash, "In the Trash")
+        precondition(FileWhereabouts.of(URL(fileURLWithPath: NSHomeDirectory() + "/Library/Mobile Documents/.Trash/Chapter.md")) == .inTrash, "In iCloud Drive's Trash")
+        precondition(FileWhereabouts.of(URL(fileURLWithPath: "/Volumes/Backup/.Trashes/501/Chapter.md")) == .inTrash, "In another disk's Trash")
+        var inTrash: NSURL?
+        try fm.trashItem(at: moved, resultingItemURL: &inTrash)
+        let trashedURL = (inTrash as URL?)!
+        precondition(FileWhereabouts.of(trashedURL) == .inTrash, "A real trashed file: \(trashedURL.path)")
+        try SafeFile.move(from: trashedURL, to: moved)
+        precondition(text(moved) == "Mara woke.\n" && FileWhereabouts.of(moved) == .inPlace, "And put back")
+
+        print("Passed: coordinated reads and writes, no leftovers, tags and dates kept, write-if-unchanged, deleted files restored, failed writes leave originals whole, copies kept in the Trash, moves that never replace, and where a file has ended up (in place, missing, in the Trash).")
     }
 }

@@ -483,10 +483,12 @@ final class SingleDocumentCoordinator: NSObject {
     private func replace(_ source: NSDocument, with target: URL, using commands: EditorCommands, completion: @escaping (Error?) -> Void) {
         let scoped = target.startAccessingSecurityScopedResource()
         defer { if scoped { target.stopAccessingSecurityScopedResource() } }
+        // The date first: if the file changes while it is being read, the document looks older than the file, so the
+        // next save asks instead of quietly replacing the newer version.
+        let modified = (try? target.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         let text: String
         do { text = try String(contentsOf: target, encoding: .utf8) }
         catch { completion(error); return }
-        let modified = (try? target.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         commands.loadText?(text, target)
         source.fileURL = target
         source.fileModificationDate = modified

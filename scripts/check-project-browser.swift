@@ -109,6 +109,9 @@ import Foundation
         let victims = ["One.md", "Two.md", "Three.md", "Folder", "Folder/Inside.md"].map { BrowserEntry(url: bulk.appendingPathComponent($0), isDirectory: $0 == "Folder") }
         do { try browser.trash(victims, protecting: [bulk.appendingPathComponent("Two.md")]); preconditionFailure() } catch FolderTrashError.inUse {}
         precondition(fm.fileExists(atPath: bulk.appendingPathComponent("One.md").path), "A blocked batch trashes nothing")
+        // A file open in another window blocks its folder too, and the check names what is blocked
+        precondition(browser.trashBlocker(victims, protecting: [bulk.appendingPathComponent("Folder/Inside.md")])?.url == bulk.appendingPathComponent("Folder"), "The folder holding an open file is blocked")
+        precondition(browser.trashBlocker(victims, protecting: [root.appendingPathComponent("Elsewhere.md")]) == nil, "Files open elsewhere don't block unrelated items")
         try browser.trash(victims, protecting: [])
         for name in ["One.md", "Two.md", "Three.md", "Folder"] { precondition(!fm.fileExists(atPath: bulk.appendingPathComponent(name).path), name) }
         precondition(browser.lastTrashed?.items.count == 4 && browser.lastTrashed?.summary == "4 items", "A folder and the file inside it count once")
