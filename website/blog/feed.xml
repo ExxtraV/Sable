@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Sable Markdown Writer blog</title>
+    <link>https://sablewriter.app/blog</link>
+    <description>News and notes from the Sable Markdown Writer project.</description>
+    <language>en</language>
+    <lastBuildDate>Thu, 24 Sep 2026 12:00:00 GMT</lastBuildDate>
+    <atom:link href="https://sablewriter.app/blog/feed.xml" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>Sable Markdown Writer - Version 0.10.0 is Here!</title>
+      <link>https://sablewriter.app/blog/sable-markdown-writer-version-0-10-0-is-here</link>
+      <guid isPermaLink="true">https://sablewriter.app/blog/sable-markdown-writer-version-0-10-0-is-here</guid>
+      <pubDate>Thu, 24 Sep 2026 12:00:00 GMT</pubDate>
+      <description>After a week, Sable Version 0.10.0 is here, and it is in a better state than I could have ever hoped. Sable Markdown Writer is a markdown editor, but it was built first and foremost for fiction writers.</description>
+      <content:encoded><![CDATA[<p>After a week, Sable Version 0.10.0 is here, and it is in a better state than I could have ever hoped. Sable Markdown Writer is a markdown editor, but it was built first and foremost for fiction writers.</p>
+<p>If you don’t know what a markdown file is, then don’t worry. It is a simple, lightweight file (like a .txt) that you can write formatted text in. It is useful for a lot of applications, but the one I am focused on is writing, and more specifically, writing fiction.</p>
+<p>I have moved programs a few times. I used Scrivener for over a year, but never felt at home in the program, with all its features and dated UI. I often felt overwhelmed by the program, but my one solace was the Focus mode. I eventually switched over to iA Writer, which is a great minimalist markdown editor in its own right, but not quite what I was looking for to write fiction.</p>
+<p>I needed a writing app that embraced the minimalist design that helped me focus solely on my writing, but also the nice to have fiction tools when I need them. That is how Sable was born.</p>
+<p>Sable is a minimalist markdown editor built for fiction writers, encouraging them to focus on the page, while giving them the tools to reference and create expansive worlds. Do you need to be a fiction writer? No! Sable was designed to be a great markdown editor/writer first and foremost, fitting the needs of anyone who simply prefers to write in markdown.</p>
+<h2>Stop Multi-Tasking &amp; Focus!</h2>
+<p>Sable wasn't built to be minimalist for minimalism's sake. Our design philosophy was to encourage and enhance focus for writers who need to hone in on the words/prose on the page. Multitasking diverts your focus away from the craft of writing. Sable was designed to give you the focus while deferring the multitasking tools for when you need them, not before you need them.</p>
+<h2>Key Features</h2>
+<p><strong>Minimalist Writing Window:</strong></p>
+<ul>
+<li>The writing window has a collapsible sidebar, and a toolbar that hides itself when not in use (Customizable to your preferences). It includes various themes, both in light and dark mode, and is built to keep your attention focused on your writing.</li>
+</ul>
+<p><strong>Customizable Toolbar:</strong></p>
+<ul>
+<li>Need more tools? Great, fit your toolbar with all the tools/features you need, whether it is formatting shortcuts or Sable features. Need fewer tools? Keep only what you need and hide what you don’t. Shortcuts allow you to bypass the toolbar altogether.</li>
+</ul>
+<p><strong>Paragraph Focus Mode:</strong></p>
+<ul>
+<li>A toggle-able focus mode that allows the user to focus on the paragraph they are currently writing.</li>
+</ul>
+<p><strong>Sentence Colors:</strong></p>
+<ul>
+<li>Enable Sentence Colors to give nouns, verbs and other parts of speech specific colors to help you see sentence structure at a glance, and identify patterns in your writing.</li>
+</ul>
+<p><strong>Parallel:</strong></p>
+<ul>
+<li>Sable is built to encourage focus and discourage multi-tasking, but we understand when referencing becomes necessary. A user can parallel another markdown file for reference, and even edit it as well if need be.</li>
+</ul>
+<p><strong>Customizability:</strong></p>
+<ul>
+<li>Sable supports customizability with various themes, fonts, and features.</li>
+</ul>
+<p><strong>Local Files/Cloud Sync:</strong></p>
+<ul>
+<li>All your files are yours and live on your local system. However, if you want to use Sable on the go or want to save your files into the cloud, use your own cloud provider, such as iCloud, Dropbox, or OneDrive. We never collect your files.</li>
+</ul>
+<p><strong>Markdown:</strong></p>
+<ul>
+<li>All the files are Markdown, and so they're yours. You can always use them, transfer them to another program or export them to other file formats like PDF, EPUB, or Word. (All Fiction Projects files are based in markdown as well).</li>
+</ul>
+<p><strong>Revision History:</strong></p>
+<ul>
+<li>It is also nice to track changes to a document over time. Use the revision history feature to create snapshots and see your file evolve over time, or restore older versions.</li>
+</ul>
+<p><strong>Automatic Updates:</strong></p>
+<ul>
+<li>Sable supports automatic updates through Sparkle, allowing new updates to be pushed via GitHub. However, you get to choose whether or not to update your app. New to this update is beta updates that you can choose to opt into.</li>
+</ul>
+<h3>Fiction Features</h3>
+<p><strong>Dedicated Fiction Projects:</strong></p>
+<ul>
+<li>Sable allows users to create fiction projects that come pre-loaded with a folder structure to get them started on their project, such as a manuscript folder, character folder, location folder, and other useful folders for fiction writers.</li>
+</ul>
+<p><strong>Character &amp; Character Cards:</strong></p>
+<ul>
+<li>Character files (which use a standard markdown file) allow you to craft character sheets for your own reference. Character cards allow writers to reference their characters during writing, and pin the card to their preferred area of the screen. Find the card too distracting? Choose to keep it unpinned, and the card will shrink during your writing, hover back over it to return it.</li>
+</ul>
+<p><strong>Names &amp; Places highlighting:</strong></p>
+<ul>
+<li>Like sentence coloring, Sable can highlight character names and locations in the draft and even allow you to right-click them to bring up the character cards.</li>
+</ul>
+<p><strong>Tagging:</strong></p>
+<ul>
+<li>Tag your chapters/scenes with characters, locations, or other information so you always know where a scene takes place and what characters appear in it.</li>
+</ul>
+<p><strong>Outline Visualization/Story Timeline:</strong></p>
+<ul>
+<li>Create an outline and use the story timeline feature to visualize the inciting incident, rising action, climax, falling action, and other key moments in the story. (Future development will expand this feature).</li>
+</ul>
+<h2>How is Sable developed?</h2>
+<p>I want to be transparent.</p>
+<p>Sable was made primarily with Claude Code, with a little bit of Codex usage. I am not a software developer. I only have a semester of computer science and decided that career was not the path for me. I'm just a writer who really wanted a Markdown writer that fit my needs and did it well.</p>
+<p>Sable was "vibe-coded" but with a process. Sable was built using a product roadmap with various checks in the process to make sure Sable is both secure and efficient. Sable has gone through multiple reviews and revision by Claude Code, which I’ve reviewed along the way.</p>
+<p>All the files are local and are <em>your</em> files. Sable does not use or send your data anywhere. The only time it connects to the internet is to check for new updates.</p>
+<h2>Free &amp; Open Source</h2>
+<p>Because of the nature of the development, I decided that the best course of action was to keep Sable <em>free</em> and <em>open source</em>. I'm not developing this to try to make money. I'm just trying to make a Markdown editor that I would personally use day to day.</p>
+<p>That being said, future development of Sable has a cost. Apple charges $99 a year for its developer program, which would allow Sable to get notarized and potentially lead to a release on the App Store or even an iPad or iPhone version. And continued development costs both time and money.</p>
+<p>If you’d like to support Sable, feel free to donate, but don’t feel the need to.
+<a href="https://buymeacoffee.com/SableWriter">https://buymeacoffee.com/SableWriter</a></p>
+<h2>Roadmap Toward the Future</h2>
+<p>I plan to continue to update Sable. I have some features down the roadmap for updating the timeline visualizations, manuscript insights, relationship graphs, and more exporting features.</p>
+<p>I'm excited to be able to release version 0.10.0 for your use. Let me know what you think!</p>
+<blockquote>
+<p>Note: this blog post was written by the author entirely and only used AI/Claude Code to make suggestions and point out errors. Writing that is written by AI will be labeled as such.</p>
+</blockquote>]]></content:encoded>
+    </item>
+  </channel>
+</rss>
