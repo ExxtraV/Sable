@@ -118,7 +118,10 @@ A few checks validate the release pipeline itself rather than the app, and run w
 python3 scripts/check-update-signatures.py
 python3 scripts/check-release-modes.py
 python3 scripts/check-merge-appcast.py
+python3 scripts/check-blog.py
 ```
+
+`scripts/check-blog.py` guards the website's blog: it strips the HTML from each post page and confirms its words, links, and images match the author's Markdown in `docs/blog/` exactly. See [The blog](#the-blog) below.
 
 `scripts/check-release-config.py` and `scripts/check-appcast.py` run only as part of an actual release (`.github/workflows/release.yml`); they need release-only environment variables and aren't part of the regular check suite. `scripts/verify-update.swift` is invoked by `check-appcast.py`, not run directly.
 
@@ -137,3 +140,14 @@ python3 scripts/check-merge-appcast.py
 5. Keep PRs focused — one change per PR makes review and rollback easier.
 
 Releases (version bumps, signing, and publishing to GitHub Releases) are cut separately by a maintainer through `.github/workflows/release.yml`; contributors don't need to touch that workflow.
+
+## The blog
+
+Blog posts are the maintainer's own writing, so the Markdown files in `docs/blog/` are the source of truth and are never edited to fit the site. `docs/blog/posts.json` lists the posts (`slug`, `date`, and optionally `modified` and `description`). To publish one:
+
+1. Save the post as `docs/blog/<slug>.md`, starting with a `# Title` heading. Put any images next to it, each with alt text.
+2. Add its entry to `docs/blog/posts.json`.
+3. Run `python3 scripts/build-blog.py`. It writes the post page, the blog index, `website/blog/feed.xml`, and the blog entries in `website/sitemap.xml`, and refuses to build a post with an image that has no alt text.
+4. Run `python3 scripts/check-blog.py` (CI does too). It fails if a page's words differ from the Markdown or if the committed pages are stale.
+
+Both scripts use only the Python standard library.
