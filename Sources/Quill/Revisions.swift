@@ -73,7 +73,8 @@ enum Revisions {
     // MARK: Taking snapshots
 
     /// Copies `files` (which must be inside `root`) into a new snapshot. `liveText` supplies the text of a file that is open
-    /// with changes not saved yet, so the snapshot holds what is on the page.
+    /// with changes not saved yet, so the snapshot holds what is on the page. Every other file is read coordinated (see
+    /// `SafeFile`), so one open elsewhere saves first and the snapshot has its latest words: call this off the main thread.
     @discardableResult
     static func create(name: String, note: String = "", kind: Snapshot.Kind = .manual, root: URL, files: [URL],
                        chapterOrder: [String]? = nil, liveText: [URL: String] = [:], date requested: Date = Date()) throws -> Snapshot {
@@ -91,7 +92,7 @@ enum Revisions {
                 guard standard.path.hasPrefix(rootPath + "/") else { continue }
                 let relative = String(standard.path.dropFirst(rootPath.count + 1))
                 let text: String
-                if let live = liveText[standard] { text = live } else { text = try String(contentsOf: standard, encoding: .utf8) }
+                if let live = liveText[standard] { text = live } else { text = try SafeFile.readText(standard) }
                 let destination = target.appendingPathComponent(relative)
                 try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try text.write(to: destination, atomically: true, encoding: .utf8)
@@ -175,12 +176,10 @@ enum Revisions {
 
     // MARK: Restoring
 
-    /// Puts one file back as it was. The caller takes a safety snapshot first.
+    /// Puts one file back as it was. The caller takes a safety snapshot first. Coordinated, so a copy open elsewhere
+    /// reloads instead of saving over it: call this off the main thread.
     static func restore(_ path: String, from snapshot: Snapshot, root: URL) throws {
-        let text = try text(of: path, in: snapshot, root: root)
-        let destination = root.appendingPathComponent(path)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try text.write(to: destination, atomically: true, encoding: .utf8)
+        try SafeFile.writeText(try text(of: path, in: snapshot, root: root), to: root.appendingPathComponent(path))
     }
 
     // MARK: The difference between two texts

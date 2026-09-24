@@ -443,7 +443,7 @@ struct WritingView: View {
     private func startDocumentExport() {
         let name = activeURL?.deletingPathExtension().lastPathComponent ?? "Untitled"
         commands.flushText()
-        exportSource = .document(title: name, markdown: document.text)
+        exportSource = .document(title: name, markdown: document.text, url: activeURL)
     }
 
     /// Empties the editor so the file it has open can be moved to the Trash.
@@ -471,7 +471,13 @@ struct WritingView: View {
             commands.flushText()
             document.text = FrontMatter.setting(key, to: value, in: document.text)
         } else {
-            do { try CardStore.setField(key, to: value, in: url) } catch { errorMessage = error.localizedDescription }
+            // Off the main thread: if the file is open elsewhere, it saves first, and that can need the main thread.
+            Task {
+                let failure = await Task.detached { () -> String? in
+                    do { try CardStore.setField(key, to: value, in: url); return nil } catch { return error.localizedDescription }
+                }.value
+                if let failure { errorMessage = failure }
+            }
         }
     }
 
@@ -672,6 +678,7 @@ struct WritingView: View {
             .sheet(item: $findRequest) { request in
                 FindReplaceSheet(request: request,
                                  replaceOpenText: { commands.editor?.replaceEntireText($0) },
+                                 currentOpenText: { commands.editor?.string },
                                  open: openSearchHit, filesChanged: { browser.reload() }, close: { findRequest = nil })
             }
             .sheet(item: $revisionsRequest) { request in

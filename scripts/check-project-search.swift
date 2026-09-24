@@ -49,9 +49,34 @@ import Foundation
         precondition(afterOne == "# One\n\nMara walked. Mara waited.\nAnd Maras' boat sank; Mara swam.", "Written: \(afterOne)")
         let hiddenText = try String(contentsOf: hidden, encoding: .utf8), otherText = try String(contentsOf: other, encoding: .utf8)
         precondition(hiddenText == "Marren" && otherText == "Marren", "Other files untouched")
-        try ProjectSearch.restore(receipt)
+        // Undo puts back only files nobody has touched since: newer words are never overwritten
+        let twoAfterReplace = try String(contentsOf: two, encoding: .utf8)
+        try (twoAfterReplace + "\nA paragraph written after the replacement.").write(to: two, atomically: true, encoding: .utf8)
+        let undone = ProjectSearch.restore(receipt)
         let restored = try String(contentsOf: one, encoding: .utf8)
         precondition(restored.hasPrefix("# One\n\nMarren walked. marren waited."), "Undo puts it back")
+        precondition(undone.restored.count == 2 && undone.skipped == [two] && undone.failed.isEmpty, "Restored \(undone.restored), skipped \(undone.skipped)")
+        let twoNow = try String(contentsOf: two, encoding: .utf8)
+        precondition(twoNow.hasSuffix("A paragraph written after the replacement."), "The file changed since keeps its new words")
+        let again = ProjectSearch.restore(receipt)
+        precondition(again.restored.isEmpty && again.skipped.count == 3, "A second undo changes nothing")
+
+        // A replacement that stops partway puts back what it already changed
+        let locked = root.appendingPathComponent("Locked", isDirectory: true)
+        try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        let stuck = locked.appendingPathComponent("Stuck.md")
+        try "Marren is here too.".write(to: stuck, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: locked.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
+        let beforeOne = try String(contentsOf: one, encoding: .utf8)
+        var failure: ReplaceFailure?
+        do { _ = try ProjectSearch.replace(in: [one, stuck], options: SearchOptions(query: "Marren"), with: "Mara") } catch { failure = error as? ReplaceFailure }
+        precondition(failure != nil && failure!.notPutBack.isEmpty, "The failure is reported, with nothing left changed")
+        precondition(failure!.localizedDescription.hasSuffix("Nothing was changed."), "And says so: \(failure!.localizedDescription)")
+        let oneAfterFailure = try String(contentsOf: one, encoding: .utf8)
+        precondition(oneAfterFailure == beforeOne, "The file changed before the failure is back as it was")
+        let stuckText = try String(contentsOf: stuck, encoding: .utf8)
+        precondition(stuckText == "Marren is here too.", "The file that couldn't be written is whole")
         let none = try ProjectSearch.replace(in: [one], options: SearchOptions(query: "zzz"), with: "x")
         precondition(none.replacements == 0 && none.files == 0, "Nothing to replace changes nothing")
 
@@ -59,6 +84,6 @@ import Foundation
         let long = String(repeating: "word ", count: 200) + "needle" + String(repeating: " word", count: 200)
         let longHit = ProjectSearch.hits(in: long, options: SearchOptions(query: "needle")).first!
         precondition(longHit.snippet.count < 200 && longHit.snippet.hasPrefix("…") && longHit.snippet.hasSuffix("…") && (longHit.snippet as NSString).substring(with: longHit.snippetRange) == "needle", "Snippet window: \(longHit.snippet.count)")
-        print("Passed: project search (case, whole word, paths, lines, unsaved text), literal replace, undo, hidden and non-Markdown files.")
+        print("Passed: project search (case, whole word, paths, lines, unsaved text), literal replace, undo that keeps newer words, rollback after a failed write, hidden and non-Markdown files.")
     }
 }

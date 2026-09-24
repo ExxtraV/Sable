@@ -136,7 +136,25 @@ private struct ParallelDocumentContent: View {
                 Spacer()
                 Button("Save") { document.saveParallel() }.font(.caption)
             }.padding(12)
-            if let error = document.saveError { Text(error).font(.caption).foregroundStyle(.orange).padding(12) }
+            if document.conflict {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("This file changed outside Sable while you were editing it here. Choose the version to keep; the other goes to the Trash as a copy.")
+                        .font(.caption).fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Button("Keep Mine") { document.keepMine() }
+                            .help("Save the text in this pane. The version on disk goes to the Trash as a copy.")
+                        Button("Use Saved File") { document.useSavedFile() }
+                            .help("Load the version on disk. The text in this pane goes to the Trash as a copy.")
+                    }.font(.caption)
+                }
+                .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.12))
+                .accessibilityElement(children: .contain)
+            } else if let error = document.saveError {
+                Text(error).font(.caption).foregroundStyle(.orange).padding(12)
+            } else if let kept = document.lastKept {
+                Text("The other version is in the Trash as “\(kept.lastPathComponent)”.").font(.caption).foregroundStyle(.secondary).padding(12)
+            }
         }
     }
 }

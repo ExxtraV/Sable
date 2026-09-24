@@ -43,7 +43,44 @@ import QuillCore
         let saved = try String(contentsOf: url, encoding: .utf8)
         precondition(saved == document.text)
         precondition(!document.isDocumentEdited)
+
+        // Changed outside Sable while edited here: nothing is saved over it until the writer chooses
+        func save() async -> Error? { await withCheckedContinuation { c in document.saveParallel { c.resume(returning: $0) } } }
+        func disk() -> String { (try? String(contentsOf: url, encoding: .utf8)) ?? "<unreadable>" }
+        document.edit("Mine: written in the pane.\n")
+        try Data("Theirs: written on another Mac.\n".utf8).write(to: url, options: .atomic)
+        let refused = await save()
+        precondition(refused is ParallelConflictError && document.conflict, "The save stops: \(String(describing: refused))")
+        precondition(disk() == "Theirs: written on another Mac.\n", "The other version is untouched")
+        let autosaved: Error? = await withCheckedContinuation { c in document.autosave(withImplicitCancellability: false) { c.resume(returning: $0) } }
+        precondition(autosaved != nil && disk() == "Theirs: written on another Mac.\n", "Autosave stops too")
+        let kept: Error? = await withCheckedContinuation { c in document.keepMine { c.resume(returning: $0) } }
+        precondition(kept == nil && !document.conflict && disk() == "Mine: written in the pane.\n", "Keep Mine saves the pane's text: \(String(describing: kept))")
+        let theirsCopy = try String(contentsOf: document.lastKept!, encoding: .utf8)
+        precondition(theirsCopy == "Theirs: written on another Mac.\n", "The other version is in the Trash")
+        try FileManager.default.removeItem(at: document.lastKept!)
+
+        document.edit("Mine again.\n")
+        try Data("Theirs again.\n".utf8).write(to: url, options: .atomic)
+        _ = await save()
+        precondition(document.conflict, "A second conflict")
+        document.useSavedFile()
+        precondition(!document.conflict && document.text == "Theirs again.\n" && !document.isDocumentEdited, "Use Saved File loads it")
+        let mineCopy = try String(contentsOf: document.lastKept!, encoding: .utf8)
+        precondition(mineCopy == "Mine again.\n" && disk() == "Theirs again.\n", "The pane's text is in the Trash; the file is as it was")
+        try FileManager.default.removeItem(at: document.lastKept!)
+        document.edit("Saved normally.\n")
+        let normal = await save()
+        precondition(normal == nil && disk() == "Saved normally.\n", "An ordinary save still works")
+
+        // Replace in Project and revision restores read and write coordinated: an open copy saves first, then reloads
+        document.edit("Unsaved words in the pane.\n")
+        let seen = try await Task.detached { try SafeFile.readText(url) }.value
+        precondition(seen == "Unsaved words in the pane.\n" && !document.isDocumentEdited, "A coordinated read gets the pane's unsaved words")
+        try await Task.detached { try SafeFile.writeText("Written by a replacement.\n", to: url) }.value
+        for _ in 0..<50 where document.text != "Written by a replacement.\n" { try await Task.sleep(nanoseconds: 100_000_000) }
+        precondition(document.text == "Written by a replacement.\n" && !document.conflict, "And a coordinated write reloads it")
         document.close()
-        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked parallel edits/reuse and exact native save.")
+        print("Passed: clean reading, bold rendering, safe links, list rendering, icon decoding, parts of speech, code exclusion, tracked parallel edits/reuse, exact native save, coordinated reads/writes reaching the open copy, and outside changes never saved over (Keep Mine / Use Saved File keep the other version in the Trash).")
     }
 }

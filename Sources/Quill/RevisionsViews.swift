@@ -298,46 +298,59 @@ struct RevisionsSheet: View {
         reload()
     }
 
-    /// A snapshot of right now, so nothing a restore replaces is lost.
-    private func safetySnapshot(_ label: String) throws {
-        try Revisions.create(name: label, kind: .safety, root: scope.root, files: scope.files, chapterOrder: scope.chapterOrder, liveText: live)
-    }
-
     private func restoreOne() {
         guard let snapshot = selected, let change = selectedChange else { return }
-        do {
-            try safetySnapshot("Before restoring “\(change.title)”")
-            try put(change.path, from: snapshot)
+        restore([change.path], from: snapshot, safety: "Before restoring “\(change.title)”") { failure in
+            if let failure { message = failure; return }
             message = "Restored “\(change.title)” to “\(snapshot.name)”. A safety snapshot of the version it replaced is in the list." + (isOpen(change.path) ? " It is open, so press ⌘Z to reverse it, or ⌘S to keep it." : "")
-            filesChanged()
-            reload(select: snapshot.id)
-        } catch { message = "Could not restore: \(error.localizedDescription). Nothing was changed." }
+        }
     }
 
     private func restoreDraft() {
         guard let snapshot = selected else { return }
-        do {
-            try safetySnapshot("Before restoring “\(snapshot.name)”")
-            var count = 0
-            for change in changes where change.status == .changed || change.status == .removed {
-                try put(change.path, from: snapshot)
-                count += 1
-            }
+        let paths = changes.filter { $0.status == .changed || $0.status == .removed }.map(\.path)
+        restore(paths, from: snapshot, safety: "Before restoring “\(snapshot.name)”") { failure in
+            if let failure { message = failure; return }
             if let order = snapshot.chapterOrder { restoreOrder(order) }
-            message = "Restored \(count) \(count == 1 ? "file" : "files") to “\(snapshot.name)”. A safety snapshot of how it was is in the list."
-            filesChanged()
-            reload(select: snapshot.id)
-        } catch { message = "Could not restore: \(error.localizedDescription)" }
+            message = "Restored \(paths.count) \(paths.count == 1 ? "file" : "files") to “\(snapshot.name)”. A safety snapshot of how it was is in the list."
+        }
     }
 
     private func isOpen(_ path: String) -> Bool {
         scope.openURL?.standardizedFileURL == scope.root.appendingPathComponent(path).standardizedFileURL
     }
 
-    /// A file that is open in the editor is changed on the page, where ⌘Z works; every other file is rewritten on disk.
-    private func put(_ path: String, from snapshot: Snapshot) throws {
-        if isOpen(path) { replaceOpenText(try Revisions.text(of: path, in: snapshot, root: scope.root)) }
-        else { try Revisions.restore(path, from: snapshot, root: scope.root) }
+    /// Saves a safety snapshot of right now, then puts `paths` back as they were in `snapshot`: files on disk in the
+    /// background (coordinated, so a copy open elsewhere reloads), and the open document on the page, where ⌘Z works.
+    /// Nothing is restored if the safety snapshot can't be saved. `done` gets a message if anything went wrong.
+    private func restore(_ paths: [String], from snapshot: Snapshot, safety label: String, done: @escaping (String?) -> Void) {
+        busy = true
+        let root = scope.root, files = scope.files, order = scope.chapterOrder, overrides = live
+        let openPath = paths.first(where: isOpen)
+        let diskPaths = paths.filter { !isOpen($0) }
+        Task {
+            let outcome = await Task.detached { () -> (openText: String?, restored: Int, failure: String?) in
+                do { try Revisions.create(name: label, kind: .safety, root: root, files: files, chapterOrder: order, liveText: overrides) }
+                catch { return (nil, 0, "Could not save a safety snapshot first, so nothing was restored: \(error.localizedDescription)") }
+                var restored = 0
+                do {
+                    let openText = try openPath.map { try Revisions.text(of: $0, in: snapshot, root: root) }
+                    for path in diskPaths {
+                        try Revisions.restore(path, from: snapshot, root: root)
+                        restored += 1
+                    }
+                    return (openText, restored, nil)
+                } catch {
+                    let partly = restored == 0 ? "Nothing was restored." : "\(restored) of \(diskPaths.count) files were restored before it stopped; the safety snapshot “\(label)” has every one as it was."
+                    return (nil, restored, "Could not restore: \(error.localizedDescription) \(partly)")
+                }
+            }.value
+            if let text = outcome.openText { replaceOpenText(text) }
+            busy = false
+            done(outcome.failure)
+            filesChanged()
+            reload(select: snapshot.id)
+        }
     }
 }
 

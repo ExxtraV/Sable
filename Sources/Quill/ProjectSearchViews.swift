@@ -14,6 +14,8 @@ struct FindRequest: Identifiable {
 struct FindReplaceSheet: View {
     let request: FindRequest
     let replaceOpenText: (String) -> Void
+    /// What the open document says on the page right now.
+    let currentOpenText: () -> String?
     let open: (URL, NSRange) -> Void
     let filesChanged: () -> Void
     let close: () -> Void
@@ -24,7 +26,8 @@ struct FindReplaceSheet: View {
     @State private var searching = false
     @State private var confirming = false
     @State private var receipt: ReplaceReceipt?
-    @State private var openTextReplaced = false
+    /// The open document's text before and after it was replaced on the page, so Undo can tell whether it has changed since.
+    @State private var openReplacement: (before: String, after: String)?
     @State private var message: String?
 
     private var included: [FileHits] { results.filter { !skipped.contains($0.url) } }
@@ -49,7 +52,7 @@ struct FindReplaceSheet: View {
                 Text(summary).font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if searching { ProgressView().controlSize(.small) }
-                if receipt != nil || openTextReplaced {
+                if receipt != nil || openReplacement != nil {
                     Button("Undo Replace", action: undo)
                 }
                 Button("Done", action: close).keyboardShortcut(.cancelAction)
@@ -152,10 +155,12 @@ struct FindReplaceSheet: View {
             do {
                 var count = 0, files = 0
                 let root = request.root
-                // A snapshot first, so a replacement that turns out to be a mistake can be taken back after this window closes.
+                // A snapshot first, so a replacement that turns out to be a mistake can be taken back after this window
+                // closes. Without one, nothing is replaced.
                 let outcome = try await Task.detached { () -> ReplaceReceipt in
                     if !diskFiles.isEmpty {
-                        _ = try? Revisions.create(name: "Before replacing “\(current.query)” with “\(text)”", kind: .safety, root: root, files: diskFiles)
+                        do { try Revisions.create(name: "Before replacing “\(current.query)” with “\(text)”", kind: .safety, root: root, files: diskFiles) }
+                        catch { throw ReplaceFailure(reason: "Could not save a safety snapshot first: " + error.localizedDescription, notPutBack: []) }
                     }
                     return try ProjectSearch.replace(in: diskFiles, options: current, with: text)
                 }.value
@@ -163,35 +168,54 @@ struct FindReplaceSheet: View {
                 files += outcome.files
                 receipt = outcome.files > 0 ? outcome : nil
                 if let openURL, chosen.contains(where: { $0.url.standardizedFileURL == openURL }) {
-                    let changed = ProjectSearch.replaced(request.openText, options: current, with: text)
+                    let before = currentOpenText() ?? request.openText
+                    let changed = ProjectSearch.replaced(before, options: current, with: text)
                     if changed.count > 0 {
                         replaceOpenText(changed.text)
-                        openTextReplaced = true
+                        openReplacement = (before, changed.text)
                         count += changed.count
                         files += 1
                     }
                 }
-                message = "Replaced \(count) \(count == 1 ? "match" : "matches") in \(files) \(files == 1 ? "file" : "files")." + (openTextReplaced ? " The open document changed on the page: press ⌘Z or Undo Replace to reverse it, and ⌘S to save it." : "")
+                message = "Replaced \(count) \(count == 1 ? "match" : "matches") in \(files) \(files == 1 ? "file" : "files")." + (openReplacement != nil ? " The open document changed on the page: press ⌘Z or Undo Replace to reverse it, and ⌘S to save it." : "")
                 filesChanged()
                 await search()
             } catch {
-                message = "Could not replace: \(error.localizedDescription). Nothing was changed."
+                message = error is ReplaceFailure ? error.localizedDescription : "Could not replace: \(error.localizedDescription)"
+                filesChanged()
             }
         }
     }
 
+    /// Takes the replacement back, but never over words written since: a file changed after the replacement is left as it is.
     private func undo() {
-        if let receipt {
-            do { try ProjectSearch.restore(receipt) } catch { message = "Could not undo: \(error.localizedDescription)"; return }
-            self.receipt = nil
-            filesChanged()
+        let pending = receipt
+        let open = openReplacement
+        receipt = nil
+        openReplacement = nil
+        Task {
+            var notes: [String] = []
+            if let pending {
+                let outcome = await Task.detached { ProjectSearch.restore(pending) }.value
+                if !outcome.skipped.isEmpty {
+                    notes.append("Left as \(outcome.skipped.count == 1 ? "it is" : "they are"), because \(outcome.skipped.count == 1 ? "it has" : "they have") changed since the replacement: \(names(outcome.skipped)).")
+                }
+                if !outcome.failed.isEmpty {
+                    notes.append("Could not put back \(names(outcome.failed)): \(outcome.failure ?? "an error"). The safety snapshot in Revision History has \(outcome.failed.count == 1 ? "it" : "them") as before.")
+                }
+                filesChanged()
+            }
+            if let open {
+                if currentOpenText() == open.after { replaceOpenText(open.before) }
+                else { notes.append("The open document has changed since, so it was left as it is; ⌘Z in the document still steps back through it.") }
+            }
+            message = notes.isEmpty ? "Put everything back." : notes.joined(separator: " ")
+            await search()
         }
-        if openTextReplaced {
-            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
-            openTextReplaced = false
-        }
-        message = "Put everything back."
-        Task { await search() }
+    }
+
+    private func names(_ urls: [URL]) -> String {
+        urls.map { "“\($0.lastPathComponent)”" }.joined(separator: ", ")
     }
 }
 

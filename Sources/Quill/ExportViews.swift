@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 enum ExportSource: Identifiable {
     /// `unsaved` swaps in the text of a chapter that's open with changes not yet saved, so the export is what's on screen.
     case manuscript(project: URL, title: String, unsaved: [String: String])
-    case document(title: String, markdown: String)
+    /// `url` is the document's file, if it has one, so the export can't be saved over it.
+    case document(title: String, markdown: String, url: URL?)
     var id: String {
         switch self { case .manuscript: return "manuscript"; case .document: return "document" }
     }
@@ -118,12 +119,27 @@ struct ExportSheet: View {
             }
             chapters = loaded
             included = Set(loaded.map(\.id))
-        case let .document(documentTitle, markdown):
+        case let .document(documentTitle, markdown, _):
             title = documentTitle
             chapters = [ManuscriptExport.chapter(named: documentTitle + ".md", markdown: markdown)]
             included = Set(chapters.map(\.id))
         }
         loading = false
+    }
+
+    /// The files this export is made from.
+    private var sourceFiles: [URL] {
+        switch source {
+        case let .manuscript(project, _, _):
+            let folder = FictionProject.folder(for: .chapter, in: project)
+            return (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
+        case let .document(_, _, url): return url.map { [$0] } ?? []
+        }
+    }
+
+    private var protectedFolders: [URL] {
+        if case let .manuscript(project, _, _) = source { return [FictionProject.folder(for: .chapter, in: project)] }
+        return []
     }
 
     private func save() {
@@ -146,12 +162,18 @@ struct ExportSheet: View {
         // Capture a copy of `options`: a captured `var` is shared with this main-actor function, so it can't be sent to the detached export.
         panel.begin { [options] response in
             guard response == .OK, let url = panel.url else { return }
+            if let refusal = ExportDestination.problem(for: url, sources: sourceFiles, open: NSDocumentController.shared.documents.compactMap(\.fileURL), protectedFolders: protectedFolders) {
+                problem = refusal
+                return
+            }
             working = true
             problem = nil
             Task {
                 let outcome = await Task.detached { () -> Result<Void, Error> in
                     Result {
                         let data = try ManuscriptExport.export(selected, options: options)
+                        // A file this replaces goes to the Trash as a copy first, in case it wasn't meant to go.
+                        if FileManager.default.fileExists(atPath: url.path) { try SafeFile.keepCopyInTrash(of: url, named: SafeFile.keptName(for: url)) }
                         try data.write(to: url, options: .atomic)
                     }
                 }.value

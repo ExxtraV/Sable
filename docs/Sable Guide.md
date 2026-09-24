@@ -64,6 +64,16 @@ Use `backticks` for inline code and ~~two tildes~~ for a strikethrough.
 
 Before a big rewrite, save a snapshot: **File → Save Snapshot** (⌥⌘S), or the Revisions button at the bottom of the writing desk. A snapshot keeps a copy of every chapter as it is right now. **Revision History** (⌥⌘R) lists your snapshots and shows, for any of them, which chapters changed and how: words you have added are underlined green and words you have removed are struck through red. From there you can restore one chapter or the whole draft. Sable saves a safety snapshot before every restore, so a restore can be undone too. In a Fiction Project it also keeps a daily snapshot when something changed (turn that off in Settings). Snapshots live in a hidden `.sable-revisions` folder as ordinary Markdown files.
 
+## How Sable protects your files
+
+- **All or nothing.** When Sable rewrites a file, it writes the new version beside the old one and swaps them in a single step. If the disk fills up or your Mac stops halfway, the old file is still whole.
+- **A snapshot before big changes.** Find & Replace in Project and every restore save a safety snapshot first. If that snapshot can't be saved, nothing is changed.
+- **Undo that won't erase newer words.** Undo Replace puts back only files that still read exactly as the replacement left them. Anything you changed afterwards is left alone, and Sable tells you which files those were.
+- **Files open beside your draft.** When Find & Replace or a restore touches a file that's open beside your draft, that file saves your latest words first and then shows the new text. If the file changes somewhere else (another app, or another Mac through iCloud or Dropbox) while you have edits beside your draft, Sable doesn't save over it. Choose **Keep Mine** or **Use Saved File**; the version you don't keep goes to the Trash as a copy.
+- **Exports never replace your writing.** An export can't be saved over the files it was made from, over a file that's open in Sable, or inside the Manuscript folder. If it replaces some other file, that file goes to the Trash as a copy first.
+- **Nothing is deleted outright.** Move to Trash sends files to the macOS Trash, with Undo right afterward. Import always makes a new file. The only things Sable deletes are snapshots: when you delete one, and daily snapshots older than the latest 20.
+- **Files that aren't downloaded yet.** If iCloud is set to Optimize Mac Storage and a file hasn't been downloaded, Sable downloads it when it's opened, searched, or saved in a snapshot. While you're offline it can't be read: Sable shows an error and leaves the file alone, and Revision History may list it as deleted. Restores stop until it can be read.
+
 ## Your writing record
 
 Settings → General charts the words you've added each day for the last 30 days, with your best day and a lifetime total. It only counts progress you keep — deleting words never counts against you — and it isn't a streak, so a quiet day changes nothing. It's kept only on this Mac, and you can clear it any time.
