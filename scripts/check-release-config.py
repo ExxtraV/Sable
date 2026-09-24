@@ -2,13 +2,17 @@
 import base64, json, os, re, subprocess, urllib.request, xml.etree.ElementTree as ET
 mode = os.environ.get('DISTRIBUTION_MODE', 'community')
 if mode not in ('community', 'notarized'): raise SystemExit('Unknown distribution mode.')
+channel = os.environ.get('RELEASE_CHANNEL', 'stable')
+if channel not in ('stable', 'beta'): raise SystemExit('Unknown release channel.')
 required = ['RELEASE_VERSION', 'RELEASE_BUILD', 'SPARKLE_PUBLIC_KEY', 'SPARKLE_PRIVATE_KEY', 'GITHUB_REPOSITORY']
 if mode == 'notarized':
     required += ['SIGNING_IDENTITY', 'CERTIFICATE', 'CERTIFICATE_PASSWORD', 'APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_PASSWORD']
 missing = [key for key in required if not os.environ.get(key)]
 if missing: raise SystemExit('Missing release settings: ' + ', '.join(missing))
 version, build = os.environ['RELEASE_VERSION'], os.environ['RELEASE_BUILD']
-if not re.fullmatch(r'\d+\.\d+\.\d+', version): raise SystemExit('Version must be major.minor.patch.')
+if channel == 'beta':
+    if not re.fullmatch(r'\d+\.\d+\.\d+-beta\.[1-9]\d*', version): raise SystemExit('Beta version must look like major.minor.patch-beta.N.')
+elif not re.fullmatch(r'\d+\.\d+\.\d+', version): raise SystemExit('Version must be major.minor.patch.')
 if not re.fullmatch(r'[1-9]\d*', build): raise SystemExit('Build must be a positive integer.')
 if mode == 'notarized' and not os.environ['SIGNING_IDENTITY'].startswith('Developer ID Application:'): raise SystemExit('A Developer ID Application signing identity is required.')
 if len(base64.b64decode(os.environ['SPARKLE_PUBLIC_KEY'], validate=True)) != 32: raise SystemExit('Invalid public key.')

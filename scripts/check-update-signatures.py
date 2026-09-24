@@ -31,6 +31,12 @@ try key.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandL
     environment = dict(os.environ, GITHUB_REPOSITORY='test/Sable')
     command = ['python3', str(root / 'scripts/check-appcast.py'), str(feed), str(archive)]
     subprocess.run(command, env=environment, check=True)
+    def accepted(*extra): return subprocess.run(command + list(extra), env=environment, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    assert not accepted('beta'), 'An untagged item must be rejected for a beta release.'
+    tag = ET.SubElement(item, ns + 'channel'); tag.text = 'beta'
+    ET.ElementTree(rss).write(feed)
+    assert accepted('beta') and not accepted(), 'A beta item must carry the beta tag, and a stable release must not.'
+    item.remove(tag)
     ET.SubElement(item, ns + 'unused')
     item.find(ns + 'version').text = '4'
     ET.ElementTree(rss).write(feed)
@@ -38,4 +44,4 @@ try key.publicKey.rawRepresentation.base64EncodedString().write(toFile: CommandL
     archive.write_bytes(archive.read_bytes() + b' tampered')
     result = subprocess.run([str(signer), '--ed-key-file', str(private), '--verify', str(archive), signature], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     assert result.returncode != 0, 'Modified update must be rejected.'
-print('Passed: signed appcast/archive verified against embedded key; mismatched version and tampered archive rejected; test key removed.')
+print('Passed: signed appcast/archive verified against embedded key; channel tags must match the release channel; mismatched version and tampered archive rejected; test key removed.')

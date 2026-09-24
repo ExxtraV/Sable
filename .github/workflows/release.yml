@@ -8,8 +8,14 @@ on:
         options: [community, notarized]
         default: community
         required: true
+      channel:
+        description: Stable reaches everyone; beta is a pre-release only opted-in users receive
+        type: choice
+        options: [stable, beta]
+        default: stable
+        required: true
       version:
-        description: 'Release version (for example 0.5.0)'
+        description: 'Release version (for example 0.5.0, or 0.5.0-beta.1 for a beta)'
         required: true
       build:
         description: 'Build number, greater than every previously published build'
@@ -27,6 +33,7 @@ jobs:
       contents: write
     env:
       DISTRIBUTION_MODE: ${{ inputs.distribution }}
+      RELEASE_CHANNEL: ${{ inputs.channel }}
       RELEASE_VERSION: ${{ inputs.version }}
       RELEASE_BUILD: ${{ inputs.build }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
@@ -52,6 +59,15 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: python3 scripts/check-release-config.py
+      - name: Fetch the live update feed
+        run: |
+          # The newest stable release's appcast is the live feed. No feed yet (404) just means this is the first release.
+          status=$(curl -sSL -o "$RUNNER_TEMP/live-appcast.xml" -w '%{http_code}' "$UPDATE_FEED_URL")
+          case "$status" in
+              200) echo "LIVE_APPCAST=$RUNNER_TEMP/live-appcast.xml" >> "$GITHUB_ENV" ;;
+              404) echo 'No published feed yet.' ;;
+              *) echo "Could not read the live feed (HTTP $status)." >&2; exit 1 ;;
+          esac
       - name: Import distribution certificate into temporary keychain
         if: inputs.distribution == 'notarized'
         env:
@@ -90,7 +106,9 @@ jobs:
         run: sh scripts/prepare-release.sh
       - name: Create draft release for review
         run: |
-          gh release create "v$RELEASE_VERSION" dist/Sable-Markdown-Writer.dmg dist/Sable-Markdown-Writer.zip dist/appcast.xml dist/Sable-Markdown-Writer.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "Sable Markdown Writer $RELEASE_VERSION" --notes-file docs/release-notes.md
+          # Betas are pre-releases, so they never become "latest" and never replace the stable feed on their own.
+          [ "$RELEASE_CHANNEL" = beta ] && PRERELEASE=--prerelease || PRERELEASE=
+          gh release create "v$RELEASE_VERSION" $PRERELEASE dist/Sable-Markdown-Writer.dmg dist/Sable-Markdown-Writer.zip dist/appcast.xml dist/Sable-Markdown-Writer.html dist/SHA256SUMS --draft --target "$GITHUB_SHA" --title "Sable Markdown Writer $RELEASE_VERSION" --notes-file docs/release-notes.md
       - name: Remove temporary signing materials
         if: always() && inputs.distribution == 'notarized'
         run: |

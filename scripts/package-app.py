@@ -35,7 +35,7 @@ if feed or key:
     info.update(SUFeedURL=feed, SUPublicEDKey=key)
 version, build = os.environ.get('RELEASE_VERSION'), os.environ.get('RELEASE_BUILD')
 if version:
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version): raise SystemExit('Use a numeric major.minor.patch version.')
+    if not re.fullmatch(r'\d+\.\d+\.\d+(-beta\.[1-9]\d*)?', version): raise SystemExit('Use a numeric major.minor.patch version, with -beta.N for a beta.')
     info['CFBundleShortVersionString'] = version
 if build:
     if not re.fullmatch(r'[1-9]\d*', build): raise SystemExit('Build must be a positive integer.')
