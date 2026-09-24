@@ -117,6 +117,7 @@ A few checks validate the release pipeline itself rather than the app, and run w
 ```sh
 python3 scripts/check-update-signatures.py
 python3 scripts/check-release-modes.py
+python3 scripts/check-merge-appcast.py
 ```
 
 `scripts/check-release-config.py` and `scripts/check-appcast.py` run only as part of an actual release (`.github/workflows/release.yml`); they need release-only environment variables and aren't part of the regular check suite. `scripts/verify-update.swift` is invoked by `check-appcast.py`, not run directly.

@@ -1,0 +1,37 @@
+name: Publish beta to update feed
+# Sable's feed is releases/latest/download/appcast.xml, the appcast on the newest stable release. A beta is a
+# pre-release, so GitHub never serves its own appcast there. When you publish a beta, this adds its item to the
+# stable release's appcast so opted-in users can find it. Publishing is the trigger, so nothing reaches anyone
+# before you have reviewed the draft.
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+concurrency:
+  group: sable-feed
+  cancel-in-progress: false
+jobs:
+  feed:
+    if: github.event.release.prerelease
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BETA_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Add the beta to the live feed
+        run: |
+          case "$BETA_TAG" in
+              v[0-9]*.[0-9]*.[0-9]*-beta.[0-9]*) ;;
+              *) echo "$BETA_TAG is not a Sable beta tag; leaving the feed alone." >&2; exit 1 ;;
+          esac
+          LATEST=$(gh release view --json tagName --jq .tagName) || { echo 'Publish a stable release first: the feed lives on it.' >&2; exit 1; }
+          mkdir live beta merged
+          gh release download "$LATEST" --pattern appcast.xml --dir live
+          gh release download "$BETA_TAG" --pattern appcast.xml --dir beta
+          python3 scripts/merge-appcast.py live/appcast.xml beta/appcast.xml merged/appcast.xml beta
+          gh release upload "$LATEST" merged/appcast.xml --clobber
+          echo "Added $BETA_TAG to the appcast on $LATEST."

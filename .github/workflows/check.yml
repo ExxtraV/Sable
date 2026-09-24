@@ -102,3 +102,5 @@ jobs:
         run: python3 scripts/check-update-signatures.py
       - name: Check community and notarized release requirements
         run: python3 scripts/check-release-modes.py
+      - name: Check appcast merging for stable and beta updates
+        run: python3 scripts/check-merge-appcast.py

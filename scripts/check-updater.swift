@@ -8,6 +8,8 @@ import SwiftUI
         precondition(!updater.canCheck)
         precondition(updater.unavailableReason != nil)
         updater.check()
-        print("Passed: unconfigured updater stays inactive and manual check is safe.")
+        precondition(UpdateChannels.allowed(beta: false).isEmpty, "Stable users must see only untagged items.")
+        precondition(UpdateChannels.allowed(beta: true) == ["beta"])
+        print("Passed: unconfigured updater stays inactive and manual check is safe; beta channel is opt-in.")
     }
 }

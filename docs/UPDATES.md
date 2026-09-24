@@ -21,15 +21,39 @@ No Apple certificate, Apple account password, notarization credentials, or paid 
 
 ## Each release
 
-Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community**, and supply a version such as `0.9.1` and a positive build number greater than all previously published builds (the current local build is 13).
+Update `docs/release-notes.md`. In GitHub Actions run **Prepare release**, select **community** and the **stable** channel, and supply a version such as `0.9.1` and a positive build number greater than all previously published builds (the current local build is 13).
 
-The workflow builds both Apple Silicon and Intel, runs tests, packages the app, builds a drag-to-install disk image, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums. Ordinary code pushes do not publish updates.
+The workflow builds both Apple Silicon and Intel, runs tests, packages the app, builds a drag-to-install disk image, signs the update archive, verifies that signature against the public key embedded in the app, and creates a draft release. It includes the app archive, appcast, release notes, and checksums of the archive and disk image. A stable release also carries the previous stable items forward in its appcast; see [Beta channel](#beta-channel). Ordinary code pushes do not publish updates.
 
 Review and test the draft before publishing it. Mark the published release as the latest stable release so the app can reach its feed at:
 
 https://github.com/ExxtraV/Sable/releases/latest/download/appcast.xml
 
 Every app download in the feed points to a specific version, not a moving latest-download URL. Never reuse a version or build number or overwrite a published archive.
+
+## Beta channel
+
+Betas let you publish frequent builds without prompting everyone. Users opt in with **Settings → General → Get beta updates** (off by default). Sparkle does the filtering: beta appcast items carry `<sparkle:channel>beta</sparkle:channel>`, the app's updater delegate allows the `beta` channel only when that box is on, and untagged (stable) items are seen by everyone.
+
+### Publishing a beta
+
+Run **Prepare release** with **channel: beta**, a version like `0.9.2-beta.1` (`-beta.N`, so every beta gets its own tag and download URL), and a build number greater than every published build. The workflow builds as usual but creates a draft **pre-release**. Review it, then publish it. Publishing fires **Publish beta to update feed** (`.github/workflows/publish-beta-feed.yml`), which adds the beta to the live feed. Nothing reaches anyone before you publish the draft.
+
+A beta needs at least one published stable release first, because the feed lives on it.
+
+### How the feed carries betas forward
+
+The app reads `releases/latest/download/appcast.xml`. GitHub resolves `latest` to the newest **non-prerelease** release, so the live feed is that stable release's `appcast.xml`, and a beta pre-release's own appcast is never served. Getting a beta to opted-in users therefore means writing its item into the stable release's appcast.
+
+- Every build still signs one appcast item with `generate_appcast` (`--channel beta` for betas).
+- `scripts/merge-appcast.py` merges items into the live feed, keyed by build number. It keeps the newest 3 stable and the newest 3 beta items, drops any beta at or below the newest stable build (it is superseded), and refuses download URLs outside this repository's releases. It only copies items, so it needs no signing key; the archive signatures inside them are untouched.
+- **Stable release:** the workflow downloads the live feed, merges the new item into it, and attaches the result. Once you publish it, it is `latest`, and older betas fall out of the feed.
+- **Beta release:** the workflow attaches only its own one-item appcast. When you publish the pre-release, **Publish beta to update feed** downloads the current live feed and the beta's appcast, merges them, and replaces `appcast.xml` on the latest stable release (`gh release upload --clobber`). It merges at publish time, so a stable release published in between is never overwritten by a stale feed.
+- Because the stable release's `appcast.xml` can change after it is published, `SHA256SUMS` covers only the archive and disk image. Archives are never overwritten.
+
+### Pulling a bad beta
+
+Users who already installed it can't be moved backwards. Publish a newer beta (or stable) build; it replaces the bad one in the feed and, for stable, prunes it. To hide a beta from the feed sooner, delete its item from the stable release's `appcast.xml` by hand and re-upload it.
 
 ## Installing a community build
 
