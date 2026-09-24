@@ -241,6 +241,17 @@ import PDFKit
         options.author = "Marren Vale"
         let md = String(decoding: try ManuscriptExport.export(Array(chapters.prefix(2)), options: options), as: UTF8.self)
         precondition(md.hasPrefix("# The Crossing & Other <Stories>\n\n*by Marren Vale*") && md.contains("## Chapter 2: The Title & More <Tags>") && md.hasSuffix("\n"), "Combined Markdown reads cleanly")
-        print("Passed: Markdown reading, chapter loading and order, zip container, EPUB (valid archive/XML/structure), Word (opens in macOS, both styles), PDF (pages, outline, numbering, run-on chapters, A4), and edge cases.")
+        // ---- Where an export may go: never over what it was made from, an open file, or into the Manuscript folder
+        let manuscriptFolder = work.appendingPathComponent("Novel/Manuscript")
+        let chapterOne = manuscriptFolder.appendingPathComponent("Chapter 1.md")
+        let notes = work.appendingPathComponent("Novel/Notes/Ideas.md")
+        precondition(ExportDestination.problem(for: chapterOne, sources: [chapterOne], open: []) != nil, "Not over its own source")
+        precondition(ExportDestination.problem(for: URL(fileURLWithPath: chapterOne.path + "/../Chapter 1.md"), sources: [chapterOne], open: []) != nil, "However the path is written")
+        precondition(ExportDestination.problem(for: notes, sources: [chapterOne], open: [notes]) != nil, "Not over a file open in Sable")
+        precondition(ExportDestination.problem(for: manuscriptFolder.appendingPathComponent("Novel.pdf"), sources: [], open: [], protectedFolders: [manuscriptFolder]) != nil, "Not into the Manuscript folder")
+        precondition(ExportDestination.problem(for: work.appendingPathComponent("Novel.pdf"), sources: [chapterOne], open: [notes], protectedFolders: [manuscriptFolder]) == nil, "A new file elsewhere is fine")
+        precondition(ExportDestination.problem(for: notes, sources: [chapterOne], open: [], protectedFolders: [manuscriptFolder]) == nil, "Replacing another file is allowed (it is kept in the Trash first)")
+
+        print("Passed: Markdown reading, chapter loading and order, zip container, EPUB (valid archive/XML/structure), Word (opens in macOS, both styles), PDF (pages, outline, numbering, run-on chapters, A4), edge cases, and export destinations that never replace a source or open file.")
     }
 }

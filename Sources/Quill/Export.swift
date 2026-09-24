@@ -198,6 +198,27 @@ func xmlEscape(_ text: String) -> String {
 
 // MARK: - Markdown
 
+/// Where an export may be saved. An export is a copy for sending out, so it never lands on the files it was made from.
+enum ExportDestination {
+    /// Why the export must not be saved at `destination`, or nil if it may. `sources` are the files being exported,
+    /// `open` the files open in Sable, and nothing may be saved inside `protectedFolders` (the Manuscript folder,
+    /// where an export would turn into a chapter).
+    static func problem(for destination: URL, sources: [URL], open: [URL], protectedFolders: [URL] = []) -> String? {
+        let target = destination.standardizedFileURL
+        let name = destination.lastPathComponent
+        if sources.contains(where: { $0.standardizedFileURL == target }) {
+            return "“\(name)” is one of the files being exported. Choose another name, so your original stays as it is."
+        }
+        if open.contains(where: { $0.standardizedFileURL == target }) {
+            return "“\(name)” is open in Sable. Choose another name, so it isn’t replaced."
+        }
+        if protectedFolders.contains(where: { FolderMove.isInside(target, of: $0) }) {
+            return "An export saved in the Manuscript folder would become a chapter. Choose another folder."
+        }
+        return nil
+    }
+}
+
 enum MarkdownExporter {
     static func text(_ chapters: [ExportChapter], _ options: ExportOptions) -> String {
         var out = ""

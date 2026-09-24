@@ -78,6 +78,7 @@
       <li><a href="#shortcuts">Keyboard shortcuts</a></li>
       <li><a href="#space">A quiet writing space</a></li>
       <li><a href="#beside">A file beside your draft</a></li>
+      <li><a href="#safety">How Sable protects your files</a></li>
     </ul>
 
     <h2 id="folder">Your writing folder</h2>
@@ -144,6 +145,17 @@
 
     <h2 id="beside">A file beside your draft</h2>
     <p>Control-click any Markdown file in the writing desk and choose <b>Open Beside Current Document</b>, or click the small split-pane icon that appears when you hover a file. It opens as a formatted reading view next to your draft. Choose Edit to work on it in place, then Read to return to the clean view. It’s handy for a character sheet or a map of the world while you write a chapter.</p>
+
+    <h2 id="safety">How Sable protects your files</h2>
+    <ul>
+      <li><strong>All or nothing.</strong> When Sable rewrites a file, it writes the new version beside the old one and swaps them in a single step. If the disk fills up or your Mac stops halfway, the old file is still whole.</li>
+      <li><strong>A snapshot before big changes.</strong> Find &amp; Replace in Project and every restore from Revision History save a safety snapshot first. If that snapshot can’t be saved, nothing is changed.</li>
+      <li><strong>Undo that won’t erase newer words.</strong> Undo Replace puts back only files that still read exactly as the replacement left them. Anything you changed afterwards is left alone, and Sable tells you which files those were.</li>
+      <li><strong>Files open beside your draft.</strong> When Find &amp; Replace or a restore touches a file that’s open beside your draft, that file saves your latest words first and then shows the new text. If the file changes somewhere else (another app, or another Mac through iCloud or Dropbox) while you have edits beside your draft, Sable doesn’t save over it. Choose <b>Keep Mine</b> or <b>Use Saved File</b>; the version you don’t keep goes to the Trash as a copy.</li>
+      <li><strong>Exports never replace your writing.</strong> An export can’t be saved over the files it was made from, over a file that’s open in Sable, or inside the Manuscript folder. If it replaces some other file, that file goes to the Trash as a copy first.</li>
+      <li><strong>Nothing is deleted outright.</strong> Move to Trash sends files to the macOS Trash, with Undo right afterward. Import always makes a new file. The only things Sable deletes are snapshots: when you delete one, and daily snapshots older than the latest 20.</li>
+      <li><strong>Files that aren’t downloaded yet.</strong> If iCloud is set to Optimize Mac Storage and a file hasn’t been downloaded, Sable downloads it when it’s opened, searched, or saved in a snapshot. While you’re offline it can’t be read: Sable shows an error and leaves the file alone, and Revision History may list it as deleted. Restores stop until it can be read.</li>
+    </ul>
 
     <p style="margin-top:44px">Missing something? <a href="https://github.com/ExxtraV/Sable/issues">Tell us on GitHub</a>, or <a href="/#download">download Sable</a>.</p>
   </article>

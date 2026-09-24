@@ -2,6 +2,19 @@
 
 All notable changes to Sable Markdown Writer are documented here. The app was originally called New Quill; it was rebranded to Sable Markdown Writer in 0.7.0. Entries are written by Claude Code.
 
+## Unreleased
+
+Safer file handling, after an audit of every place Sable writes, moves, or deletes your files.
+
+- **Find & Replace in Project** won't change anything if it can't save its safety snapshot first. If a replacement stops partway, it puts back the files it already changed and names any it couldn't.
+- **Undo Replace won't erase newer words.** It puts back only files that still read exactly as the replacement left them, lists any it left alone, and undoes the open document directly on the page.
+- **A file open beside your draft** saves your latest words before Find & Replace or a restore touches it, then shows the new text. If the file changes somewhere else while you have edits beside your draft, Sable stops instead of saving over it. Choose **Keep Mine** or **Use Saved File**; the other version goes to the Trash as a copy.
+- **Export** can't be saved over the files being exported, a file open in Sable, or into the Manuscript folder. A file it replaces goes to the Trash as a copy first.
+- **Restoring from Revision History** runs in the background. If it stops partway, it says how many files were restored and where the safety snapshot is.
+- **Import** never replaces a file that appears with the same name at the same moment.
+- **Changing a card's color or picture** no longer runs on the main thread, so it can't freeze Sable when that file is open beside your draft.
+- The Sable Guide has a new section, "How Sable protects your files."
+
 ## 0.9.0
 
 Bug fixes (top margin, Reading Mode swipe, clearer on/off, update-check settings), a universal folder **+**, right-click a highlighted name to open its file or card, two new themes (Obsidian, Arcane with particles), a daily writing record, and Concept + Outline + Story Timeline for planning.

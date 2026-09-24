@@ -183,7 +183,8 @@ enum DocumentImport {
             url = folder.appendingPathComponent("\(base) \(number).md")
             number += 1
         }
-        try markdown.write(to: url, atomically: true, encoding: .utf8)
+        // Never over a file that appeared with the same name in the meantime.
+        try Data(markdown.utf8).write(to: url, options: .withoutOverwriting)
         return url
     }
 }

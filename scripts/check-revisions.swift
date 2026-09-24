@@ -61,6 +61,18 @@ import Foundation
         precondition(restored == oldText, "Chapter restored")
         try Revisions.restore("Manuscript/Chapter 2.md", from: first, root: root)
         precondition(fm.fileExists(atPath: two.path), "A deleted chapter comes back")
+        let twoRestored = try String(contentsOf: two, encoding: .utf8)
+        precondition(twoRestored == "# Two\n\nShe walked to the pier.", "With its exact words")
+
+        // A restore that can't be written leaves the chapter as it is
+        try "# One\n\nWords written today.".write(to: one, atomically: true, encoding: .utf8)
+        let manuscript = root.appendingPathComponent("Manuscript")
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: manuscript.path)
+        var refused = false
+        do { try Revisions.restore("Manuscript/Chapter 1.md", from: first, root: root) } catch { refused = true }
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: manuscript.path)
+        let untouched = try String(contentsOf: one, encoding: .utf8)
+        precondition(refused && untouched == "# One\n\nWords written today.", "A failed restore changes nothing")
 
         // Safety snapshots, naming, deleting
         let safety = try Revisions.create(name: "Before restoring", kind: .safety, root: root, files: [one], date: Date().addingTimeInterval(5))
@@ -101,6 +113,6 @@ import Foundation
         Revisions.prune(in: auto)
         let remaining = Revisions.list(in: auto)
         precondition(remaining.filter { $0.kind == .automatic }.count == Revisions.automaticLimit && remaining.contains { $0.name == "Keep me" }, "Old automatic snapshots are pruned, manual ones never: \(remaining.count)")
-        print("Passed: snapshots (files, words, order, unsaved text), comparison by file and by word, restore, safety and automatic snapshots, pruning.")
+        print("Passed: snapshots (files, words, order, unsaved text), comparison by file and by word, restore (a failed one changes nothing), safety and automatic snapshots, pruning.")
     }
 }

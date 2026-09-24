@@ -25,10 +25,33 @@ struct FileHits: Identifiable, Equatable {
 }
 
 /// What a replacement changed, so it can be taken back.
-struct ReplaceReceipt {
+struct ReplaceReceipt: Sendable {
     var originals: [URL: String] = [:]
+    /// What each file said right after the replacement, so taking it back can tell whether it has changed since.
+    var results: [URL: String] = [:]
     var replacements = 0
     var files: Int { originals.count }
+}
+
+/// What taking a replacement back did to each file.
+struct RestoreOutcome: Sendable {
+    var restored: [URL] = []
+    /// Changed again after the replacement, so left as they are rather than overwritten.
+    var skipped: [URL] = []
+    var failed: [URL] = []
+    var failure: String?
+}
+
+/// A replacement that stopped partway, with any files it changed and couldn't put back.
+struct ReplaceFailure: LocalizedError {
+    let reason: String
+    let notPutBack: [URL]
+    var errorDescription: String? {
+        let sentence = reason.hasSuffix(".") ? String(reason.dropLast()) : reason
+        guard !notPutBack.isEmpty else { return sentence + ". Nothing was changed." }
+        let names = notPutBack.map(\.lastPathComponent).sorted().joined(separator: ", ")
+        return sentence + ". These files were changed and couldn’t be put back: \(names). The safety snapshot in Revision History has them as they were."
+    }
 }
 
 enum ProjectSearch {
@@ -114,27 +137,43 @@ enum ProjectSearch {
         return (result, count)
     }
 
-    /// Replaces in the given files on disk, remembering what each said before.
+    /// Replaces in the given files on disk, remembering what each said before and after. If one can't be changed,
+    /// the ones already changed are put back and the error says which, if any, couldn't be.
+    /// Reads and writes are coordinated (see `SafeFile`), so call this off the main thread.
     static func replace(in files: [URL], options: SearchOptions, with replacement: String) throws -> ReplaceReceipt {
         var receipt = ReplaceReceipt()
         do {
             for url in files {
-                let original = try String(contentsOf: url, encoding: .utf8)
+                let original = try SafeFile.readText(url)
                 let outcome = replaced(original, options: options, with: replacement)
                 guard outcome.count > 0 else { continue }
-                try outcome.text.write(to: url, atomically: true, encoding: .utf8)
+                guard try SafeFile.replaceText(at: url, ifStill: original, with: outcome.text) else { continue }
                 receipt.originals[url] = original
+                receipt.results[url] = outcome.text
                 receipt.replacements += outcome.count
             }
         } catch {
             // Don't leave a half-done job: put back what was already changed.
-            try? restore(receipt)
-            throw error
+            let undone = restore(receipt)
+            throw ReplaceFailure(reason: "Could not replace: " + error.localizedDescription, notPutBack: undone.skipped + undone.failed)
         }
         return receipt
     }
 
-    static func restore(_ receipt: ReplaceReceipt) throws {
-        for (url, original) in receipt.originals { try original.write(to: url, atomically: true, encoding: .utf8) }
+    /// Puts back what a replacement changed, but only in files that still say what the replacement left: anything
+    /// written since is newer than the replacement and stays. Keeps going past a file it can't write.
+    static func restore(_ receipt: ReplaceReceipt) -> RestoreOutcome {
+        var outcome = RestoreOutcome()
+        for (url, original) in receipt.originals.sorted(by: { $0.key.path < $1.key.path }) {
+            guard let result = receipt.results[url] else { outcome.skipped.append(url); continue }
+            do {
+                if try SafeFile.replaceText(at: url, ifStill: result, with: original) { outcome.restored.append(url) }
+                else { outcome.skipped.append(url) }
+            } catch {
+                outcome.failed.append(url)
+                outcome.failure = outcome.failure ?? error.localizedDescription
+            }
+        }
+        return outcome
     }
 }

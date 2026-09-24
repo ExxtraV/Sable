@@ -72,7 +72,8 @@ For an iPad edition, reuse `QuillCore` and the document model, add a UIKit text 
 - `Sources/Quill/ZoomSteps.swift`: zoom limits and how the mouse wheel steps through them.
 - `Sources/Quill/FolderBrowser.swift`: folder access, file filtering, navigation, and file menu.
 - `Sources/Quill/ReferencePane.swift`: general parallel Markdown reading and editing pane.
-- `Sources/Quill/ReferenceDocument.swift`: tracked parallel document saving.
+- `Sources/Quill/ReferenceDocument.swift`: tracked parallel document saving, and stopping when the file changed outside Sable.
+- `Sources/Quill/SafeFile.swift`: coordinated, all-or-nothing reads and writes for Find & Replace, revisions, and copies kept in the Trash.
 - `Sources/Quill/ReadingView.swift`: native formatted reading view.
 - `Sources/QuillCore/SentenceStructure.swift`: local parts-of-speech tagging.
 - `Sources/Quill/WritingStyle.swift`: font, style, and outline controls.
