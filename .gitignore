@@ -12,3 +12,6 @@ dist/
 .env
 .env.*
 __pycache__/
+
+# Codex keeps a local copy of CLAUDE.md here for working across apps; it is never committed.
+AGENTS.md
