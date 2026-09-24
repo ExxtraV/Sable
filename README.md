@@ -102,7 +102,7 @@ Sable is free and always will be. If you'd like to chip in toward the Apple deve
 
 [MIT](LICENSE). Bundled Sparkle retains its own license notice.
 
-The Sable name and logo aren't covered by the MIT License. Forks are welcome under their own name and icon; see [TRADEMARK.md](TRADEMARK.md).
+The Sable Markdown Writer name and logo aren't covered by the MIT License. Forks are welcome under their own name and icon; see [TRADEMARK.md](TRADEMARK.md).
 
 ## Minimalist editor
 
