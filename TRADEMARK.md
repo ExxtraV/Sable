@@ -4,7 +4,9 @@ _This policy is written by Claude Code._
 
 Sable's **code** is free and open source under the [MIT License](LICENSE). You can use it, change it, and build on it.
 
-Sable's **name and logo** are a different matter. "Sable", "Sable Markdown Writer", and the Sable logo identify the official app made by the Sable project maintainer (GitHub: [ExxtraV](https://github.com/ExxtraV)). The MIT License does not cover them. This keeps people from being confused about which app is the real one, and that protects the writers who rely on it.
+Sable's **name and logo** are a different matter. "Sable Markdown Writer" and the Sable logo identify the official app made by the Sable project maintainer (GitHub: [ExxtraV](https://github.com/ExxtraV)); "Sable" is its short name. The MIT License does not cover them. This keeps people from being confused about which app is the real one, and that protects the writers who rely on it.
+
+Other, unrelated products also use the word "Sable". This policy is only about this Mac app, its name, and its logo.
 
 ## Fine without asking
 
@@ -15,8 +17,8 @@ Sable's **name and logo** are a different matter. "Sable", "Sable Markdown Write
 
 ## Please don't
 
-- Release a modified version, or a fork, under the name "Sable" or with the Sable icon. Give it its own name and icon.
-- Use a name or icon that could be mistaken for Sable's, or suggest that your app, service, or product is official or endorsed when it isn't.
+- Release a modified version or fork of this app as "Sable", "Sable Markdown Writer", or with the Sable icon. Give it its own name and icon.
+- Use a name or icon for a writing app that could be mistaken for Sable Markdown Writer's, or suggest that your app, service, or product is official or endorsed when it isn't.
 - Sell Sable, or a lightly modified copy of it, under the Sable name.
 
 ## Questions
