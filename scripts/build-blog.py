@@ -7,7 +7,9 @@
   website/blog/<slug>.html    one page per post
   website/blog/index.html     the post list, newest first
   website/blog/feed.xml       RSS feed
-  website/sitemap.xml         the blog entries between the blog:start and blog:end markers
+  website/index.html          the "From the blog" list between the blog-list markers
+  website/sitemap.xml         the blog entries between the blog:start and blog:end markers,
+                              and the home page's lastmod when a post is newer
 
 Run `python3 scripts/build-blog.py` after adding a post. Run it with --check to
 verify the committed output is current without writing anything (CI does this
@@ -26,9 +28,17 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "docs" / "blog"
 OUT = ROOT / "website" / "blog"
 SITEMAP = ROOT / "website" / "sitemap.xml"
+HOME = ROOT / "website" / "index.html"
+HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "13"
+CSS_VERSION = "14"
 
+OG_ALT = ("The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, "
+          "on a dark background.")
+ORGANIZATION = {"@type": "Organization", "@id": SITE + "/#org", "name": "Sable Markdown Writer",
+                "url": SITE + "/", "logo": {"@type": "ImageObject", "url": SITE + "/logo.png",
+                                            "width": 128, "height": 128},
+                "sameAs": ["https://github.com/ExxtraV/Sable"]}
 BLOG_DESCRIPTION = "News and notes from the Sable Markdown Writer project."
 MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
@@ -337,7 +347,20 @@ def long_date(d):
     return "%s %d, %d" % (MONTHS[d.month - 1], d.day, d.year)
 
 
-def head(title, description, url, kind, extra=""):
+def json_ld(graph):
+    if not graph:
+        return ""
+    data = json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False, indent=1)
+    return '<script type="application/ld+json">\n%s\n</script>\n' % data.replace("</", "<\\/")
+
+
+def breadcrumbs(*crumbs):
+    return {"@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": n + 1, "name": name, "item": url}
+        for n, (name, url) in enumerate(crumbs)]}
+
+
+def head(title, description, url, kind, extra="", graph=None):
     return """<!doctype html>
 <html lang="en">
 <head>
@@ -356,18 +379,19 @@ def head(title, description, url, kind, extra=""):
 <meta property="og:url" content="%(url)s">
 <meta property="og:title" content="%(title)s">
 <meta property="og:description" content="%(desc)s">
-<meta property="og:image" content="%(site)s/og.png">
+<meta property="og:image" content="%(site)s/og.jpg">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Sable Markdown Writer: a quiet Markdown editor for fiction">
+<meta property="og:image:alt" content="%(alt)s">
 %(extra)s<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="%(title)s">
 <meta name="twitter:description" content="%(desc)s">
-<meta name="twitter:image" content="%(site)s/og.png">
+<meta name="twitter:image" content="%(site)s/og.jpg">
+<meta name="twitter:image:alt" content="%(alt)s">
 <link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="/site.css?v=%(css)s">
-</head>
+%(ld)s</head>
 """ % {"title": attr(title), "desc": attr(description), "url": url, "kind": kind,
-       "site": SITE, "extra": extra, "css": CSS_VERSION}
+       "site": SITE, "extra": extra, "css": CSS_VERSION, "alt": attr(OG_ALT), "ld": json_ld(graph)}
 
 
 HEADER = """<body>
@@ -390,7 +414,17 @@ def post_page(post):
     extra = ('<meta property="article:published_time" content="%s">\n'
              '<meta property="article:modified_time" content="%s">\n'
              % (post["date"].isoformat(), post["modified"].isoformat()))
-    return (head(title_tag, post["description"], post["url"], "article", extra) + HEADER + """
+    graph = [
+        breadcrumbs(("Sable Markdown Writer", SITE + "/"), ("Blog", SITE + "/blog"), (post["title"], post["url"])),
+        {"@type": "BlogPosting", "@id": post["url"] + "#post", "headline": post["title"],
+         "description": post["description"], "url": post["url"], "mainEntityOfPage": post["url"],
+         "datePublished": post["date"].isoformat(), "dateModified": post["modified"].isoformat(),
+         "inLanguage": "en", "wordCount": len(plain_text(post["body_html"]).split()),
+         "image": SITE + "/og.jpg", "author": {"@id": SITE + "/#org"}, "publisher": {"@id": SITE + "/#org"},
+         "isPartOf": {"@id": SITE + "/blog#blog"}},
+        ORGANIZATION,
+    ]
+    return (head(title_tag, post["description"], post["url"], "article", extra, graph) + HEADER + """
 <main id="main">
 <article class="post">
   <p class="crumbs"><a href="/blog">← All posts</a></p>
@@ -416,7 +450,15 @@ def index_page(posts):
       <p class="post-summary">%(summary)s</p>
     </article>""" % {"slug": p["slug"], "title": p["title_html"], "iso": p["date"].isoformat(),
                      "date": long_date(p["date"]), "summary": p["summary_html"]})
-    return (head("Blog — Sable Markdown Writer", BLOG_DESCRIPTION, SITE + "/blog", "website") + HEADER + """
+    graph = [
+        breadcrumbs(("Sable Markdown Writer", SITE + "/"), ("Blog", SITE + "/blog")),
+        {"@type": "Blog", "@id": SITE + "/blog#blog", "name": "Sable Markdown Writer blog",
+         "url": SITE + "/blog", "description": BLOG_DESCRIPTION, "inLanguage": "en",
+         "publisher": {"@id": SITE + "/#org"},
+         "blogPost": [{"@id": p["url"] + "#post"} for p in posts]},
+        ORGANIZATION,
+    ]
+    return (head("Blog — Sable Markdown Writer", BLOG_DESCRIPTION, SITE + "/blog", "website", "", graph) + HEADER + """
 <main id="main">
 <section class="blog-index">
   <p class="kicker">Sable Markdown Writer</p>
@@ -471,9 +513,35 @@ def sitemap_block(posts):
     return "  <!-- blog:start -->\n%s\n  <!-- blog:end -->" % "\n".join(rows)
 
 
+def home_list(posts):
+    rows = "\n".join('    <li><a href="/blog/%s">%s</a><time datetime="%s">%s</time></li>'
+                     % (p["slug"], p["title_html"], p["date"].isoformat(), long_date(p["date"]))
+                     for p in posts[:HOME_POSTS])
+    return """<!-- blog-list:start -->
+  <section class="from-blog shell reveal" aria-labelledby="from-blog-h">
+    <p class="kicker">Blog</p>
+    <h2 id="from-blog-h">From the blog</h2>
+    <ul class="from-blog-list">
+%s
+    </ul>
+    <p><a class="text-link" href="/blog">All posts <b>→</b></a></p>
+  </section>
+  <!-- blog-list:end -->""" % rows
+
+
+def updated_home(posts):
+    text = HOME.read_text(encoding="utf-8")
+    if "<!-- blog-list:start -->" not in text:
+        raise BuildError("website/index.html has no blog-list markers.")
+    return re.sub(r"<!-- blog-list:start -->.*?<!-- blog-list:end -->", lambda _: home_list(posts), text, flags=re.S)
+
+
 def updated_sitemap(posts):
     text = SITEMAP.read_text(encoding="utf-8")
     block = sitemap_block(posts)
+    newest = max(p["modified"] for p in posts).isoformat()
+    text = re.sub(r"(<loc>%s/</loc><lastmod>)([\d-]+)(</lastmod>)" % re.escape(SITE),
+                  lambda m: m.group(1) + max(m.group(2), newest) + m.group(3), text)
     if "<!-- blog:start -->" in text:
         return re.sub(r"  <!-- blog:start -->.*?<!-- blog:end -->", lambda _: block, text, flags=re.S)
     return text.replace("</urlset>", block + "\n</urlset>")
@@ -485,7 +553,7 @@ def outputs():
     """Everything this script owns, as {path: bytes}."""
     posts, images = load_posts()
     files = {OUT / "index.html": index_page(posts).encode(), OUT / "feed.xml": feed(posts).encode(),
-             SITEMAP: updated_sitemap(posts).encode()}
+             SITEMAP: updated_sitemap(posts).encode(), HOME: updated_home(posts).encode()}
     for p in posts:
         files[OUT / (p["slug"] + ".html")] = post_page(p).encode()
     for name, source in images.items():

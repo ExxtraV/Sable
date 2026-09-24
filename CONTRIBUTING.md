@@ -119,9 +119,12 @@ python3 scripts/check-update-signatures.py
 python3 scripts/check-release-modes.py
 python3 scripts/check-merge-appcast.py
 python3 scripts/check-blog.py
+python3 scripts/check-site.py
 ```
 
 `scripts/check-blog.py` guards the website's blog: it strips the HTML from each post page and confirms its words, links, and images match the author's Markdown in `docs/blog/` exactly. See [The blog](#the-blog) below.
+
+`scripts/check-site.py` audits every page in `website/`: one h1 and no skipped heading levels, `lang`, a canonical URL that matches the page's path, Open Graph and Twitter tags, alt text and dimensions on every image, links and `#anchors` that resolve, JSON-LD that parses, `softwareVersion` matching `Info.plist`, and a `sitemap.xml` that lists every indexable page. When you bump the app version, update `softwareVersion` in the JSON-LD in `website/index.html`; when you change a page, update its `lastmod` in `sitemap.xml`.
 
 `scripts/check-release-config.py` and `scripts/check-appcast.py` run only as part of an actual release (`.github/workflows/release.yml`); they need release-only environment variables and aren't part of the regular check suite. `scripts/verify-update.swift` is invoked by `check-appcast.py`, not run directly.
 
@@ -147,7 +150,9 @@ Blog posts are the maintainer's own writing, so the Markdown files in `docs/blog
 
 1. Save the post as `docs/blog/<slug>.md`, starting with a `# Title` heading. Put any images next to it, each with alt text.
 2. Add its entry to `docs/blog/posts.json`.
-3. Run `python3 scripts/build-blog.py`. It writes the post page, the blog index, `website/blog/feed.xml`, and the blog entries in `website/sitemap.xml`, and refuses to build a post with an image that has no alt text.
+3. Run `python3 scripts/build-blog.py`. It writes the post page (with its BlogPosting and breadcrumb JSON-LD), the blog index, `website/blog/feed.xml`, and the blog entries in `website/sitemap.xml`, and refuses to build a post with an image that has no alt text.
 4. Run `python3 scripts/check-blog.py` (CI does too). It fails if a page's words differ from the Markdown or if the committed pages are stale.
+
+Step 3 also refreshes the "From the blog" list on the home page (the three newest posts, between the `blog-list` markers in `website/index.html`), the feed, and the sitemap.
 
 Both scripts use only the Python standard library.

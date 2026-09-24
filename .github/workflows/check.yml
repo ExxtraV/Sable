@@ -18,6 +18,8 @@ jobs:
           fi
       - name: Check blog posts match their Markdown
         run: python3 scripts/check-blog.py
+      - name: Audit website pages, links, and sitemap
+        run: python3 scripts/check-site.py
       - name: Build app and verify embedded signatures
         run: sh scripts/build-app.sh
       - name: Native editor regression checks
