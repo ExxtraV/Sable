@@ -47,6 +47,19 @@
     screen.appendChild(copy);
     return copy;
   });
+  // The chapter rail: the six steps listed beside the tour, like the app's Manuscript tab.
+  var rail = tour.querySelector('.tour-rail');
+  var railButtons = steps.map(function (step, i) {
+    var item = document.createElement('li');
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = step.querySelector('h3').textContent;
+    button.addEventListener('click', function () { step.scrollIntoView({ block: 'center' }); });
+    item.appendChild(button);
+    rail.querySelector('ol').appendChild(item);
+    return button;
+  });
+  rail.hidden = false;
   var paused = false;
   var active = 0;
   var onScreen = [];
@@ -59,6 +72,9 @@
   function showStep(index) {
     active = index;
     steps.forEach(function (step, i) { step.classList.toggle('active', i === index); });
+    railButtons.forEach(function (button, i) {
+      if (i === index) { button.setAttribute('aria-current', 'step'); } else { button.removeAttribute('aria-current'); }
+    });
     if (!wide.matches) return;
     staged.forEach(function (clip, i) {
       clip.classList.toggle('on', i === index);
