@@ -7,8 +7,8 @@
 <meta name="description" content="Sable is a free, open-source Markdown editor for Mac. Focus on the page, build Fiction Projects, and export manuscripts to PDF, EPUB, Word, or Markdown.">
 <link rel="canonical" href="https://sablewriter.app/">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181614">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F4EEE2">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131820">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF8">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Sable Markdown Writer">
@@ -17,117 +17,185 @@
 <meta property="og:description" content="A native Mac Markdown editor for focused writing, fiction projects, and finished manuscripts. Your files stay yours.">
 <meta property="og:image" content="https://sablewriter.app/og.jpg">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, on a dark background.">
+<meta property="og:image:alt" content="The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, beside the words Sable Markdown Writer: A Mac App about Focused Writing.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Sable Markdown Writer — Eliminate Clutter, Focus on the Words">
 <meta name="twitter:description" content="A native Mac Markdown editor for focused writing, fiction projects, and finished manuscripts. Your files stay yours.">
 <meta name="twitter:image" content="https://sablewriter.app/og.jpg">
-<meta name="twitter:image:alt" content="The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, on a dark background.">
+<meta name="twitter:image:alt" content="The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, beside the words Sable Markdown Writer: A Mac App about Focused Writing.">
 <link rel="alternate" type="application/rss+xml" title="Sable Markdown Writer blog" href="/blog/feed.xml">
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="stylesheet" href="/site.css?v=16">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="stylesheet" href="/site.css?v=24">
+<script src="/theme.js?v=2"></script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
-  {"@type":"Organization","@id":"https://sablewriter.app/#org","name":"Sable Markdown Writer","url":"https://sablewriter.app/","logo":{"@type":"ImageObject","url":"https://sablewriter.app/logo.png","width":128,"height":128},"sameAs":["https://github.com/ExxtraV/Sable"]},
+  {"@type":"Organization","@id":"https://sablewriter.app/#org","name":"Sable Markdown Writer","url":"https://sablewriter.app/","logo":{"@type":"ImageObject","url":"https://sablewriter.app/icon-512.png","width":512,"height":512},"sameAs":["https://github.com/ExxtraV/Sable"]},
   {"@type":"WebSite","@id":"https://sablewriter.app/#website","url":"https://sablewriter.app/","name":"Sable Markdown Writer","inLanguage":"en","publisher":{"@id":"https://sablewriter.app/#org"}},
-  {"@type":"SoftwareApplication","@id":"https://sablewriter.app/#app","name":"Sable Markdown Writer","alternateName":"Sable","url":"https://sablewriter.app/","description":"A free, open-source native Markdown editor for Mac, made for writers. Fiction Projects, scene tags, name highlighting, manuscript export, calm themes, and plain files you own.","applicationCategory":"ProductivityApplication","operatingSystem":"macOS 14 or later","softwareRequirements":"macOS 14 (Sonoma) or later; Apple Silicon or Intel","image":"https://sablewriter.app/og.jpg","downloadUrl":"https://github.com/ExxtraV/Sable/releases/latest","license":"https://github.com/ExxtraV/Sable/blob/main/LICENSE","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"softwareVersion":"0.10.0","screenshot":[{"@type":"ImageObject","url":"https://sablewriter.app/screenshots/fiction-project.webp","contentUrl":"https://sablewriter.app/screenshots/fiction-project.webp","width":2000,"height":1256,"caption":"Sable open on a Fiction Project called Through Horns & Hooves: the file desk on the left, a chapter with sentence colors in the middle, and a character card for Iskra Viess pinned at the top right."},{"@type":"ImageObject","url":"https://sablewriter.app/screenshots/writing-screen.webp","contentUrl":"https://sablewriter.app/screenshots/writing-screen.webp","width":2000,"height":1253,"caption":"Sable's writing screen with everything else hidden: a dark purple page with a heading, one short paragraph, and only a word count along the bottom edge."},{"@type":"ImageObject","url":"https://sablewriter.app/screenshots/themes.webp","contentUrl":"https://sablewriter.app/screenshots/themes.webp","width":2000,"height":1352,"caption":"Sable's Writing settings open over the editor, showing eight themes (Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, and Paper) with edge darkness and drifting particles options, and the toolbar above."}],"author":{"@id":"https://sablewriter.app/#org"},"publisher":{"@id":"https://sablewriter.app/#org"},"sameAs":["https://github.com/ExxtraV/Sable"]},
+  {"@type":"SoftwareApplication","@id":"https://sablewriter.app/#app","name":"Sable Markdown Writer","alternateName":"Sable","url":"https://sablewriter.app/","description":"A free, open-source native Markdown editor for Mac, made for writers. Fiction Projects, scene tags, name highlighting, manuscript export, calm themes, and plain files you own.","applicationCategory":"ProductivityApplication","operatingSystem":"macOS 14 or later","softwareRequirements":"macOS 14 (Sonoma) or later; Apple Silicon or Intel","image":"https://sablewriter.app/og.jpg","downloadUrl":"https://github.com/ExxtraV/Sable/releases/latest","license":"https://github.com/ExxtraV/Sable/blob/main/LICENSE","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"softwareVersion":"0.10.0","screenshot":[{"@type":"ImageObject","url":"https://sablewriter.app/screenshots/writing-midnight.jpg","contentUrl":"https://sablewriter.app/screenshots/writing-midnight.jpg","width":2000,"height":1193,"caption":"Sable's writing page in the Midnight theme: a chapter called The Crossing, with only a word count along the bottom."},{"@type":"ImageObject","url":"https://sablewriter.app/screenshots/fiction-project.webp","contentUrl":"https://sablewriter.app/screenshots/fiction-project.webp","width":2000,"height":1256,"caption":"Sable open on a Fiction Project called Through Horns & Hooves: the file desk on the left, a chapter with sentence colors in the middle, and a character card for Iskra Viess pinned at the top right."},{"@type":"ImageObject","url":"https://sablewriter.app/clips/cards.jpg","contentUrl":"https://sablewriter.app/clips/cards.jpg","width":1440,"height":830,"caption":"Character and location cards open beside a chapter in Sable, next to the scene tags that opened them."},{"@type":"ImageObject","url":"https://sablewriter.app/clips/manuscript.jpg","contentUrl":"https://sablewriter.app/clips/manuscript.jpg","width":1440,"height":830,"caption":"Sable's Manuscript tab with the word count, a 20,000-word goal, and three chapters, beside the open chapter."},{"@type":"ImageObject","url":"https://sablewriter.app/clips/export.jpg","contentUrl":"https://sablewriter.app/clips/export.jpg","width":1440,"height":830,"caption":"Sable's Export Manuscript sheet, with PDF, EPUB, Word, and Markdown choices."}],"author":{"@id":"https://sablewriter.app/#org"},"publisher":{"@id":"https://sablewriter.app/#org"},"sameAs":["https://github.com/ExxtraV/Sable"]},
   {"@type":"FAQPage","mainEntity":[
-    {"@type":"Question","name":"Is Sable free?","acceptedAnswer":{"@type":"Answer","text":"Yes. Sable is open source under the MIT license, with no account, subscription, or paid tier."}},
-    {"@type":"Question","name":"Can Sable export a manuscript?","acceptedAnswer":{"@type":"Answer","text":"Yes. In a Fiction Project, export your arranged chapters as one PDF, EPUB, Word, or Markdown file. Choose chapters, a title page, and a Manuscript or Book look."}},
-    {"@type":"Question","name":"Does Sable lock my writing into a proprietary format?","acceptedAnswer":{"@type":"Answer","text":"No. Sable reads and writes ordinary Markdown and text files in folders you choose. Its projects, cards, tags, themes, and highlights do not lock your work into a service."}},
-    {"@type":"Question","name":"Does Sable sync with iCloud or Dropbox?","acceptedAnswer":{"@type":"Answer","text":"Sable does not run a cloud service. Put your writing folder in iCloud Drive, Dropbox, or OneDrive and your chosen service handles sync."}}
+    {"@type":"Question","name":"How much does Sable cost?","acceptedAnswer":{"@type":"Answer","text":"Free, and always so. Sable will remain free and open source."}},
+    {"@type":"Question","name":"Does Sable lock my writing into a proprietary format?","acceptedAnswer":{"@type":"Answer","text":"No, all written files are Markdown files, which can be opened by any other markdown editor or program that supports markdown."}},
+    {"@type":"Question","name":"Will you release a Windows version?","acceptedAnswer":{"@type":"Answer","text":"A Windows port is not currently in the works."}},
+    {"@type":"Question","name":"Who is Sable for?","acceptedAnswer":{"@type":"Answer","text":"Anybody who writes and prefers a clutter-free and focused workspace. Sable is designed to be a great markdown editor first and foremost, with a suite of features for fiction writers on top."}},
+    {"@type":"Question","name":"Does Sable sync with other devices?","acceptedAnswer":{"@type":"Answer","text":"Sable does not operate a cloud service, but you can connect your writing folder to your preferred cloud provider (iCloud, Dropbox, etc.) to sync your files across devices."}},
+    {"@type":"Question","name":"Is Sable on the App Store? Will it support iOS or iPadOS?","acceptedAnswer":{"@type":"Answer","text":"Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release and continue development to other devices."}}
   ]}
 ]}
 </script>
 </head>
 <body>
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.2" class="fill"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+  <symbol id="i-desk" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M9 4.5v15M5.5 8.5h1.5M5.5 11h1.5M5.5 13.5h1.5"/></symbol>
+  <symbol id="i-themes" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" class="fill"/></symbol>
+  <symbol id="i-cards" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><circle cx="12" cy="10" r="2.6"/><path d="M7.8 17c.9-2.2 2.4-3.2 4.2-3.2s3.3 1 4.2 3.2"/></symbol>
+  <symbol id="i-manuscript" viewBox="0 0 24 24"><path d="M8 3.5h8.5L19 6v13.5a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M5 7v13.5a1 1 0 0 0 1 1h9M10 9h6M10 12h6M10 15h4"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M8.5 9.5H6.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2M12 3v11M8.5 6.5 12 3l3.5 3.5"/></symbol>
+  <symbol id="i-nib" viewBox="0 0 24 24"><path d="M12 21.5 6.5 12 9 5.5h6l2.5 6.5z"/><path d="M12 21.5v-8"/><circle cx="12" cy="12" r="1.6"/><path d="M9 5.5V3h6v2.5"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8"/><circle cx="12" cy="16.8" r=".9" class="fill"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.4c0 4.4 3 8 7 9.8 4-1.8 7-5.4 7-9.8V5.8z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/></symbol>
+  <symbol id="i-star" viewBox="0 0 12 12"><path class="fill" d="M6 .5l1.3 3.6 3.8.2-3 2.4 1 3.7L6 8.3l-3.1 2.1 1-3.7-3-2.4 3.8-.2z"/></symbol>
+</svg>
 <a class="skip" href="#main">Skip to content</a>
-<header class="site"><div class="shell nav">
-  <a class="brand" href="/"><img src="/logo.png" alt="" width="32" height="32"><span>Sable <small>Markdown Writer</small></span></a>
-  <nav aria-label="Main"><a href="#writing">Writing</a><a href="#projects">Projects</a><a href="#export">Export</a><a href="/guide">Guide</a><a href="/blog">Blog</a><a class="button compact" href="#download">Download</a></nav>
+<header class="site"><div class="bar">
+  <a class="brand" href="/"><img src="/icon-64.png" alt="" width="32" height="32"><span>Sable Markdown Writer</span></a>
+  <div class="bar-end"><nav aria-label="Main"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="#download">Download</a></nav><div class="themes" role="group" aria-label="Site theme"><button type="button" data-set-theme="paper" aria-pressed="false"><i aria-hidden="true"></i>Paper</button><button type="button" data-set-theme="midnight" aria-pressed="false"><i aria-hidden="true"></i>Midnight</button><button type="button" data-set-theme="arcane" aria-pressed="false"><i aria-hidden="true"></i>Arcane</button></div></div>
 </div></header>
 
 <main id="main">
-  <section class="hero shell">
-    <div class="hero-copy reveal">
-      <p class="kicker"><span></span> Native for Mac · Open source</p>
-      <h1>Eliminate clutter.<br><em>Focus on the words.</em></h1>
-      <p class="lede">Sable is a minimalist Markdown editor first and foremost, built for fiction writers who want to create expansive worlds while keeping their focus on the page.</p>
-      <div class="actions"><a class="button" href="#download">Download for Mac <b>↓</b></a><a class="text-link" href="https://github.com/ExxtraV/Sable">Read the source <b>↗</b></a></div>
-      <p class="fine">Free · MIT licensed · Apple Silicon &amp; Intel · macOS 14+</p>
+  <section class="first" aria-labelledby="name">
+    <img class="mark t-paper" src="/brand/mark-primary.png" alt="The Sable logo: a sable asleep, curled nose to tail, with a pen nib tucked into its body." width="512" height="512">
+    <img class="mark t-night" src="/brand/mark-reverse.png" alt="The Sable logo: a sable asleep, curled nose to tail, with a pen nib tucked into its body." width="512" height="512" loading="lazy">
+    <h1 id="name"><span class="md" aria-hidden="true">#</span>Sable Markdown Writer</h1>
+    <p class="line">Built for Writers to <em>Focus</em> and Build <em>Expansive Worlds</em>!</p>
+    <div class="actions"><a class="button" data-download href="https://github.com/ExxtraV/Sable/releases/latest">Download for Mac</a><a href="https://github.com/ExxtraV/Sable">Read the source on GitHub</a></div>
+    <p class="quiet" data-download-note hidden></p>
+    <p class="facts">Always Free and Open Source, Yours Forever.</p>
+    <div class="shot-wrap">
+      <img class="shot t-paper" src="/screenshots/writing-paper.jpg" alt="Sable's writing page in the Paper theme: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy">
+      <img class="shot t-midnight" src="/screenshots/writing-midnight.jpg" alt="Sable's writing page in the Midnight theme: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy">
+      <img class="shot t-arcane" src="/screenshots/writing-arcane.jpg" alt="Sable's writing page in the Arcane theme, deep purple with faint motes of light: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy">
     </div>
-    <div class="hero-art reveal" data-delay="1" aria-label="A Sable editor window showing a manuscript, character name highlight, and scene tags.">
-      <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="glow"></div>
-      <div class="editor-demo" id="app" data-theme="graphite">
-        <div class="window-bar"><i></i><i></i><i></i><span>Chapter 2 — The Crossing</span><b>⌘S</b></div>
-        <div class="editor-layout"><aside class="mini-desk"><div class="desk-tabs"><b>Files</b><span>Outline</span></div><p class="folder">▾ <i></i> Manuscript</p><p class="chapter">□ Chapter 1</p><p class="chapter active">□ Chapter 2</p><p class="chapter">□ Chapter 3</p><p class="folder moss">▸ <i></i> Characters</p><p class="folder violet">▸ <i></i> World</p></aside>
-          <div class="editor-page"><div class="editor-tools"><span>▶</span><b>B</b><i>I</i><span>Aa</span><span class="tool-on">◎</span></div><p class="chapter-label">Chapter 2</p><p class="soft">The harbor bell rang twice before dawn. The tide was out, which meant someone had lied.</p><p><mark class="name-hit">Marren</mark> pulled her coat tight and walked toward the water. The boats knocked together in the dark, and the <mark class="place-hit">Harbor</mark> kept its count.</p><p class="soft">She did not answer. Counting was how the harbor kept its dead.</p><div class="page-status"><span>1,240 words</span><span>Saved</span><span>Focus</span></div></div>
-        </div>
-        <div class="scene-tags"><b>⌖ Harbor</b><b>◌ Marren</b><span>Tag this scene</span></div>
+  </section>
+
+  <section class="part tour" id="tour" aria-label="A tour of Sable">
+    <div class="tour-body wide">
+      <nav class="tour-rail" aria-label="Tour steps" hidden><ol></ol></nav>
+      <div class="tour-steps">
+        <h2 id="writing">Curl up, sip a coffee, and eliminate distractions so you can write with focus.</h2>
+      <article class="step" data-clip="focus">
+        <div class="frame"><video src="/clips/focus.mp4" poster="/clips/focus.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="A new sentence is typed into a chapter while the paragraphs around it dim, so only the one being written stays bright."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-focus"/></svg>Paragraph Focus</h3>
+        <p>Sable keeps your attention on the paragraph as you write, allowing you to focus on what matters, and reduce distractions.</p>
+        <p class="keys"><span class="caps" aria-label="Shift Command F"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>F</kbd></span> Paragraph Focus</p>
+      </article>
+      <article class="step" data-clip="desk">
+        <div class="frame"><video src="/clips/desk.mp4" poster="/clips/desk.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The writing desk slides in from the left with the project's folders, then slides away again, leaving only the page."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-desk"/></svg>The writing desk</h3>
+        <p>A sidebar when you need it, hidden when you don’t. Access your files and folders in a click.</p>
+        <p class="keys"><span class="caps" aria-label="Control Command S"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>S</kbd></span> Show or hide the writing desk</p>
+      </article>
+      <article class="step" data-clip="themes">
+        <div class="frame"><video src="/clips/themes.mp4" poster="/clips/themes.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The same chapter changes theme: Graphite, Arcane, Parchment, Obsidian, Forest, Paper, Midnight, and back to Graphite."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-themes"/></svg>Eight themes</h3>
+        <p>A variety of themes to fit your needs and your style, with more to come. Some are dark, some are light, some are cozy, and some transport you to another dimension.</p>
+        <p class="keys"><span class="caps" aria-label="Option Command comma"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>,</kbd></span> Writing Style</p>
+      </article>
+        <h2 id="projects">Not just a good markdown writer, but a fiction suite to build your expansive world.</h2>
+      <article class="step" data-clip="cards">
+        <div class="frame"><video src="/clips/cards.mp4" poster="/clips/cards.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="Clicking the scene tags under the page opens a character card for Mara and a location card for The Harbor beside the chapter."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-cards"/></svg>Character cards and scene tags</h3>
+        <p>Summon your cast of characters, or your array of locations, as you need them. Pin a card or let it collapse while you write. Access your expansive world knowledge at a click.</p>
+      </article>
+      <article class="step" data-clip="manuscript">
+        <div class="frame"><video src="/clips/manuscript.mp4" poster="/clips/manuscript.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The Manuscript tab shows the word count and goal, and clicking each chapter opens it on the page."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-manuscript"/></svg>The Manuscript tab</h3>
+        <p>Access your novel’s stats at a glance, whether it is your manuscript or individual chapters.</p>
+      </article>
+      <article class="step" data-clip="export">
+        <div class="frame"><video src="/clips/export.mp4" poster="/clips/export.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The Export Manuscript sheet opens, and the choices switch from a PDF in Manuscript style to Book style, then to EPUB."></video></div>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-export"/></svg>Export</h3>
+        <p id="export">Turn your markdown into usable formats for publication, editing, and other use (PDF, EPUB, Word, Markdown). More export features are being crafted to suit your needs.</p>
+        <p class="keys"><span class="caps" aria-label="Shift Command E"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd></span> Export Manuscript</p>
+      </article>
       </div>
-      <div class="float-card"><div class="float-portrait">M</div><div><small>Character</small><strong>Marren Vale</strong><p>Harbor runner</p></div><i>•</i></div>
+      <div class="tour-stage" hidden>
+        <div class="frame"><div class="screen"></div><button type="button" class="motion" aria-pressed="false">Pause</button></div>
+      </div>
+    </div>
+    <div class="column after"><p class="quiet">Our goal is to continue to provide more tools and continued support, while maintaining our commitment to focus and creating a distraction-mitigating environment.</p></div>
+  </section>
+
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
+  <section class="part wide statement" id="files" aria-labelledby="files-h">
+    <h2 id="files-h"><span>No Account. No Collection. No Proprietary Files.</span> <span>All Markdown. All Yours. All Local.</span></h2>
+  </section>
+
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
+  <section class="part column" id="no-ai" aria-labelledby="no-ai-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-nib"/></svg>
+    <h2 id="no-ai-h">No AI Integration</h2>
+    <p>Sable will never directly integrate AI into the program. We encourage you to put <em>your</em> prose on the page, and focus on improving your craft. Writing requires practice and challenge to learn and grow, which you won’t get from having a robot write for you.</p>
+  </section>
+
+
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
+  <section class="part column" id="questions" aria-labelledby="questions-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-question"/></svg>
+    <h2 id="questions-h">Questions</h2>
+    <div class="faq">
+      <details><summary>How much does Sable cost?</summary><p>Free, and always so. Sable will remain free and open source.</p></details>
+      <details><summary>Does Sable lock my writing into a proprietary format?</summary><p>No, all written files are Markdown files, which can be opened by any other markdown editor or program that supports markdown.</p></details>
+      <details><summary>Will you release a Windows version?</summary><p>A Windows port is not currently in the works.</p></details>
+      <details><summary>Who is Sable for?</summary><p>Anybody who writes and prefers a clutter-free and focused workspace. Sable is designed to be a great markdown editor first and foremost, with a suite of features for fiction writers on top.</p></details>
+      <details><summary>Does Sable sync with other devices?</summary><p>Sable does not operate a cloud service, but you can connect your writing folder to your preferred cloud provider (iCloud, Dropbox, etc.) to sync your files across devices.</p></details>
+      <details><summary>Is Sable on the App Store? Will it support iOS or iPadOS?</summary><p>Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release and continue development to other devices.</p></details>
     </div>
   </section>
 
-  <section class="brand-moment shell reveal" aria-label="Sable Markdown Writer"><img src="/logo.png" alt="Sable logo" width="116" height="116"><div><p class="kicker">Sable Markdown Writer</p><p>Sable is not just an editor. It is a Markdown program made for writing from scratch. Eight built-in themes let you customize it as you see fit.</p></div></section>
-
-  <section class="promise shell reveal" id="writing">
-    <div class="promise-intro"><p class="kicker">First, a good Markdown editor</p><h2>Eliminate distractions. Focus on writing.</h2></div>
-    <div class="promise-list">
-      <article><span>01</span><h3>Writing in Markdown</h3><p>Bold, italics, links, headings, lists, quotes, and code are available when you need them. Use the toolbar when you need it, and shortcuts to keep you focused.</p></article>
-      <article><span>02</span><h3>Customize your space</h3><p>The app is minimalist, but provides a variety of ways to make it yours. Choose themes, fonts, and settings that fit your workflow.</p></article>
-      <article><span>03</span><h3>Focus</h3><p>Distractions are a writer’s worst enemy. Sable is built for focus: an uncluttered interface, focus modes, and no multitasking unless you need it.</p></article>
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
+  <section class="part column download" id="download" aria-labelledby="download-h">
+    <img class="mark t-paper" src="/brand/mark-primary.png" alt="The Sable logo" width="512" height="512" loading="lazy">
+    <img class="mark t-night" src="/brand/mark-reverse.png" alt="The Sable logo" width="512" height="512" loading="lazy">
+    <h2 id="download-h">Focus on your writing today, not tomorrow. What are you waiting for?</h2>
+    <div class="actions">
+      <a class="button" data-download href="https://github.com/ExxtraV/Sable/releases/latest">Download for Mac</a>
+      <p class="quiet" data-download-note hidden></p>
+      <div class="links"><a href="#first-open">Opening Sable the first time</a><a href="https://github.com/ExxtraV/Sable/releases">Release notes</a><a href="https://github.com/ExxtraV/Sable">Read the source on GitHub</a></div>
     </div>
   </section>
 
-  <section class="projects shell" id="projects">
-    <div class="project-copy reveal"><p class="kicker">Fiction Projects</p><h2>Crafted for Fiction Writers</h2><p class="lede small">Custom Fiction Projects help writers focus on one manuscript while keeping characters, locations, world notes, and other information at their fingertips. Sable gives you the folder structure; you write the Markdown.</p><ul><li><b>Toggle-able cards beside the page</b> for characters, locations, and world notes.</li><li><b>Who and Where tags</b> for your chapter or scene.</li><li><b>Manuscript tools</b> for word goals, chapter lengths, and reading order.</li></ul></div>
-    <div class="project-board reveal" data-delay="1" aria-label="A fictional Sable project board with chapter, character, location, and world-note cards.">
-      <div class="board-head"><span>Northwatch</span><small>Fiction Project</small><b>···</b></div>
-      <div class="board-main"><div class="manuscript-card"><small>MANUSCRIPT</small><strong>The Crossing</strong><p><b>12,480</b> / 20,000 words</p><div class="progress"><i></i></div><ol><li>01 · Before dawn</li><li class="selected">02 · The crossing</li><li>03 · Low tide</li></ol></div><div class="side-cards"><article class="character"><span>M</span><small>CHARACTER</small><strong>Marren Vale</strong><p>Harbor runner</p></article><article class="location"><span>⌖</span><small>LOCATION</small><strong>The Harbor</strong><p>Fog before dawn</p></article><article class="lore"><span>✦</span><small>WORLD</small><strong>Tide customs</strong><p>Never count aloud.</p></article></div></div>
-    </div>
-  </section>
-
-  <section class="roadmap shell reveal" id="roadmap"><div><p class="kicker">On the roadmap</p><h2>Fiction Tools</h2><p>More ways to see the shape of your story while keeping your writing in plain Markdown.</p></div><ol aria-label="Planned Fiction Tools"><li><span>01</span><strong>Corkboard</strong><p>See every scene at a glance, with status on each card.</p></li><li><span>02</span><strong>Relationships view</strong><p>See how characters connect across your story.</p></li></ol></section>
-
-  <section class="export shell" id="export"><div class="export-visual reveal" aria-label="Sable export panel with PDF, EPUB, Word, and Markdown choices."><div class="export-window"><div class="export-title">Export Manuscript <b>×</b></div><p>Chapters <span>3 selected</span></p><div class="export-choices"><b>PDF</b><b>EPUB</b><b>Word</b><b>Markdown</b></div><div class="export-look"><span>Look</span><b>Manuscript</b><i>Book</i></div><button>Export…</button></div><div class="paper-stack"><i></i><i></i><i></i></div></div>
-    <div class="export-copy reveal" data-delay="1"><p class="kicker" data-version-label="Version ">Version</p><h2>From Draft to Publication</h2><p class="lede small">Turn your arranged chapters into one file without leaving Sable. Export PDF, EPUB, Word, or Markdown with a title page, selected chapters, and a Manuscript or Book look.</p><p class="export-note">PDF exports include a clickable chapter outline. Choose US Letter or A4. Export the page you have open when one document is all you need.</p></div></section>
-
-  <section class="files shell reveal"><div><p class="kicker">No lock-in</p><h2>Your Files, Your Privacy</h2></div><div class="file-points"><p><b>Local first.</b> No accounts and nothing collected. Everything stays on your Mac.</p><p><b>Cloud friendly.</b> Keep your writing space in iCloud Drive, Dropbox, or OneDrive for backup and sync.</p><p><b>No lock-in.</b> Everything is Markdown, and it is yours.</p></div></section>
-
-  <!-- blog-list:start -->
-  <section class="from-blog shell reveal" aria-labelledby="from-blog-h">
-    <p class="kicker">Blog</p>
-    <h2 id="from-blog-h">From the blog</h2>
-    <ul class="from-blog-list">
-    <li><a href="/blog/sable-markdown-writer-version-0-10-0-is-here">Sable Markdown Writer - Version 0.10.0 is Here!</a><time datetime="2026-09-24">September 24, 2026</time></li>
-    </ul>
-    <p><a class="text-link" href="/blog">All posts <b>→</b></a></p>
-  </section>
-  <!-- blog-list:end -->
-
-  <section class="download" id="download"><div class="shell download-inner reveal"><p class="kicker" data-version-label="Sable Markdown Writer ">Sable Markdown Writer</p><h2>Focus on your story.</h2><p>Free for Mac. Open source. The latest release opens as a disk image—drag Sable into Applications, choose a folder, and begin.</p><div class="actions"><a class="button" data-download href="https://github.com/ExxtraV/Sable/releases/latest">Download the latest release <b>↓</b></a><a class="text-link" href="https://github.com/ExxtraV/Sable/releases">Release notes <b>↗</b></a></div><p class="install-note">Sable is not currently notarized by Apple, so macOS asks you to approve it once. <a href="#first-open">See the steps for opening it the first time.</a></p><p class="fine" data-download-note hidden></p></div></section>
-
-  <section class="first-open shell reveal" id="first-open" aria-labelledby="first-open-h">
-    <p class="kicker">First launch</p>
+  <section class="part column" id="first-open" aria-labelledby="first-open-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-shield"/></svg>
     <h2 id="first-open-h">Opening Sable for the first time</h2>
-    <p class="first-lede">Sable is signed for updates but isn’t notarized by Apple, which needs a paid developer membership, so macOS asks you to approve it once. It takes about a minute, and you only do it the first time.</p>
+    <p>Instructions from Claude: Sable is signed for updates but isn’t notarized by Apple, which needs a paid developer membership, so macOS asks you to approve it once. It takes about a minute, and you only do it the first time.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th scope="col">Step</th><th scope="col">What you’ll see</th><th scope="col">What to do</th></tr></thead>
         <tbody>
-          <tr><th scope="row">1</th><td data-label="What you’ll see">Open Sable from your Applications folder. macOS says it “can’t be opened” or that Apple couldn’t check it for malware.</td><td data-label="What to do">Click <b>Done</b>. Don’t choose “Move to Bin”.</td></tr>
-          <tr><th scope="row">2</th><td data-label="What you’ll see">Open <b>System Settings → Privacy &amp; Security</b> and scroll down to the Security section. It says “Sable Markdown Writer” was blocked.</td><td data-label="What to do">Click <b>Open Anyway</b>.</td></tr>
-          <tr><th scope="row">3</th><td data-label="What you’ll see">macOS asks once more and may want your password or Touch ID.</td><td data-label="What to do">Confirm, then click <b>Open</b>.</td></tr>
-          <tr><th scope="row">4</th><td data-label="What you’ll see">Sable opens and asks you to choose or create a writing folder.</td><td data-label="What to do">From now on it opens like any other app. Updates arrive inside Sable, verified with the project’s signing key.</td></tr>
+          <tr><th scope="row">1</th><td>Open Sable from your Applications folder. macOS says it “can’t be opened” or that Apple couldn’t check it for malware.</td><td>Click <b>Done</b>. Don’t choose “Move to Bin”.</td></tr>
+          <tr><th scope="row">2</th><td>Open <b>System Settings → Privacy &amp; Security</b> and scroll down to the Security section. It says “Sable Markdown Writer” was blocked.</td><td>Click <b>Open Anyway</b>.</td></tr>
+          <tr><th scope="row">3</th><td>macOS asks once more and may want your password or Touch ID.</td><td>Confirm, then click <b>Open</b>.</td></tr>
+          <tr><th scope="row">4</th><td>Sable opens and asks you to choose or create a writing folder.</td><td>From now on it opens like any other app. Updates arrive inside Sable, verified with the project’s signing key.</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="fine">On macOS 14 you can also Control-click the app and choose <b>Open</b>, then <b>Open</b> again. Prefer Terminal? <code>xattr -dr com.apple.quarantine "/Applications/Sable Markdown Writer.app"</code> does the same thing. Only do this for a download from this page or the <a href="https://github.com/ExxtraV/Sable/releases">GitHub releases</a>.</p>
+    <p class="quiet">On macOS 14 you can also Control-click the app and choose <b>Open</b>, then <b>Open</b> again. Prefer Terminal? <code>xattr -dr com.apple.quarantine "/Applications/Sable Markdown Writer.app"</code> does the same thing. Only do this for a download from this page or the <a href="https://github.com/ExxtraV/Sable/releases">GitHub releases</a>.</p>
   </section>
+
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
+  <!-- blog-list:start -->
+  <section class="part column" id="blog" aria-labelledby="from-blog-h">
+    <h2 id="from-blog-h">From the blog</h2>
+    <ul class="posts">
+    <li><a href="/blog/sable-markdown-writer-version-0-10-0-is-here">Sable Markdown Writer - Version 0.10.0 is Here!</a><time datetime="2026-09-24">September 24, 2026</time></li>
+    </ul>
+    <p class="quiet" style="margin-top:18px"><a href="/blog">All posts</a></p>
+  </section>
+  <!-- blog-list:end -->
 </main>
 
-<footer class="site"><div class="shell footer"><a class="brand" href="/"><img src="/logo.png" alt="" width="28" height="28"><span>Sable <small>Markdown Writer</small></span></a><span>Free and open source (MIT).</span><nav><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
-<script src="/site.js?v=13" defer></script>
+<footer class="site"><div class="bar"><span><a href="https://github.com/ExxtraV/Sable/blob/main/TRADEMARK.md">Sable Markdown Writer™</a> — free and open source (MIT).</span><nav aria-label="Footer"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/releases">Releases</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
+<script src="/site.js?v=18" defer></script>
 </body>
 </html>

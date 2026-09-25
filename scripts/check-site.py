@@ -3,8 +3,9 @@
 
 For every page: a lang attribute, one h1, headings that never skip a level, a
 title, a description, a canonical URL that matches its path, and Open Graph and
-Twitter card tags. Blog posts also need og:type article with published and
-modified times and BlogPosting JSON-LD. Also: every image has alt text and
+Twitter card tags. Every video is muted, plays inline, has an aria-label, a
+poster, and stays under 3 MB. Blog posts also need og:type article with
+published and modified times and BlogPosting JSON-LD. Also: every image has alt text and
 width and height; internal links and #anchors resolve; JSON-LD parses; the
 home page's softwareVersion matches Info.plist; and sitemap.xml lists every
 indexable page (and only real pages) with a valid, not-future lastmod.
@@ -40,6 +41,7 @@ class Page(HTMLParser):
         self.links = []
         self.headings = []
         self.images = []
+        self.videos = []
         self.hrefs = []
         self.ids = set()
         self.ld = []
@@ -64,6 +66,8 @@ class Page(HTMLParser):
             self.headings.append(int(tag[1]))
         elif tag == "img":
             self.images.append((a, self.brand_depth > 0))
+        elif tag == "video":
+            self.videos.append(a)
         elif tag == "a":
             if "href" in a:
                 self.hrefs.append(a["href"])
@@ -151,6 +155,25 @@ def check_page(path, page, pages):
                 fail(name, "image %s doesn't exist." % src)
             elif local.stat().st_size > 300_000:
                 fail(name, "image %s is %d KB; compress it." % (src, local.stat().st_size // 1000))
+    for video in page.videos:
+        src = video.get("src", "?")
+        for attr in ("muted", "playsinline"):
+            if attr not in video:
+                fail(name, "video %s needs %s." % (src, attr))
+        if not video.get("aria-label", "").strip():
+            fail(name, "video %s needs an aria-label describing it." % src)
+        if not video.get("width") or not video.get("height"):
+            fail(name, "video %s needs width and height." % src)
+        for key, limit in (("src", 3_000_000), ("poster", 300_000)):
+            ref = video.get(key, "")
+            if not ref.startswith("/"):
+                fail(name, "video %s needs a site-relative %s." % (src, key))
+                continue
+            local = SITE_DIR / ref.lstrip("/").split("?")[0]
+            if not local.is_file():
+                fail(name, "video %s: %s %s doesn't exist." % (src, key, ref))
+            elif local.stat().st_size > limit:
+                fail(name, "video %s: %s is %d KB; compress it." % (src, key, local.stat().st_size // 1000))
     for href in page.hrefs:
         if href.startswith("/") and not href.startswith("//"):
             exists, anchor_ok = resolve_internal(href, pages)

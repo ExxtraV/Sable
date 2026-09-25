@@ -7,8 +7,8 @@
 <meta name="description" content="Set up Sable’s writing desk, Fiction Projects, manuscript exports, name highlights, Markdown shortcuts, themes, focus mode, and local prose tools.">
 <link rel="canonical" href="https://sablewriter.app/guide">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181614">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F4EEE2">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131820">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF8">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Sable Markdown Writer">
 <meta property="og:url" content="https://sablewriter.app/guide">
@@ -17,15 +17,15 @@
 <meta property="og:image" content="https://sablewriter.app/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, on a dark background.">
+<meta property="og:image:alt" content="The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, beside the words Sable Markdown Writer: A Mac App about Focused Writing.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Sable Guide — Keyboard Shortcuts and Writing Tips">
 <meta name="twitter:description" content="Set up your writing folder, use the writing desk and paragraph focus, and learn every keyboard shortcut.">
 <meta name="twitter:image" content="https://sablewriter.app/og.jpg">
-<meta name="twitter:image:alt" content="The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, on a dark background.">
-<link rel="icon" type="image/png" href="/favicon.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="stylesheet" href="/site.css?v=16">
+<meta name="twitter:image:alt" content="The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, beside the words Sable Markdown Writer: A Mac App about Focused Writing.">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="stylesheet" href="/site.css?v=24">
+<script src="/theme.js?v=2"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -54,16 +54,13 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
-<header class="site">
-  <div class="wrap nav">
-    <a class="brand" href="/"><img src="/logo.png" alt="" width="30" height="30"><span>Sable <small>Markdown Writer</small></span></a>
-    <nav aria-label="Main"><a href="/#writing">Writing</a><a href="/#projects">Projects</a><a href="/#export">Export</a><a href="/guide" aria-current="page">Guide</a><a href="/blog">Blog</a><a class="button compact" href="/#download">Download</a></nav>
-  </div>
-</header>
+<header class="site"><div class="bar">
+  <a class="brand" href="/"><img src="/icon-64.png" alt="" width="32" height="32"><span>Sable Markdown Writer</span></a>
+  <div class="bar-end"><nav aria-label="Main"><a href="/guide" aria-current="page">Guide</a><a href="/blog">Blog</a><a href="/#download">Download</a></nav><div class="themes" role="group" aria-label="Site theme"><button type="button" data-set-theme="paper" aria-pressed="false"><i aria-hidden="true"></i>Paper</button><button type="button" data-set-theme="midnight" aria-pressed="false"><i aria-hidden="true"></i>Midnight</button><button type="button" data-set-theme="arcane" aria-pressed="false"><i aria-hidden="true"></i>Arcane</button></div></div>
+</div></header>
 
 <main id="main">
-<div class="wrap">
-  <article class="article">
+<article class="article column">
     <p class="crumbs"><a href="/">Sable</a> / Guide</p>
     <h1>The Sable guide</h1>
     <p class="lede">Everything you need to set up Sable and keep your hands on the story. The same guide is included in the app as an editable Markdown file.</p>
@@ -83,16 +80,18 @@
     </ul>
 
     <h2 id="screenshots">Screenshots</h2>
-    <figure class="shot">
-      <img src="/screenshots/fiction-project.webp" alt="Sable open on a Fiction Project called Through Horns &amp; Hooves: the file desk on the left, a chapter with sentence colors in the middle, and a character card for Iskra Viess pinned at the top right." width="2000" height="1256" loading="lazy" decoding="async">
+    <figure class="shot-figure">
+      <img class="shot" src="/screenshots/fiction-project.webp" alt="Sable open on a Fiction Project called Through Horns &amp; Hooves: the file desk on the left, a chapter with sentence colors in the middle, and a character card for Iskra Viess pinned at the top right." width="2000" height="1256" loading="lazy" decoding="async">
       <figcaption>A Fiction Project with the desk, sentence colors, and a pinned character card.</figcaption>
     </figure>
-    <figure class="shot">
-      <img src="/screenshots/writing-screen.webp" alt="Sable&#x27;s writing screen with everything else hidden: a dark purple page with a heading, one short paragraph, and only a word count along the bottom edge." width="2000" height="1253" loading="lazy" decoding="async">
+    <figure class="shot-figure">
+      <img class="shot t-paper" src="/screenshots/writing-paper.jpg" alt="Sable's writing page in the Paper theme: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy" decoding="async">
+      <img class="shot t-midnight" src="/screenshots/writing-midnight.jpg" alt="Sable's writing page in the Midnight theme: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy" decoding="async">
+      <img class="shot t-arcane" src="/screenshots/writing-arcane.jpg" alt="Sable's writing page in the Arcane theme: a chapter called The Crossing, with only a word count along the bottom." width="2000" height="1193" loading="lazy" decoding="async">
       <figcaption>The writing screen with the desk and toolbar hidden.</figcaption>
     </figure>
-    <figure class="shot">
-      <img src="/screenshots/themes.webp" alt="Sable&#x27;s Writing settings open over the editor, showing eight themes (Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, and Paper) with edge darkness and drifting particles options, and the toolbar above." width="2000" height="1352" loading="lazy" decoding="async">
+    <figure class="shot-figure">
+      <img class="shot" src="/screenshots/themes.webp" alt="Sable&#x27;s Writing settings open over the editor, showing eight themes (Graphite, Midnight, Chalk, Forest, Obsidian, Arcane, Parchment, and Paper) with edge darkness and drifting particles options, and the toolbar above." width="2000" height="1352" loading="lazy" decoding="async">
       <figcaption>Writing settings, with eight themes to choose from.</figcaption>
     </figure>
 
@@ -177,23 +176,9 @@
     <p>Sable checks for updates while it’s open: every day, every 3 days, or every week, as you choose in Settings → General, where you can also turn automatic checks off. <b>Check for Updates…</b> in the Sable Markdown Writer menu checks right away. Either way, you choose when to install and restart. <b>Get beta updates</b>, off by default, also offers early builds published ahead of a stable release; they may be rougher. If you turn it off again, you keep the build you have until a newer stable release arrives.</p>
 
     <p style="margin-top:44px">Missing something? <a href="https://github.com/ExxtraV/Sable/issues">Tell us on GitHub</a>, or <a href="/#download">download Sable</a>.</p>
-  </article>
-</div>
+</article>
 </main>
 
-<footer class="site">
-  <div class="wrap foot">
-    <span>Sable Markdown Writer — free and open source (MIT).</span>
-    <nav aria-label="Footer">
-      <a href="/guide">Guide</a>
-      <a href="/blog">Blog</a>
-      <a href="/privacy">Privacy</a>
-      <a href="https://github.com/ExxtraV/Sable">GitHub</a>
-      <a href="https://buymeacoffee.com/sablewriter">Support Sable</a>
-      <a href="https://github.com/ExxtraV/Sable/releases">Releases</a>
-      <a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a>
-    </nav>
-  </div>
-</footer>
+<footer class="site"><div class="bar"><span><a href="https://github.com/ExxtraV/Sable/blob/main/TRADEMARK.md">Sable Markdown Writer™</a> — free and open source (MIT).</span><nav aria-label="Footer"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/releases">Releases</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
 </body>
 </html>
