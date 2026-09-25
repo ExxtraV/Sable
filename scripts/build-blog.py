@@ -31,7 +31,7 @@ SITEMAP = ROOT / "website" / "sitemap.xml"
 HOME = ROOT / "website" / "index.html"
 HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "17"
+CSS_VERSION = "18"
 
 OG_ALT = ("The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, "
           "beside the words Sable Markdown Writer: A Mac App about Focused Writing.")

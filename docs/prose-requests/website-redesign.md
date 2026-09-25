@@ -24,21 +24,6 @@ Draft (rewrite me):
 Your text:
 >
 
-## Check · Possible typos (pasted exactly as you wrote them)
-- Where: the home page and the 404 page (id: `typo-check`)
-- These went in exactly as written. Reply with "fix" (and I'll change only
-  the word named) or "keep" for each:
-  1. Home, files section: "No **Propriety** Files". Did you mean
-     "Proprietary" (a private file format)? "Propriety" means good
-     manners.
-  2. 404 page: "This is a nice **play** to curl up". Did you mean "place"?
-  3. Questions: "**ICloud**", "**IOS**", "**IPadOS**". Apple writes them
-     iCloud, iOS, and iPadOS.
-  4. Questions: "Who is Sable **For**?" has a capital F.
-
-Your text:
->
-
 ## Check · The App Store answer (a fact check)
 - Where: the Questions section on the home page (id: `faq-app-store`)
 - Your text: "Sable is currently unnotarized by Apple, which requires us to
