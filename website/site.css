@@ -1,24 +1,39 @@
-/* Sable Markdown Writer: the site takes its look from the app. Dark is the Graphite theme,
-   light is the Paper theme, and the type is Charter, the app's default writing font. */
+/* Sable Markdown Writer: the site takes its look from the app. It comes in three of Sable's own
+   themes, Paper (light), Midnight (dark), and Arcane, chosen with the switcher in the header (theme.js).
+   With no choice saved, it follows the Mac: Paper when light, Midnight when dark. The type is Charter,
+   the app's default writing font. */
 :root {
-  --page:#FAFAF8; --ink:#30302E; --muted:#5F5F5B; --dim:#B2B2AC; --rule:rgba(48,48,46,.14);
-  --on-ink:#FAFAF8; --shadow:0 24px 70px rgba(40,36,30,.14);
   --serif:Charter,"Bitstream Charter","Iowan Old Style",Georgia,serif;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,monospace;
   --column:680px; --wide:1080px;
-  color-scheme:light dark;
+  color-scheme:light;
+  --page:#FAFAF8; --ink:#30302E; --muted:#5F5F5B; --dim:#B2B2AC; --rule:rgba(48,48,46,.14);
+  --on-ink:#FAFAF8; --shadow:0 24px 70px rgba(40,36,30,.14); --backdrop:none;
 }
+/* The dark themes shade toward the window's edges like the app does, behind the words, so the eye settles
+   in the middle. An eased radial falloff with a faint grain avoids visible steps (banding) in the dark. */
 @media (prefers-color-scheme:dark) {
-  :root { --page:#242424; --ink:#E0DDD7; --muted:#A9A59E; --dim:#6B6862; --rule:rgba(224,221,215,.13);
-          --on-ink:#1B1B1B; --shadow:0 30px 90px rgba(0,0,0,.45); }
-  /* Graphite's edge shading (the app's VignetteOverlay at 65%): the page darkens toward #121212 at the
-     window's edges, behind the words, so the eye settles in the middle. */
-  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:url("/brand/grain.png") 0 0/64px 64px repeat,
-               linear-gradient(to bottom,rgba(18,18,18,.43),rgba(18,18,18,.16) 12%,transparent 30%,transparent 70%,rgba(18,18,18,.16) 88%,rgba(18,18,18,.43)),
-               linear-gradient(to right,rgba(18,18,18,.36),transparent 18%,transparent 82%,rgba(18,18,18,.36)); }
+  :root:not([data-theme]) { color-scheme:dark; --page:#131820; --ink:#D6DEE8; --muted:#9DA8B6; --dim:#4F5968; --rule:rgba(214,222,232,.13);
+    --on-ink:#131820; --shadow:0 30px 90px rgba(0,0,0,.5);
+    --backdrop:url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(5,7,10,0) 45%, rgba(5,7,10,.1) 60%, rgba(5,7,10,.24) 72%, rgba(5,7,10,.4) 84%, rgba(5,7,10,.55) 100%); }
 }
+:root[data-theme="midnight"] { color-scheme:dark; --page:#131820; --ink:#D6DEE8; --muted:#9DA8B6; --dim:#4F5968; --rule:rgba(214,222,232,.13);
+  --on-ink:#131820; --shadow:0 30px 90px rgba(0,0,0,.5);
+  --backdrop:url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(5,7,10,0) 45%, rgba(5,7,10,.1) 60%, rgba(5,7,10,.24) 72%, rgba(5,7,10,.4) 84%, rgba(5,7,10,.55) 100%); }
+:root[data-theme="arcane"] { color-scheme:dark; --page:#1B1330; --ink:#E9DFFB; --muted:#B2A7CB; --dim:#5E5280; --rule:rgba(233,223,251,.14);
+  --on-ink:#1B1330; --shadow:0 30px 90px rgba(4,2,10,.55);
+  --backdrop:url("/brand/motes.png") 0 0/480px 480px repeat, url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(7,4,13,0) 42%, rgba(7,4,13,.12) 58%, rgba(7,4,13,.28) 72%, rgba(7,4,13,.45) 86%, rgba(7,4,13,.62) 100%); }
+body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; background:var(--backdrop); }
+
+/* Images that differ by theme: .t-paper, .t-midnight, .t-arcane, and .t-night (both dark themes). */
+.t-midnight, .t-arcane, .t-night { display:none !important; }
+@media (prefers-color-scheme:dark) {
+  :root:not([data-theme]) .t-paper { display:none !important; }
+  :root:not([data-theme]) .t-midnight, :root:not([data-theme]) .t-night { display:block !important; }
+}
+[data-theme="midnight"] .t-paper, [data-theme="arcane"] .t-paper, [data-theme="midnight"] .t-arcane, [data-theme="arcane"] .t-midnight { display:none !important; }
+[data-theme="midnight"] .t-midnight, [data-theme="midnight"] .t-night, [data-theme="arcane"] .t-arcane, [data-theme="arcane"] .t-night { display:block !important; }
 
 * { box-sizing:border-box; }
 html { scroll-padding-top:24px; }
@@ -42,6 +57,16 @@ header.site nav, footer.site nav { display:flex; flex-wrap:wrap; gap:8px 26px; f
 header.site nav a, footer.site nav a { color:var(--muted); text-decoration:none; }
 header.site nav a:hover, footer.site nav a:hover, header.site nav a[aria-current] { color:var(--ink); }
 header.site nav a:hover, footer.site nav a:hover { text-decoration:underline; }
+.themes { display:none; gap:4px; font:13px/1 var(--sans); }
+.themes-ready .themes { display:flex; }
+.themes button { display:flex; align-items:center; gap:7px; font:inherit; color:var(--muted); background:none; border:1px solid transparent; border-radius:2px; padding:6px 9px; cursor:pointer; }
+.themes button:hover { color:var(--ink); }
+.themes button[aria-pressed="true"] { color:var(--ink); border-color:var(--rule); }
+.themes i { width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 1px var(--rule); }
+.themes [data-set-theme="paper"] i { background:#FAFAF8; }
+.themes [data-set-theme="midnight"] i { background:#131820; }
+.themes [data-set-theme="arcane"] i { background:#1B1330; }
+.bar-end { display:flex; align-items:center; flex-wrap:wrap; gap:10px 26px; }
 footer.site { margin-top:180px; border-top:1px solid var(--rule); color:var(--muted); font:14px/1.5 var(--sans); }
 footer.site .bar { padding-top:28px; padding-bottom:40px; }
 
@@ -99,7 +124,7 @@ figcaption { margin-top:12px; font:14px/1.5 var(--sans); color:var(--muted); }
   .tour-live .tour-stage { display:block; position:sticky; top:calc(50vh - 240px); grid-column:2; grid-row:1; }
   .tour-live .tour-steps { grid-column:1; grid-row:1; }
   .tour-live .step .frame { display:none; }
-  .tour-live .step { min-height:70vh; margin:0; display:flex; flex-direction:column; justify-content:center; }
+  .tour-live .step { min-height:115vh; margin:0; display:flex; flex-direction:column; justify-content:center; }
   .tour-live .tour-steps h2 { font-size:30px; }
   .tour-live .tour-steps h2 + .step { margin-top:0; }
   .tour-live .tour-steps .step + h2 { margin-top:60px; }
@@ -125,8 +150,13 @@ figcaption { margin-top:12px; font:14px/1.5 var(--sans); color:var(--muted); }
 .faq details[open] summary::after { content:"\2212"; }
 .faq summary:hover::after { color:var(--ink); }
 .faq details p { margin:0; padding:0 48px 26px 0; color:var(--muted); }
-.download .actions { display:flex; align-items:center; flex-wrap:wrap; gap:16px 30px; margin-top:36px; }
-.download .actions a:not(.button) { font:15px/1.4 var(--sans); color:var(--muted); }
+.download { min-height:88vh; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; }
+.download .mark { display:block; width:150px; height:150px; margin:0 auto 18px; }
+.download h2 { font-size:38px; max-width:800px; text-wrap:balance; }
+.download .button { font-size:19px; padding:21px 40px; }
+.download .actions { display:flex; flex-direction:column; align-items:center; gap:22px; margin-top:34px; }
+.download .links { display:flex; flex-wrap:wrap; justify-content:center; gap:10px 28px; font:15px/1.4 var(--sans); }
+.download .links a { color:var(--muted); }
 .posts { list-style:none; padding:0; margin:0; border-top:1px solid var(--rule); }
 .posts li { display:flex; justify-content:space-between; align-items:baseline; gap:8px 24px; flex-wrap:wrap; padding:18px 0; border-bottom:1px solid var(--rule); }
 .posts time { font:14px/1.4 var(--sans); color:var(--muted); }

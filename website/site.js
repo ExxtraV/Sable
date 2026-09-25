@@ -67,9 +67,14 @@
     });
   }
   // Wide screens: the step crossing the middle of the window is the active one.
+  // A short settle time means a quick scroll past a step doesn't flip its clip on and off.
+  var pending = null;
   var middle = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
-      if (entry.isIntersecting) showStep(steps.indexOf(entry.target));
+      if (!entry.isIntersecting) return;
+      clearTimeout(pending);
+      var index = steps.indexOf(entry.target);
+      pending = setTimeout(function () { showStep(index); }, 250);
     });
   }, { rootMargin: '-45% 0px -45% 0px' });
   steps.forEach(function (step) { middle.observe(step); });

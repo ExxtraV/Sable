@@ -31,7 +31,7 @@ SITEMAP = ROOT / "website" / "sitemap.xml"
 HOME = ROOT / "website" / "index.html"
 HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "19"
+CSS_VERSION = "20"
 
 OG_ALT = ("The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, "
           "beside the words Sable Markdown Writer: A Mac App about Focused Writing.")
@@ -371,7 +371,7 @@ def head(title, description, url, kind, extra="", graph=None):
 <link rel="canonical" href="%(url)s">
 <link rel="alternate" type="application/rss+xml" title="Sable Markdown Writer blog" href="/blog/feed.xml">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#242424">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131820">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF8">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta property="og:type" content="%(kind)s">
@@ -389,6 +389,7 @@ def head(title, description, url, kind, extra="", graph=None):
 <meta name="twitter:image:alt" content="%(alt)s">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="stylesheet" href="/site.css?v=%(css)s">
+<script src="/theme.js?v=1"></script>
 %(ld)s</head>
 """ % {"title": attr(title), "desc": attr(description), "url": url, "kind": kind,
        "site": SITE, "extra": extra, "css": CSS_VERSION, "alt": attr(OG_ALT), "ld": json_ld(graph)}
@@ -398,12 +399,12 @@ HEADER = """<body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site"><div class="bar">
   <a class="brand" href="/"><img src="/icon-64.png" alt="" width="32" height="32"><span>Sable Markdown Writer</span></a>
-  <nav aria-label="Main"><a href="/guide">Guide</a><a href="/blog" aria-current="page">Blog</a><a href="/#download">Download</a></nav>
+  <div class="bar-end"><nav aria-label="Main"><a href="/guide">Guide</a><a href="/blog" aria-current="page">Blog</a><a href="/#download">Download</a></nav><div class="themes" role="group" aria-label="Site theme"><button type="button" data-set-theme="paper" aria-pressed="false"><i aria-hidden="true"></i>Paper</button><button type="button" data-set-theme="midnight" aria-pressed="false"><i aria-hidden="true"></i>Midnight</button><button type="button" data-set-theme="arcane" aria-pressed="false"><i aria-hidden="true"></i>Arcane</button></div></div>
 </div></header>
 """
 
 FOOTER = """
-<footer class="site"><div class="bar"><span>Sable Markdown Writer — free and open source (MIT).</span><nav aria-label="Footer"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/releases">Releases</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
+<footer class="site"><div class="bar"><span><a href="https://github.com/ExxtraV/Sable/blob/main/TRADEMARK.md">Sable Markdown Writer™</a> — free and open source (MIT).</span><nav aria-label="Footer"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/releases">Releases</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
 </body>
 </html>
 """
