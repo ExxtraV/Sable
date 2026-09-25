@@ -28,7 +28,7 @@
       ]
     },
     {
-      "source": "/(.*)\\.(png|jpg|css|js)",
+      "source": "/(.*)\\.(png|jpg|webp|ico|css|js)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "source": "/(logo|favicon|apple-touch-icon)\\.png",
+      "source": "/(icon-(32|64|180|512)\\.png|favicon\\.ico|brand/mark-(primary|reverse)\\.png)",
       "headers": [
         {
           "key": "Cache-Control",

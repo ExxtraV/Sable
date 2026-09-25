@@ -31,13 +31,13 @@ SITEMAP = ROOT / "website" / "sitemap.xml"
 HOME = ROOT / "website" / "index.html"
 HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "16"
+CSS_VERSION = "17"
 
-OG_ALT = ("The Sable logo: a pale marten curled into a circle, its body ending in a pen nib, "
-          "on a dark background.")
+OG_ALT = ("The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, "
+          "beside the words Sable Markdown Writer: A Mac App about Focused Writing.")
 ORGANIZATION = {"@type": "Organization", "@id": SITE + "/#org", "name": "Sable Markdown Writer",
-                "url": SITE + "/", "logo": {"@type": "ImageObject", "url": SITE + "/logo.png",
-                                            "width": 128, "height": 128},
+                "url": SITE + "/", "logo": {"@type": "ImageObject", "url": SITE + "/icon-512.png",
+                                            "width": 512, "height": 512},
                 "sameAs": ["https://github.com/ExxtraV/Sable"]}
 BLOG_DESCRIPTION = "News and notes from the Sable Markdown Writer project."
 MONTHS = ["January", "February", "March", "April", "May", "June", "July",
@@ -371,8 +371,8 @@ def head(title, description, url, kind, extra="", graph=None):
 <link rel="canonical" href="%(url)s">
 <link rel="alternate" type="application/rss+xml" title="Sable Markdown Writer blog" href="/blog/feed.xml">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181614">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#F4EEE2">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#242424">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAFAF8">
 <meta name="robots" content="index,follow,max-image-preview:large">
 <meta property="og:type" content="%(kind)s">
 <meta property="og:site_name" content="Sable Markdown Writer">
@@ -387,7 +387,7 @@ def head(title, description, url, kind, extra="", graph=None):
 <meta name="twitter:description" content="%(desc)s">
 <meta name="twitter:image" content="%(site)s/og.jpg">
 <meta name="twitter:image:alt" content="%(alt)s">
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="stylesheet" href="/site.css?v=%(css)s">
 %(ld)s</head>
 """ % {"title": attr(title), "desc": attr(description), "url": url, "kind": kind,
@@ -396,14 +396,14 @@ def head(title, description, url, kind, extra="", graph=None):
 
 HEADER = """<body>
 <a class="skip" href="#main">Skip to content</a>
-<header class="site"><div class="shell nav">
-  <a class="brand" href="/"><img src="/logo.png" alt="" width="32" height="32"><span>Sable <small>Markdown Writer</small></span></a>
-  <nav aria-label="Main"><a href="/#writing">Writing</a><a href="/#projects">Projects</a><a href="/#export">Export</a><a href="/guide">Guide</a><a href="/blog" aria-current="page">Blog</a><a class="button compact" href="/#download">Download</a></nav>
+<header class="site"><div class="bar">
+  <a class="brand" href="/"><img src="/icon-64.png" alt="" width="32" height="32"><span>Sable Markdown Writer</span></a>
+  <nav aria-label="Main"><a href="/guide">Guide</a><a href="/blog" aria-current="page">Blog</a><a href="/#download">Download</a></nav>
 </div></header>
 """
 
 FOOTER = """
-<footer class="site"><div class="shell footer"><a class="brand" href="/"><img src="/logo.png" alt="" width="28" height="28"><span>Sable <small>Markdown Writer</small></span></a><span>Free and open source (MIT).</span><nav><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
+<footer class="site"><div class="bar"><span>Sable Markdown Writer — free and open source (MIT).</span><nav aria-label="Footer"><a href="/guide">Guide</a><a href="/blog">Blog</a><a href="/privacy">Privacy</a><a href="https://github.com/ExxtraV/Sable">GitHub</a><a href="https://buymeacoffee.com/sablewriter">Support Sable</a><a href="https://github.com/ExxtraV/Sable/releases">Releases</a><a href="https://github.com/ExxtraV/Sable/issues">Report a bug</a></nav></div></footer>
 </body>
 </html>
 """
@@ -426,7 +426,7 @@ def post_page(post):
     ]
     return (head(title_tag, post["description"], post["url"], "article", extra, graph) + HEADER + """
 <main id="main">
-<article class="post">
+<article class="post article column">
   <p class="crumbs"><a href="/blog">← All posts</a></p>
   <header class="post-head">
     <h1>%(title)s</h1>
@@ -460,8 +460,7 @@ def index_page(posts):
     ]
     return (head("Blog — Sable Markdown Writer", BLOG_DESCRIPTION, SITE + "/blog", "website", "", graph) + HEADER + """
 <main id="main">
-<section class="blog-index">
-  <p class="kicker">Sable Markdown Writer</p>
+<section class="blog-index article column">
   <h1>Blog</h1>
   <div class="post-list">
 %s
@@ -518,13 +517,12 @@ def home_list(posts):
                      % (p["slug"], p["title_html"], p["date"].isoformat(), long_date(p["date"]))
                      for p in posts[:HOME_POSTS])
     return """<!-- blog-list:start -->
-  <section class="from-blog shell reveal" aria-labelledby="from-blog-h">
-    <p class="kicker">Blog</p>
+  <section class="part column" id="blog" aria-labelledby="from-blog-h">
     <h2 id="from-blog-h">From the blog</h2>
-    <ul class="from-blog-list">
+    <ul class="posts">
 %s
     </ul>
-    <p><a class="text-link" href="/blog">All posts <b>→</b></a></p>
+    <p class="quiet" style="margin-top:18px"><a href="/blog">All posts</a></p>
   </section>
   <!-- blog-list:end -->""" % rows
 
