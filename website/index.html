@@ -25,7 +25,7 @@
 <meta name="twitter:image:alt" content="The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, beside the words Sable Markdown Writer: A Mac App about Focused Writing.">
 <link rel="alternate" type="application/rss+xml" title="Sable Markdown Writer blog" href="/blog/feed.xml">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
-<link rel="stylesheet" href="/site.css?v=20">
+<link rel="stylesheet" href="/site.css?v=22">
 <script src="/theme.js?v=1"></script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@graph":[
@@ -38,12 +38,30 @@
     {"@type":"Question","name":"Will you release a Windows version?","acceptedAnswer":{"@type":"Answer","text":"A Windows port is not currently in the works."}},
     {"@type":"Question","name":"Who is Sable for?","acceptedAnswer":{"@type":"Answer","text":"Anybody who writes and prefers a clutter-free and focused workspace. Sable is designed to be a great markdown editor first and foremost, with a suite of features for fiction writers on top."}},
     {"@type":"Question","name":"Does Sable sync with other devices?","acceptedAnswer":{"@type":"Answer","text":"Sable does not operate a cloud service, but you can connect your writing folder to your preferred cloud provider (iCloud, Dropbox, etc.) to sync your files across devices."}},
-    {"@type":"Question","name":"Is Sable on the App Store? Will it support iOS or iPadOS?","acceptedAnswer":{"@type":"Answer","text":"Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release in continued development on other devices."}}
+    {"@type":"Question","name":"Is Sable on the App Store? Will it support iOS or iPadOS?","acceptedAnswer":{"@type":"Answer","text":"Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release and continue development to other devices."}}
   ]}
 ]}
 </script>
 </head>
 <body>
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-focus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.2" class="fill"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+  <symbol id="i-desk" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M9 4.5v15M5.5 8.5h1.5M5.5 11h1.5M5.5 13.5h1.5"/></symbol>
+  <symbol id="i-themes" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" class="fill"/></symbol>
+  <symbol id="i-cards" viewBox="0 0 24 24"><rect x="4" y="3.5" width="16" height="17" rx="2"/><circle cx="12" cy="10" r="2.6"/><path d="M7.8 17c.9-2.2 2.4-3.2 4.2-3.2s3.3 1 4.2 3.2"/></symbol>
+  <symbol id="i-manuscript" viewBox="0 0 24 24"><path d="M8 3.5h8.5L19 6v13.5a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M5 7v13.5a1 1 0 0 0 1 1h9M10 9h6M10 12h6M10 15h4"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M8.5 9.5H6.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2M12 3v11M8.5 6.5 12 3l3.5 3.5"/></symbol>
+  <symbol id="i-no-account" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5.5 19.5c1.2-3.3 3.6-5 6.5-5s5.3 1.7 6.5 5M4 4l16 16"/></symbol>
+  <symbol id="i-no-collection" viewBox="0 0 24 24"><path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 4l16 16"/></symbol>
+  <symbol id="i-no-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5M4 4l16 16"/></symbol>
+  <symbol id="i-markdown" viewBox="0 0 24 24"><path d="M7 3.5h7.5L18 7v13.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z"/><path d="M10.5 10.5 10 17M14 10.5 13.5 17M9 12.5h6M8.5 15h6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M17.5 12v3M20.5 12v2.5"/></symbol>
+  <symbol id="i-local" viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 18.5h19"/></symbol>
+  <symbol id="i-nib" viewBox="0 0 24 24"><path d="M12 21.5 6.5 12 9 5.5h6l2.5 6.5z"/><path d="M12 21.5v-8"/><circle cx="12" cy="12" r="1.6"/><path d="M9 5.5V3h6v2.5"/></symbol>
+  <symbol id="i-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8"/><circle cx="12" cy="16.8" r=".9" class="fill"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.4c0 4.4 3 8 7 9.8 4-1.8 7-5.4 7-9.8V5.8z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/></symbol>
+  <symbol id="i-star" viewBox="0 0 12 12"><path class="fill" d="M6 .5l1.3 3.6 3.8.2-3 2.4 1 3.7L6 8.3l-3.1 2.1 1-3.7-3-2.4 3.8-.2z"/></symbol>
+</svg>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site"><div class="bar">
   <a class="brand" href="/"><img src="/icon-64.png" alt="" width="32" height="32"><span>Sable Markdown Writer</span></a>
@@ -72,33 +90,33 @@
         <h2 id="writing">Curl up, sip a coffee, and eliminate distractions so you can write with focus.</h2>
       <article class="step" data-clip="focus">
         <div class="frame"><video src="/clips/focus.mp4" poster="/clips/focus.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="A new sentence is typed into a chapter while the paragraphs around it dim, so only the one being written stays bright."></video></div>
-        <h3>Paragraph Focus</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-focus"/></svg>Paragraph Focus</h3>
         <p>Sable keeps your attention on the paragraph as you write, allowing you to focus on what matters, and reduce distractions.</p>
       </article>
       <article class="step" data-clip="desk">
         <div class="frame"><video src="/clips/desk.mp4" poster="/clips/desk.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The writing desk slides in from the left with the project's folders, then slides away again, leaving only the page."></video></div>
-        <h3>The writing desk</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-desk"/></svg>The writing desk</h3>
         <p>A sidebar when you need it, hidden when you don’t. Access your files and folders in a click.</p>
       </article>
       <article class="step" data-clip="themes">
         <div class="frame"><video src="/clips/themes.mp4" poster="/clips/themes.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The same chapter changes theme: Graphite, Arcane, Parchment, Obsidian, Forest, Paper, Midnight, and back to Graphite."></video></div>
-        <h3>Eight themes</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-themes"/></svg>Eight themes</h3>
         <p>A variety of themes to fit your needs and your style, with more to come. Some are dark, some are light, some are cozy, and some transport you to another dimension.</p>
       </article>
         <h2 id="projects">Not just a good markdown writer, but a fiction suite to build your expansive world.</h2>
       <article class="step" data-clip="cards">
         <div class="frame"><video src="/clips/cards.mp4" poster="/clips/cards.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="Clicking the scene tags under the page opens a character card for Mara and a location card for The Harbor beside the chapter."></video></div>
-        <h3>Character cards and scene tags</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-cards"/></svg>Character cards and scene tags</h3>
         <p>Summon your cast of characters, or your array of locations, as you need them. Pin a card or let it collapse while you write. Access your expansive world knowledge at a click.</p>
       </article>
       <article class="step" data-clip="manuscript">
         <div class="frame"><video src="/clips/manuscript.mp4" poster="/clips/manuscript.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The Manuscript tab shows the word count and goal, and clicking each chapter opens it on the page."></video></div>
-        <h3>The Manuscript tab</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-manuscript"/></svg>The Manuscript tab</h3>
         <p>Access your novel’s stats at a glance, whether it is your manuscript or individual chapters.</p>
       </article>
       <article class="step" data-clip="export">
         <div class="frame"><video src="/clips/export.mp4" poster="/clips/export.jpg" width="1440" height="830" muted loop playsinline preload="none" aria-label="The Export Manuscript sheet opens, and the choices switch from a PDF in Manuscript style to Book style, then to EPUB."></video></div>
-        <h3>Export</h3>
+        <h3><svg class="icon step-icon" aria-hidden="true" focusable="false"><use href="#i-export"/></svg>Export</h3>
         <p id="export">Turn your markdown into usable formats for publication, editing, and other use (PDF, EPUB, Word, Markdown). More export features are being crafted to suit your needs.</p>
       </article>
       </div>
@@ -109,17 +127,22 @@
     <div class="column after"><p class="quiet">Our goal is to continue to provide more tools and continued support, while maintaining our commitment to focus and creating a distraction-mitigating environment.</p></div>
   </section>
 
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
   <section class="part wide statement" id="files" aria-labelledby="files-h">
-    <h2 id="files-h"><span>No Account. No Collection. No Proprietary Files.</span> <span>All Markdown. All Yours. All Local.</span></h2>
+    <h2 id="files-h" class="pairs"><span class="row"><span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-no-account"/></svg>No Account.</span> <span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-no-collection"/></svg>No Collection.</span> <span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-no-lock"/></svg>No Proprietary Files.</span></span> <span class="row"><span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-markdown"/></svg>All Markdown.</span> <span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-key"/></svg>All Yours.</span> <span class="item"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-local"/></svg>All Local.</span></span></h2>
   </section>
 
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
   <section class="part column" id="no-ai" aria-labelledby="no-ai-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-nib"/></svg>
     <h2 id="no-ai-h">No AI Integration</h2>
     <p>Sable will never directly integrate AI into the program. We encourage you to put <em>your</em> prose on the page, and focus on improving your craft. Writing requires practice and challenge to learn and grow, which you won’t get from having a robot write for you.</p>
   </section>
 
 
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
   <section class="part column" id="questions" aria-labelledby="questions-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-question"/></svg>
     <h2 id="questions-h">Questions</h2>
     <div class="faq">
       <details><summary>How much does Sable cost?</summary><p>Free, and always so. Sable will remain free and open source.</p></details>
@@ -127,10 +150,11 @@
       <details><summary>Will you release a Windows version?</summary><p>A Windows port is not currently in the works.</p></details>
       <details><summary>Who is Sable for?</summary><p>Anybody who writes and prefers a clutter-free and focused workspace. Sable is designed to be a great markdown editor first and foremost, with a suite of features for fiction writers on top.</p></details>
       <details><summary>Does Sable sync with other devices?</summary><p>Sable does not operate a cloud service, but you can connect your writing folder to your preferred cloud provider (iCloud, Dropbox, etc.) to sync your files across devices.</p></details>
-      <details><summary>Is Sable on the App Store? Will it support iOS or iPadOS?</summary><p>Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release in continued development on other devices.</p></details>
+      <details><summary>Is Sable on the App Store? Will it support iOS or iPadOS?</summary><p>Sable is currently unnotarized by Apple, which requires us to pay $99 a year to be notarized. If we pursue that route, we might opt for an App Store release and continue development to other devices.</p></details>
     </div>
   </section>
 
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
   <section class="part column download" id="download" aria-labelledby="download-h">
     <img class="mark t-paper" src="/brand/mark-primary.png" alt="The Sable logo" width="512" height="512" loading="lazy">
     <img class="mark t-night" src="/brand/mark-reverse.png" alt="The Sable logo" width="512" height="512" loading="lazy">
@@ -143,6 +167,7 @@
   </section>
 
   <section class="part column" id="first-open" aria-labelledby="first-open-h">
+    <svg class="icon lead-icon" aria-hidden="true" focusable="false"><use href="#i-shield"/></svg>
     <h2 id="first-open-h">Opening Sable for the first time</h2>
     <p>Instructions from Claude: Sable is signed for updates but isn’t notarized by Apple, which needs a paid developer membership, so macOS asks you to approve it once. It takes about a minute, and you only do it the first time.</p>
     <div class="table-wrap">
@@ -159,6 +184,7 @@
     <p class="quiet">On macOS 14 you can also Control-click the app and choose <b>Open</b>, then <b>Open</b> again. Prefer Terminal? <code>xattr -dr com.apple.quarantine "/Applications/Sable Markdown Writer.app"</code> does the same thing. Only do this for a download from this page or the <a href="https://github.com/ExxtraV/Sable/releases">GitHub releases</a>.</p>
   </section>
 
+  <div class="break" aria-hidden="true"><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg><svg class="star"><use href="#i-star"/></svg></div>
   <!-- blog-list:start -->
   <section class="part column" id="blog" aria-labelledby="from-blog-h">
     <h2 id="from-blog-h">From the blog</h2>

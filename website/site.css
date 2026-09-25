@@ -23,8 +23,17 @@
   --backdrop:url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(5,7,10,0) 45%, rgba(5,7,10,.1) 60%, rgba(5,7,10,.24) 72%, rgba(5,7,10,.4) 84%, rgba(5,7,10,.55) 100%); }
 :root[data-theme="arcane"] { color-scheme:dark; --page:#1B1330; --ink:#E9DFFB; --muted:#B2A7CB; --dim:#5E5280; --rule:rgba(233,223,251,.14);
   --on-ink:#1B1330; --shadow:0 30px 90px rgba(4,2,10,.55);
-  --backdrop:url("/brand/motes.png") 0 0/480px 480px repeat, url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(7,4,13,0) 42%, rgba(7,4,13,.12) 58%, rgba(7,4,13,.28) 72%, rgba(7,4,13,.45) 86%, rgba(7,4,13,.62) 100%); }
+  --backdrop:url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(7,4,13,0) 42%, rgba(7,4,13,.12) 58%, rgba(7,4,13,.28) 72%, rgba(7,4,13,.45) 86%, rgba(7,4,13,.62) 100%); }
 body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; background:var(--backdrop); }
+/* Arcane's faint motes of light, like the app's particles. They drift slowly upward; the layer is one
+   tile taller than the window and moves exactly one tile, so the loop is seamless. Still with Reduce Motion. */
+[data-theme="arcane"] body::after { content:""; position:fixed; left:0; right:0; top:0; height:calc(100% + 480px); z-index:-1; pointer-events:none;
+  background:url("/brand/motes.png") 0 0/480px 480px repeat; }
+@media (prefers-reduced-motion:no-preference) {
+  [data-theme="arcane"] body::after { animation:motes-drift 90s linear infinite, motes-glow 7s ease-in-out infinite alternate; will-change:transform; }
+}
+@keyframes motes-drift { to { transform:translate3d(0,-480px,0); } }
+@keyframes motes-glow { from { opacity:.7; } to { opacity:1; } }
 
 /* Images that differ by theme: .t-paper, .t-midnight, .t-arcane, and .t-night (both dark themes). */
 .t-midnight, .t-arcane, .t-night { display:none !important; }
@@ -161,6 +170,22 @@ figcaption { margin-top:12px; font:14px/1.5 var(--sans); color:var(--muted); }
 .posts li { display:flex; justify-content:space-between; align-items:baseline; gap:8px 24px; flex-wrap:wrap; padding:18px 0; border-bottom:1px solid var(--rule); }
 .posts time { font:14px/1.4 var(--sans); color:var(--muted); }
 
+/* Icons: an original set of thin line icons, defined once as <symbol>s at the top of the page. */
+.sprite { position:absolute; width:0; height:0; overflow:hidden; }
+.icon { width:24px; height:24px; flex:none; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+symbol .fill { fill:currentColor; stroke:none; }
+.lead-icon { display:block; width:40px; height:40px; margin:0 0 18px; color:var(--muted); stroke-width:1.4; }
+.step-icon { display:inline-block; width:22px; height:22px; margin:0 10px 0 0; vertical-align:-3px; color:var(--muted); transition:color .5s ease; }
+.tour-live .step.active .step-icon { color:var(--ink); }
+/* Between sections, the three stars a novel uses for a scene break. */
+.break { display:flex; justify-content:center; gap:22px; margin:120px auto 0; color:var(--muted); opacity:.7; }
+.break .star { width:14px; height:14px; }
+.break + .part { margin-top:120px; }
+.pairs .row { display:flex; justify-content:center; flex-wrap:wrap; gap:28px 56px; }
+.pairs .row + .row { margin-top:40px; }
+.pairs .item { display:flex; flex-direction:column; align-items:center; gap:14px; }
+.pairs .icon { width:44px; height:44px; color:var(--muted); stroke-width:1.2; }
+
 /* Tables (first-launch steps and the guide's shortcuts) */
 .table-wrap, .tablewrap { overflow-x:auto; margin:24px 0; }
 table { width:100%; border-collapse:collapse; font:15px/1.5 var(--sans); }
@@ -209,6 +234,10 @@ tbody th { font-weight:600; width:3em; }
   .first .shot-wrap { margin-top:56px; }
   .faq details p { padding-right:0; }
   .part h2, .statement h2 { font-size:27px; }
+  .pairs .row { gap:24px 28px; }
+  .pairs .item { font-size:21px; }
+  .pairs .icon { width:28px; height:28px; }
+  .break, .break + .part { margin-top:84px; }
   .article h1 { font-size:34px; }
   .toc { columns:1; }
   tbody th { width:auto; }
