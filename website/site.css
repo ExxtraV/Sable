@@ -25,15 +25,8 @@
   --on-ink:#1B1330; --shadow:0 30px 90px rgba(4,2,10,.55);
   --backdrop:url("/brand/grain.png") 0 0/64px 64px repeat, radial-gradient(ellipse 80% 75% at 50% 45%, rgba(7,4,13,0) 42%, rgba(7,4,13,.12) 58%, rgba(7,4,13,.28) 72%, rgba(7,4,13,.45) 86%, rgba(7,4,13,.62) 100%); }
 body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none; background:var(--backdrop); }
-/* Arcane's faint motes of light, like the app's particles. They drift slowly upward; the layer is one
-   tile taller than the window and moves exactly one tile, so the loop is seamless. Still with Reduce Motion. */
-[data-theme="arcane"] body::after { content:""; position:fixed; left:0; right:0; top:0; height:calc(100% + 480px); z-index:-1; pointer-events:none;
-  background:url("/brand/motes.png") 0 0/480px 480px repeat; }
-@media (prefers-reduced-motion:no-preference) {
-  [data-theme="arcane"] body::after { animation:motes-drift 90s linear infinite, motes-glow 7s ease-in-out infinite alternate; will-change:transform; }
-}
-@keyframes motes-drift { to { transform:translate3d(0,-480px,0); } }
-@keyframes motes-glow { from { opacity:.7; } to { opacity:1; } }
+/* Arcane's drifting motes are drawn on this canvas by theme.js, as in the app. */
+.motes { position:fixed; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
 
 /* Images that differ by theme: .t-paper, .t-midnight, .t-arcane, and .t-night (both dark themes). */
 .t-midnight, .t-arcane, .t-night { display:none !important; }

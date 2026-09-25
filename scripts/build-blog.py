@@ -31,7 +31,7 @@ SITEMAP = ROOT / "website" / "sitemap.xml"
 HOME = ROOT / "website" / "index.html"
 HOME_POSTS = 3
 SITE = "https://sablewriter.app"
-CSS_VERSION = "22"
+CSS_VERSION = "23"
 
 OG_ALT = ("The Sable logo, a sable asleep and curled nose to tail with a pen nib tucked into its body, "
           "beside the words Sable Markdown Writer: A Mac App about Focused Writing.")
@@ -389,7 +389,7 @@ def head(title, description, url, kind, extra="", graph=None):
 <meta name="twitter:image:alt" content="%(alt)s">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/icon-32.png" sizes="32x32"><link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="stylesheet" href="/site.css?v=%(css)s">
-<script src="/theme.js?v=1"></script>
+<script src="/theme.js?v=2"></script>
 %(ld)s</head>
 """ % {"title": attr(title), "desc": attr(description), "url": url, "kind": kind,
        "site": SITE, "extra": extra, "css": CSS_VERSION, "alt": attr(OG_ALT), "ld": json_ld(graph)}
