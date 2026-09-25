@@ -66,7 +66,7 @@ figcaption { margin-top:12px; font:14px/1.5 var(--sans); color:var(--muted); }
 .first .actions a:not(.button) { font:15px/1.4 var(--sans); color:var(--muted); }
 .first .facts { margin:36px 0 0; font:15px/1.5 var(--sans); color:var(--muted); }
 .first [data-download-note] { margin:14px 0 0; }
-.first .shot-wrap { max-width:var(--wide); margin:88px auto 0; }
+.first .shot-wrap { max-width:1180px; margin:72px auto 0; }
 
 /* Home: the sections that follow, one column with wider screenshots */
 .part { margin-top:220px; }
@@ -78,6 +78,42 @@ figcaption { margin-top:12px; font:14px/1.5 var(--sans); color:var(--muted); }
 .part .after { margin-top:40px; }
 .statement { text-align:center; }
 .statement h2 { font-size:36px; line-height:1.35; margin:0; }
+
+/* The tour: each step is a clip of the real app with its name and a line of text. Without JavaScript,
+   or with Reduce Motion, it's a plain list with still frames. site.js adds .tour-live to play the clips,
+   and on wide screens one pinned window shows the clip for the step in the middle of the window. */
+.tour-steps h2 { margin:0 0 12px; }
+.tour-steps h2 + .step { margin-top:48px; }
+.tour-steps .step + h2 { margin-top:140px; }
+.step { margin:0 0 96px; }
+.step h3 { font-size:24px; margin:28px 0 8px; }
+.step p { margin:0; }
+.step .todo { font:13px/1.4 var(--mono); color:var(--muted); }
+.frame { position:relative; border-radius:12px; overflow:hidden; background:#1b1b1b; box-shadow:var(--shadow), 0 0 0 1px var(--rule); aspect-ratio:1440/830; }
+.frame video { display:block; width:100%; height:100%; object-fit:cover; }
+.motion { position:absolute; right:12px; bottom:12px; z-index:2; font:600 12px/1 var(--sans); color:#E0DDD7; background:rgba(20,20,20,.72);
+  border:1px solid rgba(224,221,215,.25); border-radius:2px; padding:7px 10px; cursor:pointer; }
+.motion:focus-visible { outline:2px solid #E0DDD7; outline-offset:2px; }
+@media (min-width:960px) {
+  .tour-live .tour-body { display:grid; grid-template-columns:minmax(0,4fr) minmax(0,8fr); gap:64px; align-items:start; max-width:1328px; }
+  .tour-live .tour-stage { display:block; position:sticky; top:calc(50vh - 240px); grid-column:2; grid-row:1; }
+  .tour-live .tour-steps { grid-column:1; grid-row:1; }
+  .tour-live .step .frame { display:none; }
+  .tour-live .step { min-height:70vh; margin:0; display:flex; flex-direction:column; justify-content:center; }
+  .tour-live .tour-steps h2 { font-size:30px; }
+  .tour-live .tour-steps h2 + .step { margin-top:0; }
+  .tour-live .tour-steps .step + h2 { margin-top:60px; }
+  .tour-live .step h3, .tour-live .step p { color:var(--muted); transition:color .5s ease; }
+  .tour-live .step.active h3, .tour-live .step.active p { color:var(--ink); }
+  .tour-live .step h3 { margin-top:0; padding-left:18px; border-left:2px solid var(--rule); transition:border-color .5s ease, color .5s ease; }
+  .tour-live .step.active h3 { border-left-color:var(--ink); }
+  .tour-live .step p { padding-left:20px; }
+  .tour-stage .screen { position:absolute; inset:0; }
+  .tour-stage video { position:absolute; inset:0; opacity:0; transition:opacity .5s ease; }
+  .tour-stage video.on { opacity:1; }
+}
+.tour-stage[hidden] { display:none; }
+@media (max-width:959px) { .tour-stage { display:none; } }
 
 /* Questions: click a question to show its answer. */
 .faq { margin-top:36px; border-top:1px solid var(--rule); }
