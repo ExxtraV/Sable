@@ -181,10 +181,6 @@ symbol .fill { fill:currentColor; stroke:none; }
 .break { display:flex; justify-content:center; gap:22px; margin:120px auto 0; color:var(--muted); opacity:.7; }
 .break .star { width:14px; height:14px; }
 .break + .part { margin-top:120px; }
-.pairs .row { display:flex; justify-content:center; flex-wrap:wrap; gap:28px 56px; }
-.pairs .row + .row { margin-top:40px; }
-.pairs .item { display:flex; flex-direction:column; align-items:center; gap:14px; }
-.pairs .icon { width:44px; height:44px; color:var(--muted); stroke-width:1.2; }
 
 /* Tables (first-launch steps and the guide's shortcuts) */
 .table-wrap, .tablewrap { overflow-x:auto; margin:24px 0; }
@@ -234,9 +230,6 @@ tbody th { font-weight:600; width:3em; }
   .first .shot-wrap { margin-top:56px; }
   .faq details p { padding-right:0; }
   .part h2, .statement h2 { font-size:27px; }
-  .pairs .row { gap:24px 28px; }
-  .pairs .item { font-size:21px; }
-  .pairs .icon { width:28px; height:28px; }
   .break, .break + .part { margin-top:84px; }
   .article h1 { font-size:34px; }
   .toc { columns:1; }
